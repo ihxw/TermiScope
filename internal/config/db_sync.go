@@ -49,6 +49,34 @@ func SyncConfigFromDB(db *gorm.DB, cfg *Config) error {
 		}
 	}
 
+	// Load allowed_origins from database
+	dbOrigins, err := LoadAllowedOrigins(db)
+	if err != nil {
+		return fmt.Errorf("failed to load allowed_origins: %w", err)
+	}
+
+	// Merge with file-based origins (from config.yaml)
+	// Create a map to deduplicate
+	originMap := make(map[string]bool)
+
+	// Add file-based origins first
+	for _, origin := range cfg.Server.AllowedOrigins {
+		originMap[origin] = true
+	}
+
+	// Add database origins
+	for _, origin := range dbOrigins {
+		originMap[origin] = true
+	}
+
+	// Convert back to slice
+	mergedOrigins := make([]string, 0, len(originMap))
+	for origin := range originMap {
+		mergedOrigins = append(mergedOrigins, origin)
+	}
+
+	cfg.Server.AllowedOrigins = mergedOrigins
+
 	return nil
 }
 
@@ -70,4 +98,101 @@ func updateConfigValue(cfg *Config, key, value string) error {
 		cfg.Security.RefreshExpiration = value
 	}
 	return err
+}
+
+// SaveAllowedOrigins saves allowed origins to database
+func SaveAllowedOrigins(db *gorm.DB, origins []string) error {
+	// Convert to JSON
+	var originsJSON string
+	if len(origins) > 0 {
+		// Simple JSON array construction
+		originsJSON = "["
+		for i, origin := range origins {
+			if i > 0 {
+				originsJSON += ","
+			}
+			originsJSON += fmt.Sprintf("\"%s\"", origin)
+		}
+		originsJSON += "]"
+	} else {
+		originsJSON = "[]"
+	}
+
+	var config models.SystemConfig
+	result := db.Where("config_key = ?", "server.allowed_origins").First(&config)
+
+	if result.Error == gorm.ErrRecordNotFound {
+		// Create new record
+		config = models.SystemConfig{
+			ConfigKey:   "server.allowed_origins",
+			ConfigValue: originsJSON,
+			Description: "List of allowed origins for CORS and WebSocket",
+		}
+		return db.Create(&config).Error
+	}
+
+	// Update existing record
+	return db.Model(&config).Update("config_value", originsJSON).Error
+}
+
+// LoadAllowedOrigins loads allowed origins from database
+func LoadAllowedOrigins(db *gorm.DB) ([]string, error) {
+	var config models.SystemConfig
+	err := db.Where("config_key = ?", "server.allowed_origins").First(&config).Error
+
+	if err == gorm.ErrRecordNotFound {
+		return []string{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	// Simple JSON parsing (assuming format: ["origin1","origin2"])
+	value := config.ConfigValue
+	if value == "" || value == "[]" {
+		return []string{}, nil
+	}
+
+	// Remove brackets and quotes
+	value = value[1 : len(value)-1] // Remove [ and ]
+	if value == "" {
+		return []string{}, nil
+	}
+
+	// Split by comma
+	parts := make([]string, 0)
+	for _, part := range splitJSON(value) {
+		// Remove quotes
+		origin := part[1 : len(part)-1]
+		parts = append(parts, origin)
+	}
+
+	return parts, nil
+}
+
+// splitJSON splits JSON array elements (simple implementation)
+func splitJSON(s string) []string {
+	result := make([]string, 0)
+	current := ""
+	inQuote := false
+
+	for _, char := range s {
+		if char == '"' {
+			inQuote = !inQuote
+			current += string(char)
+		} else if char == ',' && !inQuote {
+			if current != "" {
+				result = append(result, current)
+				current = ""
+			}
+		} else {
+			current += string(char)
+		}
+	}
+
+	if current != "" {
+		result = append(result, current)
+	}
+
+	return result
 }

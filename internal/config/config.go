@@ -2,7 +2,9 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
+	"strings"
 
 	"github.com/spf13/viper"
 )
@@ -150,4 +152,54 @@ func (c *Config) SaveConfig() error {
 	}
 
 	return viper.WriteConfig()
+}
+
+// AddAllowedOrigin dynamically adds an allowed origin to the configuration
+func (c *Config) AddAllowedOrigin(origin string) bool {
+	// Validate origin format
+	if !IsValidOrigin(origin) {
+		return false
+	}
+
+	// Check if already exists
+	for _, existing := range c.Server.AllowedOrigins {
+		if existing == origin {
+			return false // Already exists
+		}
+	}
+
+	// Add to in-memory configuration
+	c.Server.AllowedOrigins = append(c.Server.AllowedOrigins, origin)
+	return true
+}
+
+// IsValidOrigin validates if an origin should be auto-added
+func IsValidOrigin(origin string) bool {
+	if origin == "" {
+		return false
+	}
+
+	// Parse URL
+	u, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+
+	// Must be http or https
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return false
+	}
+
+	// Exclude localhost and 127.0.0.1 (development environments should be manually configured)
+	host := u.Hostname()
+	if host == "localhost" || host == "127.0.0.1" || strings.HasPrefix(host, "192.168.") || strings.HasPrefix(host, "10.") {
+		return false
+	}
+
+	return true
+}
+
+// ParseURL is a helper to parse URLs
+func (c *Config) ParseURL(rawURL string) (*url.URL, error) {
+	return url.Parse(rawURL)
 }

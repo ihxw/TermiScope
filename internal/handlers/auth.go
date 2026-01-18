@@ -132,6 +132,9 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	user.LastLoginAt = &now
 	h.db.Save(&user)
 
+	// Auto-add origin if not already present (run in background)
+	go h.autoAddOrigin(c)
+
 	utils.SuccessResponse(c, http.StatusOK, LoginResponse{
 		Token:        accessToken,
 		RefreshToken: refreshToken,
@@ -357,4 +360,23 @@ func (h *AuthHandler) GetSystemInfo(c *gin.Context) {
 	utils.SuccessResponse(c, http.StatusOK, gin.H{
 		"version": config.Version,
 	})
+}
+// autoAddOrigin automatically adds the request origin to allowed origins if valid
+func (h *AuthHandler) autoAddOrigin(c *gin.Context) {
+origin := c.Request.Header.Get("Origin")
+
+// Skip if no Origin header (same-origin requests)
+if origin == "" {
+return
+}
+
+// Try to add the origin (will validate and deduplicate internally)
+if h.config.AddAllowedOrigin(origin) {
+// Successfully added, save to database
+if err := config.SaveAllowedOrigins(h.db, h.config.Server.AllowedOrigins); err != nil {
+log.Printf("Failed to save allowed origin %s to database: %v", origin, err)
+} else {
+log.Printf("Auto-added origin to allowed list: %s", origin)
+}
+}
 }

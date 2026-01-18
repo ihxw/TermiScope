@@ -338,12 +338,12 @@ func (h *MonitorHandler) Pulse(c *gin.Context) {
 	// DEBUG: Print values to verify logic
 	log.Printf("VERIFY_ME HOST %d: MonthlyRx=%d (DeltaRx=%d), LastRawRx=%d, CurrentRx=%d", host.ID, host.NetMonthlyRx, deltaRx, host.NetLastRawRx, currentRx)
 	log.Printf("VERIFY_ME DATA TO HUB: NetMonthlyRx=%d", data.NetMonthlyRx)
-	// Debug Log
-	for _, iface := range data.Interfaces {
-		if len(iface.IPs) > 0 || iface.Mac != "" {
-			log.Printf("Host %d Iface %s: MAC=%s IPs=%v\n", data.HostID, iface.Name, iface.Mac, iface.IPs)
-		}
-	}
+	// Debug Log - Commented out to reduce noise
+	// for _, iface := range data.Interfaces {
+	// 	if len(iface.IPs) > 0 || iface.Mac != "" {
+	// 		log.Printf("Host %d Iface %s: MAC=%s IPs=%v\n", data.HostID, iface.Name, iface.Mac, iface.IPs)
+	// 	}
+	// }
 	monitor.GlobalHub.Update(data)
 
 	// Save to DB periodically (e.g. every minute)
