@@ -380,7 +380,7 @@ func (h *AuthHandler) autoAddOrigin(c *gin.Context) {
 	if h.config.AddAllowedOrigin(origin) {
 		// Successfully added, save to database
 		if err := config.SaveAllowedOrigins(h.db, h.config.Server.AllowedOrigins); err != nil {
-			log.Printf("Failed to save allowed origin %s to database: %v", origin, err)
+			utils.LogError("Failed to save allowed origin %s to database: %v", origin, err)
 		} else {
 			log.Printf("Auto-added origin to allowed list: %s", origin)
 		}

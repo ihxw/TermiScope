@@ -1,7 +1,7 @@
 package utils
 
 import (
-	"log" // Added for potential future use, though not directly used by SafeErrorResponse in this snippet
+	// Added for potential future use, though not directly used by SafeErrorResponse in this snippet
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -15,8 +15,17 @@ func SuccessResponse(c *gin.Context, statusCode int, data interface{}) {
 	})
 }
 
-// ErrorResponse creates an error JSON response
+// ErrorResponse creates an error JSON response and logs the error
 func ErrorResponse(c *gin.Context, statusCode int, message string) {
+	// Log the error automatically for all 5xx errors or if specifically requested (though usually we log all errors for visibility in this request)
+	// Let's log all errors that are sent via this method to ensure we capture "why" a request failed.
+	// We skip logging for 404s to avoid noise usually, but user asked for "all possible errors".
+	// Let's log 4xx and 5xx.
+
+	// Format: [Method] [Path] [IP] -> [Status] Message
+	LogError("API Error | %-7s %s | IP: %s | Status: %d | Message: %s",
+		c.Request.Method, c.Request.URL.Path, c.ClientIP(), statusCode, message)
+
 	c.JSON(statusCode, gin.H{
 		"success": false,
 		"error":   message,
@@ -26,13 +35,9 @@ func ErrorResponse(c *gin.Context, statusCode int, message string) {
 // SafeErrorResponse logs the detailed error but returns a safe generic message to the client
 // Use this for errors that might expose sensitive system information
 func SafeErrorResponse(c *gin.Context, statusCode int, detailedError error, genericMessage string) {
-	// Log the detailed error for debugging
-	// Assuming LogError is a custom logging function, replacing with log.Printf for compilation
-	log.Printf("Error occurred: %v | Request: %s %s | Client: %s",
-		detailedError,
-		c.Request.Method,
-		c.Request.URL.Path,
-		c.ClientIP())
+	// Log the detailed error using our custom logger
+	LogError("API Error | %-7s %s | IP: %s | Status: %d | Detailed: %v",
+		c.Request.Method, c.Request.URL.Path, c.ClientIP(), statusCode, detailedError)
 
 	// Return generic message to client
 	c.JSON(statusCode, gin.H{

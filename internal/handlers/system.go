@@ -151,7 +151,7 @@ func (h *SystemHandler) Restore(c *gin.Context) {
 		if err := utils.RestartSelf(); err != nil {
 			// If we can't restart, at least we log it. The process will still exit,
 			// forcing a manual restart which is better than undefined state.
-			fmt.Printf("Failed to initiate self-restart: %v\n", err)
+			utils.LogError("Failed to initiate self-restart: %v", err)
 		}
 
 		// Give the response a moment to flush

@@ -368,7 +368,7 @@ func (h *SSHWebSocketHandler) HandleWebSocket(c *gin.Context) {
 			n, err := stdout.Read(buf)
 			if err != nil {
 				if err != io.EOF {
-					log.Printf("Error reading from stdout: %v", err)
+					utils.LogError("Error reading from stdout: %v", err)
 				}
 				done <- true
 				return
@@ -383,7 +383,7 @@ func (h *SSHWebSocketHandler) HandleWebSocket(c *gin.Context) {
 					recordFile.WriteString("\n")
 				}
 				if err := writeParams(websocket.TextMessage, data); err != nil {
-					log.Printf("Error writing to WebSocket: %v", err)
+					utils.LogError("Error writing to WebSocket: %v", err)
 					done <- true
 					return
 				}
@@ -403,13 +403,13 @@ func (h *SSHWebSocketHandler) HandleWebSocket(c *gin.Context) {
 			n, err := stderr.Read(buf)
 			if err != nil {
 				if err != io.EOF {
-					log.Printf("Error reading from stderr: %v", err)
+					utils.LogError("Error reading from stderr: %v", err)
 				}
 				return
 			}
 			if n > 0 {
 				if err := writeParams(websocket.TextMessage, buf[:n]); err != nil {
-					log.Printf("Error writing to WebSocket: %v", err)
+					utils.LogError("Error writing to WebSocket: %v", err)
 					return
 				}
 			}
@@ -430,7 +430,12 @@ func (h *SSHWebSocketHandler) HandleWebSocket(c *gin.Context) {
 			}
 			messageType, message, err := ws.ReadMessage()
 			if err != nil {
-				log.Printf("Error reading from WebSocket: %v", err)
+				// Don't log normal close errors or timeouts as errors to reduce noise, unless debugging
+				// But user asked for "all possible errors".
+				// Filter out "websocket: close 1000 (normal)"
+				if !websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
+					utils.LogError("Error reading from WebSocket: %v", err)
+				}
 				done <- true
 				return
 			}
