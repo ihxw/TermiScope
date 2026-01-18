@@ -44,12 +44,16 @@ TermiScope is a powerful, self-hosted server management tool designed simplify y
 
 ## 🚀 Quick Start
 
-### Manual Installation
+### Manual Installation     
+脚本安装:   
+`curl https://raw.githubusercontent.com/ihxw/TermiScope/refs/heads/main/scripts/install.sh | bash`
 
+手动安装:
+1. 下载
 Download the latest release from the [Releases](https://github.com/ihxw/TermiScope/releases) page.
 
 1. **Unzip** the archive (`TermiScope-1.2.2-linux-amd64.tar.gz`).
-2. **Run** the server:
+1. **Run** the server:
    ```bash
    chmod +x TermiScope
    ./TermiScope
