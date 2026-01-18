@@ -209,6 +209,11 @@ func (h *AuthHandler) GetCurrentUser(c *gin.Context) {
 // GetWSTicket generates a one-time ticket for WebSocket connection
 func (h *AuthHandler) GetWSTicket(c *gin.Context) {
 	userID := middleware.GetUserID(c)
+	if userID == 0 {
+		utils.ErrorResponse(c, http.StatusUnauthorized, "invalid user context")
+		return
+	}
+
 	username := middleware.GetUsername(c)
 	role := middleware.GetRole(c)
 
@@ -361,22 +366,23 @@ func (h *AuthHandler) GetSystemInfo(c *gin.Context) {
 		"version": config.Version,
 	})
 }
+
 // autoAddOrigin automatically adds the request origin to allowed origins if valid
 func (h *AuthHandler) autoAddOrigin(c *gin.Context) {
-origin := c.Request.Header.Get("Origin")
+	origin := c.Request.Header.Get("Origin")
 
-// Skip if no Origin header (same-origin requests)
-if origin == "" {
-return
-}
+	// Skip if no Origin header (same-origin requests)
+	if origin == "" {
+		return
+	}
 
-// Try to add the origin (will validate and deduplicate internally)
-if h.config.AddAllowedOrigin(origin) {
-// Successfully added, save to database
-if err := config.SaveAllowedOrigins(h.db, h.config.Server.AllowedOrigins); err != nil {
-log.Printf("Failed to save allowed origin %s to database: %v", origin, err)
-} else {
-log.Printf("Auto-added origin to allowed list: %s", origin)
-}
-}
+	// Try to add the origin (will validate and deduplicate internally)
+	if h.config.AddAllowedOrigin(origin) {
+		// Successfully added, save to database
+		if err := config.SaveAllowedOrigins(h.db, h.config.Server.AllowedOrigins); err != nil {
+			log.Printf("Failed to save allowed origin %s to database: %v", origin, err)
+		} else {
+			log.Printf("Auto-added origin to allowed list: %s", origin)
+		}
+	}
 }

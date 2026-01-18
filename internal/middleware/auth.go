@@ -104,18 +104,37 @@ func AdminMiddleware() gin.HandlerFunc {
 
 // GetUserID gets the user ID from context
 func GetUserID(c *gin.Context) uint {
-	userID, _ := c.Get("user_id")
-	return userID.(uint)
+	if userID, exists := c.Get("user_id"); exists {
+		if id, ok := userID.(uint); ok {
+			return id
+		}
+		// Try other numeric types just in case (e.g. if loaded from JSON as float64)
+		if id, ok := userID.(float64); ok {
+			return uint(id)
+		}
+		if id, ok := userID.(int); ok {
+			return uint(id)
+		}
+	}
+	return 0
 }
 
 // GetUsername gets the username from context
 func GetUsername(c *gin.Context) string {
-	username, _ := c.Get("username")
-	return username.(string)
+	if username, exists := c.Get("username"); exists {
+		if name, ok := username.(string); ok {
+			return name
+		}
+	}
+	return ""
 }
 
 // GetRole gets the role from context
 func GetRole(c *gin.Context) string {
-	role, _ := c.Get("role")
-	return role.(string)
+	if role, exists := c.Get("role"); exists {
+		if r, ok := role.(string); ok {
+			return r
+		}
+	}
+	return ""
 }
