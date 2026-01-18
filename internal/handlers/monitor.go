@@ -32,6 +32,17 @@ type MonitorHandler struct {
 func NewMonitorHandler(db *gorm.DB, cfg *config.Config) *MonitorHandler {
 	// Start the hub
 	go monitor.GlobalHub.Run()
+	// Start Cleanup Routine
+	go func() {
+		ticker := time.NewTicker(1 * time.Hour)
+		for range ticker.C {
+			// Retention: 24 Hours
+			if err := db.Where("created_at < ?", time.Now().Add(-24*time.Hour)).Delete(&models.NetworkMonitorResult{}).Error; err != nil {
+				log.Printf("Network Monitor Cleanup Failed: %v", err)
+			}
+		}
+	}()
+
 	return &MonitorHandler{
 		DB:         db,
 		Config:     cfg,

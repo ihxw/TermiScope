@@ -83,6 +83,16 @@ func main() {
 		Transport: transport,
 	}
 
+	// Start Network Monitor
+	netMon := NewNetworkMonitor(client)
+	netMon.StartSimple()
+
+	// Initial system metrics collection
+	metrics := collectMetrics()
+	if err := sendMetrics(client, metrics); err != nil {
+		log.Printf("Failed to report metrics: %v", err)
+	}
+
 	for {
 		metrics := collectMetrics()
 		if err := sendMetrics(client, metrics); err != nil {

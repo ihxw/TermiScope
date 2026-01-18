@@ -36,107 +36,202 @@
 
       <a-divider orientation="left">{{ t('system.settingsTitle') }}</a-divider>
       <div class="management-section">
-        <a-form :model="settingsForm" layout="vertical" @finish="handleSaveSettings">
-          <a-row :gutter="16">
-            <a-col :span="6">
-              <a-form-item :label="t('system.sshTimeout')" name="ssh_timeout">
-                <a-input v-model:value="settingsForm.ssh_timeout" />
-              </a-form-item>
-            </a-col>
-            <a-col :span="6">
-              <a-form-item :label="t('system.idleTimeout')" name="idle_timeout">
-                <a-input v-model:value="settingsForm.idle_timeout" />
-              </a-form-item>
-            </a-col>
-            <a-col :span="6">
-              <a-form-item :label="t('system.maxConnectionsPerUser')" name="max_connections_per_user">
-                <a-input-number v-model:value="settingsForm.max_connections_per_user" :min="1" style="width: 100%" />
-              </a-form-item>
-            </a-col>
-            <a-col :span="6">
-              <a-form-item :label="t('system.loginRateLimit')" name="login_rate_limit">
-                <a-input-number v-model:value="settingsForm.login_rate_limit" :min="1" style="width: 100%" />
-              </a-form-item>
-            </a-col>
-            <a-col :span="6">
-              <a-form-item :label="t('system.accessExpiration')" name="access_expiration">
-                <a-input v-model:value="settingsForm.access_expiration" placeholder="60m" />
-              </a-form-item>
-            </a-col>
-            <a-col :span="6">
-              <a-form-item :label="t('system.refreshExpiration')" name="refresh_expiration">
-                <a-input v-model:value="settingsForm.refresh_expiration" placeholder="168h" />
-              </a-form-item>
-            </a-col>
-          </a-row>
+        <a-tabs v-model:activeKey="activeTab">
+          <a-tab-pane key="settings" :tab="t('system.settings')" force-render>
+            <a-card :bordered="false">
+              <a-form :model="settingsForm" layout="vertical" @finish="handleSaveSettings">
+                <a-row :gutter="16">
+                  <a-col :span="6">
+                    <a-form-item :label="t('system.sshTimeout')" name="ssh_timeout">
+                      <a-input v-model:value="settingsForm.ssh_timeout" />
+                    </a-form-item>
+                  </a-col>
+                  <a-col :span="6">
+                    <a-form-item :label="t('system.idleTimeout')" name="idle_timeout">
+                      <a-input v-model:value="settingsForm.idle_timeout" />
+                    </a-form-item>
+                  </a-col>
+                  <a-col :span="6">
+                    <a-form-item :label="t('system.maxConnectionsPerUser')" name="max_connections_per_user">
+                      <a-input-number v-model:value="settingsForm.max_connections_per_user" :min="1" style="width: 100%" />
+                    </a-form-item>
+                  </a-col>
+                  <a-col :span="6">
+                    <a-form-item :label="t('system.loginRateLimit')" name="login_rate_limit">
+                      <a-input-number v-model:value="settingsForm.login_rate_limit" :min="1" style="width: 100%" />
+                    </a-form-item>
+                  </a-col>
+                  <a-col :span="6">
+                    <a-form-item :label="t('system.accessExpiration')" name="access_expiration">
+                      <a-input v-model:value="settingsForm.access_expiration" placeholder="60m" />
+                    </a-form-item>
+                  </a-col>
+                  <a-col :span="6">
+                    <a-form-item :label="t('system.refreshExpiration')" name="refresh_expiration">
+                      <a-input v-model:value="settingsForm.refresh_expiration" placeholder="168h" />
+                    </a-form-item>
+                  </a-col>
+                </a-row>
 
-          <a-divider orientation="left">{{ t('system.notificationTitle') }}</a-divider>
-          <a-row :gutter="16">
-            <a-col :span="8">
-              <a-form-item :label="t('system.smtpServer')" name="smtp_server">
-                <a-input v-model:value="settingsForm.smtp_server" placeholder="smtp.example.com" />
-              </a-form-item>
-            </a-col>
-            <a-col :span="4">
-              <a-form-item :label="t('system.smtpPort')" name="smtp_port">
-                <a-input v-model:value="settingsForm.smtp_port" placeholder="587" />
-              </a-form-item>
-            </a-col>
-            <a-col :span="6">
-              <a-form-item :label="t('system.smtpUser')" name="smtp_user">
-                <a-input v-model:value="settingsForm.smtp_user" />
-              </a-form-item>
-            </a-col>
-            <a-col :span="6">
-              <a-form-item :label="t('system.smtpPassword')" name="smtp_password">
-                <a-input-password v-model:value="settingsForm.smtp_password" />
-              </a-form-item>
-            </a-col>
-            <a-col :span="8">
-              <a-form-item :label="t('system.smtpFrom')" name="smtp_from">
-                <a-input v-model:value="settingsForm.smtp_from" placeholder="noreply@example.com" />
-              </a-form-item>
-            </a-col>
-            <a-col :span="8">
-              <a-form-item :label="t('system.smtpTo')" name="smtp_to">
-                <a-input v-model:value="settingsForm.smtp_to" placeholder="admin@example.com" />
-              </a-form-item>
-            </a-col>
-          </a-row>
-          <a-row :gutter="16">
-             <a-col :span="12">
-              <a-form-item :label="t('system.telegramToken')" name="telegram_bot_token">
-                <a-input v-model:value="settingsForm.telegram_bot_token" />
-              </a-form-item>
-            </a-col>
-            <a-col :span="12">
-              <a-form-item :label="t('system.telegramChatId')" name="telegram_chat_id">
-                <a-input v-model:value="settingsForm.telegram_chat_id" />
-              </a-form-item>
-            </a-col>
+                <a-divider orientation="left">{{ t('system.notificationTitle') }}</a-divider>
+                <a-row :gutter="16">
+                  <a-col :span="8">
+                    <a-form-item :label="t('system.smtpServer')" name="smtp_server">
+                      <a-input v-model:value="settingsForm.smtp_server" placeholder="smtp.example.com" />
+                    </a-form-item>
+                  </a-col>
+                  <a-col :span="4">
+                    <a-form-item :label="t('system.smtpPort')" name="smtp_port">
+                      <a-input v-model:value="settingsForm.smtp_port" placeholder="587" />
+                    </a-form-item>
+                  </a-col>
+                  <a-col :span="6">
+                    <a-form-item :label="t('system.smtpUser')" name="smtp_user">
+                      <a-input v-model:value="settingsForm.smtp_user" />
+                    </a-form-item>
+                  </a-col>
+                  <a-col :span="6">
+                    <a-form-item :label="t('system.smtpPassword')" name="smtp_password">
+                      <a-input-password v-model:value="settingsForm.smtp_password" />
+                    </a-form-item>
+                  </a-col>
+                  <a-col :span="8">
+                    <a-form-item :label="t('system.smtpFrom')" name="smtp_from">
+                      <a-input v-model:value="settingsForm.smtp_from" placeholder="noreply@example.com" />
+                    </a-form-item>
+                  </a-col>
+                  <a-col :span="8">
+                    <a-form-item :label="t('system.smtpTo')" name="smtp_to">
+                      <a-input v-model:value="settingsForm.smtp_to" placeholder="admin@example.com" />
+                    </a-form-item>
+                  </a-col>
+                </a-row>
+                <a-row :gutter="16">
+                  <a-col :span="12">
+                    <a-form-item :label="t('system.telegramToken')" name="telegram_bot_token">
+                      <a-input v-model:value="settingsForm.telegram_bot_token" />
+                    </a-form-item>
+                  </a-col>
+                  <a-col :span="12">
+                    <a-form-item :label="t('system.telegramChatId')" name="telegram_chat_id">
+                      <a-input v-model:value="settingsForm.telegram_chat_id" />
+                    </a-form-item>
+                  </a-col>
+                </a-row>
+                <a-row :gutter="16">
+                  <a-col :span="24">
+                    <a-form-item :label="t('system.notificationTemplate')" name="notification_template">
+                      <a-textarea v-model:value="settingsForm.notification_template" :rows="6" />
+                      <div style="margin-top: 8px">
+                        <a-button @click="resetNotificationTemplate" size="small">{{ t('system.resetTemplate') }}</a-button>
+                        <span style="margin-left: 8px; font-size: 12px; color: #888">
+                          {{ t('system.templateHelp') }}: <span v-pre>{{emoji}}, {{event}}, {{client}}, {{message}}, {{time}}</span>
+                        </span>
+                      </div>
+                    </a-form-item>
+                  </a-col>
+                </a-row>
+                <a-form-item>
+                  <a-button type="primary" :loading="settingsLoading" html-type="submit">
+                    {{ t('common.save') }}
+                  </a-button>
+                </a-form-item>
+              </a-form>
+            </a-card>
+          </a-tab-pane>
 
-          </a-row>
-          <a-row :gutter="16">
-            <a-col :span="24">
-              <a-form-item :label="t('system.notificationTemplate')" name="notification_template">
-                <a-textarea v-model:value="settingsForm.notification_template" :rows="6" />
-                <div style="margin-top: 8px">
-                    <a-button @click="resetNotificationTemplate" size="small">{{ t('system.resetTemplate') }}</a-button>
-                    <span style="margin-left: 8px; font-size: 12px; color: #888">
-                        {{ t('system.templateHelp') }}: <span v-pre>{{emoji}}, {{event}}, {{client}}, {{message}}, {{time}}</span>
-                    </span>
-                </div>
-              </a-form-item>
-            </a-col>
-          </a-row>
-          <a-form-item>
-            <a-button type="primary" :loading="settingsLoading" html-type="submit">
-              {{ t('common.save') }}
-            </a-button>
-          </a-form-item>
-        </a-form>
+          <!-- Network Monitor Templates -->
+          <a-tab-pane key="net_templates" :tab="t('network.templates')">
+            <a-card :bordered="false">
+              <div style="margin-bottom: 16px">
+                <a-button type="primary" @click="openTemplateModal">
+                  <template #icon><PlusOutlined /></template>
+                  {{ t('common.add') }}
+                </a-button>
+              </div>
+
+              <a-table :dataSource="templates" :columns="getTemplateColumns()" :loading="loadingTemplates" rowKey="id">
+                <template #bodyCell="{ column, record }">
+                  <template v-if="column.key === 'actions'">
+                    <a-space>
+                      <a-button type="link" size="small" @click="openEditModal(record)">{{ t('common.edit') }}</a-button>
+                      <a-button type="link" size="small" @click="openApplyModal(record)">{{ t('common.deploy') }}</a-button>
+                      <a-popconfirm :title="t('common.confirmDelete')" @confirm="deleteTemplate(record.id)">
+                        <a-button type="link" danger size="small">{{ t('common.delete') }}</a-button>
+                      </a-popconfirm>
+                    </a-space>
+                  </template>
+                  <template v-if="column.key === 'type'">
+                    <a-tag color="blue">{{ record.type.toUpperCase() }}</a-tag>
+                  </template>
+                </template>
+              </a-table>
+            </a-card>
+          </a-tab-pane>
+        </a-tabs>
       </div>
     </a-card>
+
+    <!-- Template Modal -->
+    <a-modal v-model:open="templateModalVisible" :title="t('network.addTemplate')" @ok="handleSaveTemplate" :confirmLoading="savingTemplate">
+      <a-form layout="vertical">
+        <a-form-item :label="t('common.name')" required>
+          <a-input v-model:value="templateForm.name" placeholder="e.g. Google DNS" />
+        </a-form-item>
+        <a-form-item :label="t('network.targetType')" required>
+          <a-select v-model:value="templateForm.type">
+            <a-select-option value="ping">Ping (ICMP)</a-select-option>
+            <a-select-option value="tcping">TCPing (Port)</a-select-option>
+          </a-select>
+        </a-form-item>
+        <a-form-item :label="t('network.targetAddress')" required>
+          <a-input v-model:value="templateForm.target" placeholder="e.g. 8.8.8.8" />
+        </a-form-item>
+        <a-form-item :label="t('network.targetPort')" v-if="templateForm.type === 'tcping'" required>
+          <a-input-number v-model:value="templateForm.port" :min="1" :max="65535" style="width: 100%" />
+        </a-form-item>
+        <a-form-item :label="t('common.label')">
+          <a-input v-model:value="templateForm.label" placeholder="Optional label for task" />
+        </a-form-item>
+        <a-form-item :label="t('network.frequency')">
+          <a-input-number v-model:value="templateForm.frequency" :min="10" :max="3600" addon-after="s"/>
+        </a-form-item>
+        <a-form-item label="图表颜色">
+          <div style="display: flex; flex-direction: column; gap: 12px">
+            <!-- Color Presets -->
+            <div style="display: flex; flex-wrap: wrap; gap: 8px">
+              <div 
+                v-for="color in materialColors" 
+                :key="color" 
+                @click="templateForm.color = color"
+                :style="{
+                  width: '32px',
+                  height: '32px',
+                  backgroundColor: color,
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  border: templateForm.color === color ? '3px solid #000' : '1px solid #d9d9d9',
+                  boxShadow: templateForm.color === color ? '0 0 0 2px #fff, 0 0 0 4px ' + color : 'none'
+                }"
+                :title="color"
+              ></div>
+            </div>
+            <!-- Custom Color Picker -->
+            <div style="display: flex; align-items: center; gap: 12px">
+              <a-input v-model:value="templateForm.color" type="color" style="width: 60px; height: 40px; cursor: pointer; padding: 4px" />
+              <a-input v-model:value="templateForm.color" placeholder="#1890ff" style="flex: 1" />
+            </div>
+          </div>
+        </a-form-item>
+      </a-form>
+    </a-modal>
+
+    <!-- Apply Modal -->
+    <a-modal v-model:open="applyModalVisible" :title="t('network.deployTemplate')" @ok="handleApplyTemplate" :confirmLoading="applyingTemplate">
+      <p>{{ t('network.selectHostsToDeploy') }} <b>{{ currentTemplate?.name }}</b></p>
+      <a-table :dataSource="hosts" :columns="getHostColumns()" :row-selection="hostRowSelection" rowKey="id" size="small" :pagination="false" :scroll="{ y: 300 }" />
+    </a-modal>
+
 
     <!-- Backup Password Modal -->
     <a-modal
@@ -369,6 +464,195 @@ const performRestore = async (file, password) => {
     restoreLoading.value = false
   }
 }
+
+// --- Network Templates Logic ---
+import { getNetworkTemplates, createNetworkTemplate, updateNetworkTemplate, deleteNetworkTemplate, batchApplyTemplate, getTemplateAssignments } from '../api/networkMonitor'
+import { PlusOutlined } from '@ant-design/icons-vue'
+import { useSSHStore } from '../stores/ssh'
+import { watch } from 'vue'
+
+const sshStore = useSSHStore()
+const activeTab = ref('settings')
+const templates = ref([])
+const loadingTemplates = ref(false)
+const templateModalVisible = ref(false)
+const savingTemplate = ref(false)
+const applyModalVisible = ref(false)
+const applyingTemplate = ref(false)
+const currentTemplate = ref(null)
+const hosts = ref([])
+const selectedHostKeys = ref([])
+
+// Material Design color presets
+const materialColors = [
+    '#F44336', // Red
+    '#E91E63', // Pink
+    '#9C27B0', // Purple
+    '#673AB7', // Deep Purple
+    '#3F51B5', // Indigo
+    '#2196F3', // Blue
+    '#03A9F4', // Light Blue
+    '#00BCD4', // Cyan
+    '#009688', // Teal
+    '#4CAF50', // Green
+    '#8BC34A', // Light Green
+    '#CDDC39', // Lime
+    '#FFEB3B', // Yellow
+    '#FFC107', // Amber
+    '#FF9800', // Orange
+    '#FF5722', // Deep Orange
+]
+
+const templateForm = reactive({
+    name: '',
+    type: 'ping',
+    target: '',
+    port: 80,
+    label: '',
+    frequency: 60
+})
+
+// Use arrow functions directly instead of computed to avoid slot warning
+const getTemplateColumns = () => [
+    { title: t('common.name'), key: 'name', dataIndex: 'name' },
+    { title: t('network.targetType'), key: 'type', dataIndex: 'type' },
+    { title: t('network.targetAddress'), key: 'target', dataIndex: 'target' },
+    { title: t('network.frequency'), key: 'frequency', dataIndex: 'frequency', customRender: ({ text }) => text + 's' },
+    { title: t('common.actions'), key: 'actions' }
+]
+
+const getHostColumns = () => [
+    { title: t('common.name'), dataIndex: 'name' },
+    { title: t('host.host'), dataIndex: 'host' }
+]
+
+const hostRowSelection = {
+  selectedRowKeys: selectedHostKeys,
+  onChange: (selectedRowKeys) => {
+    selectedHostKeys.value = selectedRowKeys
+  }
+}
+
+const fetchTemplates = async () => {
+    loadingTemplates.value = true
+    try {
+        const res = await getNetworkTemplates()
+        // API returns Array directly or { templates: [] }? Handler returns Array directly.
+        // Wait, handler code: c.JSON(http.StatusOK, tmpls) -> Array.
+        templates.value = res || []
+    } catch(e) {
+        message.error('Failed to load templates')
+        console.error(e)
+    } finally {
+        loadingTemplates.value = false
+    }
+}
+
+const openTemplateModal = () => {
+    templateForm.id = null  // Mark as new
+    templateForm.name = ''
+    templateForm.type = 'ping'
+    templateForm.target = ''
+    templateForm.port = 80
+    templateForm.label = ''
+    templateForm.frequency = 60
+    templateForm.color = '#1890ff'
+    templateModalVisible.value = true
+}
+
+const openEditModal = (record) => {
+    templateForm.id = record.id  // Mark as edit
+    templateForm.name = record.name
+    templateForm.type = record.type
+    templateForm.target = record.target
+    templateForm.port = record.port || 80
+    templateForm.label = record.label || ''
+    templateForm.frequency = record.frequency || 60
+    templateForm.color = record.color || '#1890ff'
+    templateModalVisible.value = true
+}
+
+const handleSaveTemplate = async () => {
+    if(!templateForm.name || !templateForm.target) return message.error('Name and Target are required')
+    
+    savingTemplate.value = true
+    try {
+        const data = { ...templateForm }
+        if (templateForm.id) {
+            // Edit mode
+            await updateNetworkTemplate(templateForm.id, data)
+            message.success('Updated successfully')
+        } else {
+            // Create mode
+            await createNetworkTemplate(data)
+            message.success(t('common.addSuccess'))
+        }
+        templateModalVisible.value = false
+        fetchTemplates()
+    } catch(e) {
+        message.error(templateForm.id ? 'Failed to update' : t('common.addFailed'))
+        console.error(e)
+    } finally {
+        savingTemplate.value = false
+    }
+}
+
+const deleteTemplate = async (id) => {
+    try {
+        await deleteNetworkTemplate(id)
+        message.success(t('common.deleteSuccess'))
+        fetchTemplates()
+    } catch(e) {
+        message.error(t('common.deleteFailed'))
+    }
+}
+
+const openApplyModal = async (tmpl) => {
+    currentTemplate.value = tmpl
+    selectedHostKeys.value = []
+    
+    // Load hosts if not loaded
+    if(sshStore.hosts.length === 0) await sshStore.fetchHosts()
+    hosts.value = sshStore.hosts
+    
+    applyModalVisible.value = true
+    
+    // Fetch current assignments
+    try {
+        const assignedIds = await getTemplateAssignments(tmpl.id)
+        if (assignedIds && Array.isArray(assignedIds)) {
+            selectedHostKeys.value = assignedIds
+        }
+    } catch (e) {
+        console.error("Failed to load assignments", e)
+    }
+}
+
+const handleApplyTemplate = async () => {
+    if(selectedHostKeys.value.length === 0) return message.warn('Please select at least one host')
+    
+    applyingTemplate.value = true
+    try {
+        await batchApplyTemplate({
+            template_id: currentTemplate.value.id,
+            host_ids: selectedHostKeys.value
+        })
+        message.success('Template deployed successfully')
+        applyModalVisible.value = false
+    } catch(e) {
+        message.error('Failed to deploy template')
+        console.error(e)
+    } finally {
+        applyingTemplate.value = false
+    }
+}
+
+// Watch tab change to load data
+watch(activeTab, (val) => {
+    if(val === 'net_templates') {
+        fetchTemplates()
+    }
+})
 </script>
 
 <style scoped>

@@ -22,6 +22,10 @@ func RunMigrations(db *gorm.DB) error {
 		&models.TerminalRecording{},
 		&models.MonitorRecord{},
 		&models.MonitorStatusLog{},
+		&models.NetworkMonitorTask{},
+		&models.NetworkMonitorTask{},
+		&models.NetworkMonitorResult{},
+		&models.NetworkMonitorTemplate{},
 	)
 	if err != nil {
 		return fmt.Errorf("failed to run migrations: %w", err)
@@ -30,6 +34,7 @@ func RunMigrations(db *gorm.DB) error {
 	// Add indexes for performance optimization
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_connection_logs_user_id ON connection_logs(user_id)")
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_connection_logs_created_at ON connection_logs(created_at)")
+	db.Exec("CREATE INDEX IF NOT EXISTS idx_network_monitor_results_created_at ON network_monitor_results(created_at)")
 
 	// Create default admin user if no users exist
 	var count int64

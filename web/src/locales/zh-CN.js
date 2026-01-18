@@ -23,7 +23,16 @@ export default {
         frontendVersion: '前端版本',
         backendVersion: '后端版本',
         fe: '前端',
-        be: '后端'
+        be: '后端',
+        name: '名称',
+        label: '标签',
+        actions: '操作',
+        deploy: '部署',
+        addSuccess: '添加成功',
+        addFailed: '添加失败',
+        deleteSuccess: '删除成功',
+        deleteFailed: '删除失败',
+        confirmDelete: '确认删除？'
     },
     nav: {
         terminal: '终端',
@@ -223,7 +232,12 @@ export default {
         secretCopied: '密钥已复制到剪贴板',
         backupCodesDownloaded: '备用码已下载'
     },
+    monitor: {
+        title: '监控',
+        history: '历史'
+    },
     system: {
+        settings: '系统设置',
         backupTitle: '数据库备份',
         backupDesc: '备份当前的系统数据库，包括所有用户、主机配置、命令模板和连接日志。',
         startBackup: '立即备份',
@@ -301,7 +315,18 @@ export default {
         macAddress: 'MAC 地址',
         ipAddress: 'IP 地址',
         realTimeSpeed: '实时速率',
-        totalTraffic: '总流量 (启动后)'
+        totalTraffic: '总流量 (启动后)',
+        connectivity: '网络连通性',
+        latencyTitle: '连通性监控',
+        addTask: '添加监控任务',
+        targetType: '目标类型',
+        targetAddress: '目标地址',
+        targetPort: '端口',
+        frequency: '频率 (秒)',
+        templates: '延迟检测设置',
+        addTemplate: '添加模板',
+        deployTemplate: '部署模板',
+        selectHostsToDeploy: '选择要部署的主机: '
     },
     monitor: {
         cpu: 'CPU',

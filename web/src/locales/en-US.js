@@ -23,7 +23,16 @@ export default {
         frontendVersion: 'Frontend Version',
         backendVersion: 'Backend Version',
         fe: 'FE',
-        be: 'BE'
+        be: 'BE',
+        name: 'Name',
+        label: 'Label',
+        actions: 'Actions',
+        deploy: 'Deploy',
+        addSuccess: 'Added successfully',
+        addFailed: 'Failed to add',
+        deleteSuccess: 'Deleted successfully',
+        deleteFailed: 'Failed to delete',
+        confirmDelete: 'Confirm delete?'
     },
     nav: {
         terminal: 'Terminal',
@@ -219,7 +228,12 @@ export default {
         secretCopied: 'Secret key copied to clipboard',
         backupCodesDownloaded: 'Backup codes downloaded'
     },
+    monitor: {
+        title: 'Monitor',
+        history: 'History'
+    },
     system: {
+        settings: 'Settings',
         backupTitle: 'Database Backup',
         backupDesc: 'Backup the current system database, including all users, host configurations, command templates, and connection logs.',
         startBackup: 'Start Backup',
@@ -297,7 +311,18 @@ export default {
         macAddress: 'MAC Address',
         ipAddress: 'IP Address',
         realTimeSpeed: 'Real-time Speed',
-        totalTraffic: 'Total Traffic (Since Boot)'
+        totalTraffic: 'Total Traffic (Since Boot)',
+        connectivity: 'Network Connectivity',
+        latencyTitle: 'Connectivity Monitor',
+        addTask: 'Add Monitor Task',
+        targetType: 'Target Type',
+        targetAddress: 'Target Address',
+        targetPort: 'Port',
+        frequency: 'Frequency (s)',
+        templates: 'Monitor Templates',
+        addTemplate: 'Add Template',
+        deployTemplate: 'Deploy Template',
+        selectHostsToDeploy: 'Select hosts to deploy: '
     },
     monitor: {
         cpu: 'CPU',

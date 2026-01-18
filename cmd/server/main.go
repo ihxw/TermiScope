@@ -98,6 +98,11 @@ func main() {
 	monitorHandler := handlers.NewMonitorHandler(db, cfg)
 	router.POST("/api/monitor/pulse", monitorHandler.Pulse) // Agent reports here using Secret Header
 
+	// Network Monitor Agent Routes
+	netMonitorHandler := handlers.NewNetworkMonitorHandler(db)
+	router.GET("/api/monitor/network/tasks", netMonitorHandler.GetNetworkTasks)
+	router.POST("/api/monitor/network/report", netMonitorHandler.ReportNetworkResults)
+
 	// Protected routes
 	protected := router.Group("/api")
 	protected.Use(middleware.AuthMiddleware(cfg.Security.JWTSecret))
@@ -123,6 +128,22 @@ func main() {
 		protected.POST("/ssh-hosts/:id/monitor/deploy", monitorHandler.Deploy)
 		protected.POST("/ssh-hosts/:id/monitor/stop", monitorHandler.Stop)
 		protected.GET("/ssh-hosts/:id/monitor/logs", monitorHandler.GetStatusLogs)
+
+		// Network Monitor Management (User)
+		protected.POST("/monitor/network/tasks", netMonitorHandler.CreateTask)
+		protected.PUT("/monitor/network/tasks/:id", netMonitorHandler.UpdateTask)
+		protected.DELETE("/monitor/network/tasks/:id", netMonitorHandler.DeleteTask)
+		protected.GET("/ssh-hosts/:id/network/tasks", netMonitorHandler.GetHostTasks)
+		protected.GET("/monitor/network/stats/:taskId", netMonitorHandler.GetTaskStats)
+
+		// Network Monitor Templates (System Settings)
+		networkGroup := protected.Group("/monitor/network")
+		networkGroup.GET("/templates", netMonitorHandler.GetTemplates)
+		networkGroup.POST("/templates", netMonitorHandler.CreateTemplate)
+		networkGroup.PUT("/templates/:id", netMonitorHandler.UpdateTemplate)
+		networkGroup.DELETE("/templates/:id", netMonitorHandler.DeleteTemplate)
+		networkGroup.POST("/apply-template", netMonitorHandler.BatchApplyTemplate)
+		networkGroup.GET("/templates/:id/assignments", netMonitorHandler.GetTemplateAssignments)
 
 		// SFTP routes
 		sftpHandler := handlers.NewSftpHandler(db, cfg)
