@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/shirou/gopsutil/v3/cpu"
@@ -146,14 +147,31 @@ func collectMetrics() MetricData {
 		data.CPU = percent[0]
 	}
 
-	// Disk
-	diskPath := "/"
-	if runtime.GOOS == "windows" {
-		diskPath = "C:"
-	}
-	if d, err := disk.Usage(diskPath); err == nil {
-		data.DiskTotal = d.Total
-		data.DiskUsed = d.Used
+	// Disk - Aggregate all physical partitions (filter out tmpfs, devfs, etc.)
+	partitions, err := disk.Partitions(false) // false = exclude pseudo filesystems
+	if err == nil {
+		var totalSize, totalUsed uint64
+		for _, partition := range partitions {
+			// Skip pseudo filesystems
+			if strings.HasPrefix(partition.Fstype, "tmpfs") ||
+				strings.HasPrefix(partition.Fstype, "devtmpfs") ||
+				strings.HasPrefix(partition.Fstype, "devfs") ||
+				strings.HasPrefix(partition.Fstype, "proc") ||
+				strings.HasPrefix(partition.Fstype, "sysfs") ||
+				strings.HasPrefix(partition.Fstype, "cgroup") ||
+				strings.HasPrefix(partition.Fstype, "overlay") ||
+				partition.Fstype == "" {
+				continue
+			}
+
+			// Get usage for this partition
+			if usage, err := disk.Usage(partition.Mountpoint); err == nil {
+				totalSize += usage.Total
+				totalUsed += usage.Used
+			}
+		}
+		data.DiskTotal = totalSize
+		data.DiskUsed = totalUsed
 	}
 
 	// Network

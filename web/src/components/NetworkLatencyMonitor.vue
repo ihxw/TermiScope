@@ -33,15 +33,22 @@ const loading = ref(false)
 const timeRange = ref('24h')
 const chartRef = ref(null)
 let chartInstance = null
+let refreshInterval = null // Store interval ID
 
 onMounted(() => {
    fetchTasks()
    window.addEventListener('resize', handleResize)
+   
+   // Auto refresh chart every minute
+   refreshInterval = setInterval(() => {
+       if (tasks.value.length > 0) fetchChartData()
+   }, 60000)
 })
 
 onUnmounted(() => {
    window.removeEventListener('resize', handleResize)
    if (chartInstance) chartInstance.dispose()
+   if (refreshInterval) clearInterval(refreshInterval) // Clean up interval
 })
 
 const handleResize = () => {
@@ -137,11 +144,6 @@ const fetchChartData = async () => {
       chartInstance.hideLoading()
    }
 }
-
-// Auto refresh chart every minute
-setInterval(() => {
-    if (tasks.value.length > 0) fetchChartData()
-}, 60000)
 
 </script>
 

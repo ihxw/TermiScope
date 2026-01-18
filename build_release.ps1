@@ -89,31 +89,31 @@ $AgentReadme | Set-Content (Join-Path $AgentDir "README.txt")
 # Agent Linux AMD64
 Write-Host "   Building Agent linux/amd64..."
 $Env:GOOS = "linux"; $Env:GOARCH = "amd64"
-go build -o (Join-Path $AgentDir "termiscope-agent-linux-amd64") ./cmd/agent/main.go
+go build -o (Join-Path $AgentDir "termiscope-agent-linux-amd64") ./cmd/agent
 
 # Agent Linux ARM64
 Write-Host "   Building Agent linux/arm64..."
 $Env:GOOS = "linux"; $Env:GOARCH = "arm64"
-go build -o (Join-Path $AgentDir "termiscope-agent-linux-arm64") ./cmd/agent/main.go
+go build -o (Join-Path $AgentDir "termiscope-agent-linux-arm64") ./cmd/agent
 # Agent Linux ARM (v7)
 Write-Host "   Building Agent linux/arm..."
 $Env:GOOS = "linux"; $Env:GOARCH = "arm"; $Env:GOARM = "7"
-go build -o (Join-Path $AgentDir "termiscope-agent-linux-arm") ./cmd/agent/main.go
+go build -o (Join-Path $AgentDir "termiscope-agent-linux-arm") ./cmd/agent
 
 # Agent Windows AMD64
 Write-Host "   Building Agent windows/amd64..."
 $Env:GOOS = "windows"; $Env:GOARCH = "amd64"
-go build -o (Join-Path $AgentDir "termiscope-agent-windows-amd64.exe") ./cmd/agent/main.go
+go build -o (Join-Path $AgentDir "termiscope-agent-windows-amd64.exe") ./cmd/agent
 
 # Agent Darwin AMD64 (Intel)
 Write-Host "   Building Agent darwin/amd64..."
 $Env:GOOS = "darwin"; $Env:GOARCH = "amd64"
-go build -o (Join-Path $AgentDir "termiscope-agent-darwin-amd64") ./cmd/agent/main.go
+go build -o (Join-Path $AgentDir "termiscope-agent-darwin-amd64") ./cmd/agent
 
 # Agent Darwin ARM64 (Apple Silicon)
 Write-Host "   Building Agent darwin/arm64..."
 $Env:GOOS = "darwin"; $Env:GOARCH = "arm64"
-go build -o (Join-Path $AgentDir "termiscope-agent-darwin-arm64") ./cmd/agent/main.go
+go build -o (Join-Path $AgentDir "termiscope-agent-darwin-arm64") ./cmd/agent
 
 # Reset Env
 Remove-Item Env:\GOOS -ErrorAction SilentlyContinue
