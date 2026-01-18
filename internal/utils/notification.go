@@ -77,6 +77,7 @@ func sendEmail(config map[string]string, subject, body string) {
 	password := config["smtp_password"]
 	from := config["smtp_from"]
 	to := config["smtp_to"]
+	skipVerify := config["smtp_tls_skip_verify"] == "true"
 
 	if server == "" || port == "" || from == "" || to == "" {
 		log.Println("Notification: Email skipped, missing configuration")
@@ -87,8 +88,13 @@ func sendEmail(config map[string]string, subject, body string) {
 
 	// TLS Config
 	tlsConfig := &tls.Config{
-		InsecureSkipVerify: true, // For now, to reduce friction with self-signed or quirky certs
+		InsecureSkipVerify: skipVerify,
 		ServerName:         server,
+	}
+
+	// Log warning if TLS verification is disabled
+	if skipVerify {
+		log.Println("WARNING: SMTP TLS certificate verification is disabled. This is insecure!")
 	}
 
 	var conn net.Conn

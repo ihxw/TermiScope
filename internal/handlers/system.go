@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -28,6 +29,18 @@ func NewSystemHandler(db *gorm.DB, cfg *config.Config) *SystemHandler {
 	}
 }
 
+// isValidPath validates that a path contains only safe characters
+// and doesn't contain path traversal sequences
+func isValidPath(path string) bool {
+	// Check for path traversal attempts
+	if matched, _ := regexp.MatchString(`\.\.`, path); matched {
+		return false
+	}
+	// Only allow alphanumeric, dash, underscore, dot, and path separators
+	validPattern := regexp.MustCompile(`^[a-zA-Z0-9_\-./\\:]+$`)
+	return validPattern.MatchString(path)
+}
+
 // Backup handles database backup download
 func (h *SystemHandler) Backup(c *gin.Context) {
 	dbPath := h.config.Database.Path
@@ -36,8 +49,15 @@ func (h *SystemHandler) Backup(c *gin.Context) {
 	// Create a temporary backup file to avoid locking the main DB during download
 	tmpBackup := filepath.Join(os.TempDir(), fmt.Sprintf("termiscope_backup_%d.db", time.Now().Unix()))
 
+	// Validate tmpBackup path (defense in depth - ensure no SQL injection)
+	if !isValidPath(tmpBackup) {
+		utils.ErrorResponse(c, http.StatusInternalServerError, "invalid backup path")
+		return
+	}
+
 	// Use SQLite's VACUUM INTO for a consistent backup
-	err := h.db.Exec(fmt.Sprintf("VACUUM INTO '%s'", tmpBackup)).Error
+	// Use parameterized query to prevent SQL injection
+	err := h.db.Exec("VACUUM INTO ?", tmpBackup).Error
 	if err != nil {
 		// Fallback to simple file copy if VACUUM INTO fails (e.g. older SQLite)
 		err = copyFile(dbPath, tmpBackup)

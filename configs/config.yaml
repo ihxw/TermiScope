@@ -1,9 +1,20 @@
 server:
-  # 服务器监听端
+  # 服务器监听端口
   port: 3000
   # 运行模式: debug (调试模式) release (发布模式)
-  # debug 模式下会输出更多日志，release 模式适用于生产环
+  # debug 模式下会输出更多日志，release 模式适用于生产环境
   mode: debug
+  
+  # 允许的跨域来源 (CORS)
+  # 生产环境必须配置具体的域名，不要使用 * 
+  # 开发环境可以包含 http://localhost:5173
+  allowed_origins:
+    - "http://localhost:5173"
+    - "http://localhost:3000"
+    - "http://192.168.1.7:5173"
+  
+  # 最大上传文件大小 (字节)，默认 10MB
+  max_upload_size: 10485760
 
 database:
   # SQLite 数据库文件存储路
@@ -26,8 +37,12 @@ security:
   # Access Token 有效(默认 60m)
   access_expiration: 60m
   
-  # Refresh Token 有效(默认 168h = 7
+  # Refresh Token 有效期 (默认 168h = 7天)
   refresh_expiration: 24h
+  
+  # SMTP TLS 证书验证 (生产环境必须为 false)
+  # 警告: 设置为 true 会禁用 TLS 证书验证，仅用于测试环境
+  smtp_tls_skip_verify: false
 
 ssh:
   # SSH 连接建立超时时间

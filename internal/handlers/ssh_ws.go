@@ -25,9 +25,33 @@ var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 	CheckOrigin: func(r *http.Request) bool {
-		return true // Allow all origins in development
+		// This will be set by handler with allowed origins from config
+		return true // Placeholder, actual check done in handler
 	},
 	EnableCompression: true,
+}
+
+// createUpgrader creates a WebSocket upgrader with origin validation
+func createUpgrader(allowedOrigins []string) websocket.Upgrader {
+	return websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+		CheckOrigin: func(r *http.Request) bool {
+			origin := r.Header.Get("Origin")
+			// Allow requests with no origin (same-origin requests)
+			if origin == "" {
+				return true
+			}
+			// Check if origin is in allowed list
+			for _, allowed := range allowedOrigins {
+				if origin == allowed {
+					return true
+				}
+			}
+			return false
+		},
+		EnableCompression: true,
+	}
 }
 
 type SSHWebSocketHandler struct {
@@ -89,6 +113,9 @@ func (h *SSHWebSocketHandler) HandleWebSocket(c *gin.Context) {
 		}
 		privateKey = decrypted
 	}
+
+	// Create upgrader with origin validation
+	upgrader := createUpgrader(h.config.Server.AllowedOrigins)
 
 	// Upgrade to WebSocket
 	ws, err := upgrader.Upgrade(c.Writer, c.Request, nil)

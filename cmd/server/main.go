@@ -62,18 +62,19 @@ func main() {
 	// Start Monitor Background Checker
 	monitor.StartMonitorChecker(db)
 
-	// Set Gin mode
+	// Create Gin router
 	if cfg.Server.Mode == "release" {
 		gin.SetMode(gin.ReleaseMode)
 	}
+	router := gin.Default()
 
-	// Create router with no default middleware
-	router := gin.New()
+	// Set max upload size
+	router.MaxMultipartMemory = cfg.Server.MaxUploadSize
 
-	// Apply middleware
-	router.Use(middleware.CORS())
+	// Apply middlewares
 	router.Use(middleware.Logger())         // Access logs
 	router.Use(middleware.CustomRecovery()) // Custom panic recovery to error.log
+	router.Use(middleware.CORS(cfg.Server.AllowedOrigins))
 
 	// Global Middlewares
 	router.Use(middleware.SecurityMiddleware())

@@ -1,30 +1,49 @@
 package utils
 
 import (
+	"log" // Added for potential future use, though not directly used by SafeErrorResponse in this snippet
 	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
 
-// SuccessResponse returns a standard success response
-func SuccessResponse(c *gin.Context, code int, data interface{}) {
-	c.JSON(code, gin.H{
+// SuccessResponse creates a success JSON response
+func SuccessResponse(c *gin.Context, statusCode int, data interface{}) {
+	c.JSON(statusCode, gin.H{
 		"success": true,
 		"data":    data,
 	})
 }
 
-// ErrorResponse returns a standard error response
-func ErrorResponse(c *gin.Context, code int, message string) {
-	c.JSON(code, gin.H{
+// ErrorResponse creates an error JSON response
+func ErrorResponse(c *gin.Context, statusCode int, message string) {
+	c.JSON(statusCode, gin.H{
 		"success": false,
 		"error":   message,
 	})
 }
 
-// PaginatedResponse returns a paginated response
-func PaginatedResponse(c *gin.Context, code int, data interface{}, total int64, page, pageSize int) {
-	c.JSON(code, gin.H{
+// SafeErrorResponse logs the detailed error but returns a safe generic message to the client
+// Use this for errors that might expose sensitive system information
+func SafeErrorResponse(c *gin.Context, statusCode int, detailedError error, genericMessage string) {
+	// Log the detailed error for debugging
+	// Assuming LogError is a custom logging function, replacing with log.Printf for compilation
+	log.Printf("Error occurred: %v | Request: %s %s | Client: %s",
+		detailedError,
+		c.Request.Method,
+		c.Request.URL.Path,
+		c.ClientIP())
+
+	// Return generic message to client
+	c.JSON(statusCode, gin.H{
+		"success": false,
+		"error":   genericMessage,
+	})
+}
+
+// PaginatedResponse creates a paginated JSON response
+func PaginatedResponse(c *gin.Context, statusCode int, data interface{}, total int64, page, pageSize int) {
+	c.JSON(statusCode, gin.H{
 		"success": true,
 		"data":    data,
 		"pagination": gin.H{
