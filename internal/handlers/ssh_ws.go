@@ -38,16 +38,35 @@ func createUpgrader(allowedOrigins []string) websocket.Upgrader {
 		WriteBufferSize: 1024,
 		CheckOrigin: func(r *http.Request) bool {
 			origin := r.Header.Get("Origin")
-			// Allow requests with no origin (same-origin requests)
+
+			// Allow requests with no origin (same-origin requests in production)
 			if origin == "" {
 				return true
 			}
-			// Check if origin is in allowed list
+
+			// Check if origin matches the request host (same-origin)
+			// This handles production scenarios where frontend is served by the same server
+			host := r.Header.Get("Host")
+			if host != "" {
+				// Compare origin without protocol
+				requestOrigin := "http://" + host
+				if origin == requestOrigin || origin == "https://"+host {
+					return true
+				}
+			}
+
+			// If allowed_origins is empty, only allow same-origin (production mode)
+			if len(allowedOrigins) == 0 {
+				return false
+			}
+
+			// Check if origin is in the allowed list (development mode)
 			for _, allowed := range allowedOrigins {
 				if origin == allowed {
 					return true
 				}
 			}
+
 			return false
 		},
 		EnableCompression: true,
