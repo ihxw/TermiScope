@@ -306,6 +306,7 @@ export default {
         monthlyLimit: '每月限额 (GB)',
         unlimitedHelp: '0 表示不限制',
         alreadyUsed: '已用流量 (GB)',
+        measured: '监测流量',
         adjustmentHelp: '本月已用流量校正',
         counterMode: '统计模式',
         counterModeHelp: '计入限制的流量类型',

@@ -29,11 +29,12 @@ type SSHHost struct {
 	NetResetDay  int    `json:"net_reset_day" gorm:"default:1"`      // Day of month to reset
 
 	// Traffic Accumulators (Delta Logic)
-	NetMonthlyRx     uint64 `json:"net_monthly_rx" gorm:"default:0"` // Accumulated usage this month
-	NetMonthlyTx     uint64 `json:"net_monthly_tx" gorm:"default:0"`
-	NetLastRawRx     uint64 `json:"net_last_raw_rx" gorm:"default:0"` // Last known raw total from agent
-	NetLastRawTx     uint64 `json:"net_last_raw_tx" gorm:"default:0"`
-	NetLastResetDate string `json:"net_last_reset_date"` // YYYY-MM-DD
+	NetMonthlyRx       uint64 `json:"net_monthly_rx" gorm:"default:0"` // Accumulated usage this month
+	NetMonthlyTx       uint64 `json:"net_monthly_tx" gorm:"default:0"`
+	NetLastRawRx       uint64 `json:"net_last_raw_rx" gorm:"default:0"` // Last known raw total from agent
+	NetLastRawTx       uint64 `json:"net_last_raw_tx" gorm:"default:0"`
+	NetLastResetDate   string `json:"net_last_reset_date"`                   // YYYY-MM-DD
+	LastAgentTimestamp int64  `json:"last_agent_timestamp" gorm:"default:0"` // Timestamp of last processed packet
 
 	// Traffic Limit Config
 	NetTrafficLimit          uint64 `json:"net_traffic_limit" gorm:"default:0"`              // Bytes, 0=unlimited

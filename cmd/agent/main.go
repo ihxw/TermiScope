@@ -31,6 +31,7 @@ type InterfaceData struct {
 // MetricData matches the termiscope backend struct
 type MetricData struct {
 	HostID       uint64          `json:"host_id"`
+	Timestamp    int64           `json:"timestamp"`
 	AgentVersion string          `json:"agent_version"`
 	Uptime       uint64          `json:"uptime"`
 	CPU          float64         `json:"cpu"`
@@ -128,6 +129,7 @@ func initSystemInfo() {
 func collectMetrics() MetricData {
 	data := MetricData{
 		HostID:       hostID,
+		Timestamp:    time.Now().Unix(),
 		AgentVersion: Version,
 		OS:           cachedOS,
 		Hostname:     cachedHostname,

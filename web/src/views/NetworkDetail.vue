@@ -48,7 +48,14 @@
                           <a-input-number v-model:value="config.limit_gb" :min="0" style="width: 100%" size="small" />
                       </a-form-item>
                        <a-form-item :label="t('network.alreadyUsed')" :help="t('network.adjustmentHelp')" style="margin-bottom: 12px">
-                          <a-input-number v-model:value="calibrationTotal" :min="0" style="width: 100%" size="small" />
+                          <a-input-number 
+                              v-model:value="customTotal" 
+                              :min="0" 
+                              style="width: 100%" 
+                              size="small" 
+                              @focus="isInputFocused = true"
+                              @blur="isInputFocused = false"
+                          />
                       </a-form-item>
                       
                        <div style="font-size: 11px; color: #8c8c8c; margin-bottom: 12px; border-left: 2px solid #f0f0f0; padding-left: 8px">
@@ -64,9 +71,6 @@
                       </a-form-item>
 
                       <a-button type="primary" @click="saveConfig" :loading="saving" block size="small">{{ t('network.saveConfig') }}</a-button>
-                      <a-popconfirm :title="t('network.resetConfirm')" @confirm="resetTraffic" :okText="t('common.yes')" :cancelText="t('common.no')">
-                          <a-button type="dashed" danger block size="small" style="margin-top: 8px">{{ t('network.resetStats') }}</a-button>
-                      </a-popconfirm>
                   </a-form>
               </a-card>
               
@@ -135,7 +139,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useSSHStore } from '../stores/ssh'
 import { ArrowDownOutlined, ArrowUpOutlined } from '@ant-design/icons-vue'
@@ -168,31 +172,27 @@ const config = ref({
     net_traffic_counter_mode: 'total'
 })
 
-// Calibration Logic
-const calibrationTotal = computed({
-    get: () => {
-        // Calculate current measured traffic based on mode
-        let measured = 0
-        if (config.value.net_traffic_counter_mode === 'total') {
-            measured = monthlyRx.value + monthlyTx.value
-        } else if (config.value.net_traffic_counter_mode === 'rx') {
-            measured = monthlyRx.value
-        } else if (config.value.net_traffic_counter_mode === 'tx') {
-            measured = monthlyTx.value
-        }
-        
-        // Convert GB -> Bytes for calculation, then back to GB for display
-        const adjBytes = (config.value.adjustment_gb || 0) * 1024 * 1024 * 1024
-        const total = measured + adjBytes
-        return parseFloat((total / (1024 * 1024 * 1024)).toFixed(2))
-    },
-    set: (val) => {
-        // Val is user input in GB
-        // Direct setting: Adjustment = Input - 0  (Since we reset traffic on save)
-        const userTotalBytes = (val || 0) * 1024 * 1024 * 1024
-        config.value.adjustment_gb = parseFloat((userTotalBytes / (1024 * 1024 * 1024)).toFixed(2))
+const isInputFocused = ref(false)
+const customTotal = ref(0) // Local binding for input to prevent auto-update jumping
+
+// Watch for backend changes to update input, ONLY if not focused
+watch([monthlyRx, monthlyTx, () => config.value.adjustment_gb, () => config.value.net_traffic_counter_mode], () => {
+    if (isInputFocused.value) return
+
+    let measured = 0
+    if (config.value.net_traffic_counter_mode === 'total') {
+        measured = monthlyRx.value + monthlyTx.value
+    } else if (config.value.net_traffic_counter_mode === 'rx') {
+        measured = monthlyRx.value
+    } else if (config.value.net_traffic_counter_mode === 'tx') {
+        measured = monthlyTx.value
     }
-})
+    
+    // Convert GB -> Bytes for calculation, then back to GB for display
+    const adjBytes = (config.value.adjustment_gb || 0) * 1024 * 1024 * 1024
+    const total = measured + adjBytes
+    customTotal.value = parseFloat((total / (1024 * 1024 * 1024)).toFixed(2))
+}, { immediate: true })
 
 // Initialize config from host when loaded
 const initConfig = () => {
@@ -327,11 +327,13 @@ const saveConfig = async () => {
     saving.value = true
     try {
         // Convert GB back to Bytes
-        const trafficLimit = Math.floor(config.value.limit_gb * 1024 * 1024 * 1024)
-        const trafficAdj = Math.floor(config.value.adjustment_gb * 1024 * 1024 * 1024)
+        // Use customTotal directly as new adjustment (since we reset measured)
+        const trafficAdj = Math.floor(customTotal.value * 1024 * 1024 * 1024)
         
         // Join list to string
         const interfaceStr = config.value.net_interface_list.join(',')
+
+        const trafficLimit = Math.floor(config.value.limit_gb * 1024 * 1024 * 1024)
         
         await sshStore.modifyHost(hostId, {
             net_interface: interfaceStr,
@@ -341,6 +343,13 @@ const saveConfig = async () => {
             net_traffic_counter_mode: config.value.net_traffic_counter_mode,
             reset_traffic: true // Always reset measured traffic to anchor Total to Adjustment
         })
+        
+        // Update local state immediately to reflect the "Reset" and "Adjustment" changes
+        // This ensures the UI is correct without needing a refresh or waiting for next WS tick
+        monthlyRx.value = 0
+        monthlyTx.value = 0
+        config.value.adjustment_gb = customTotal.value
+        
         message.success('Configuration saved')
     } catch (e) {
         message.error('Failed to save configuration')
@@ -350,22 +359,7 @@ const saveConfig = async () => {
     }
 }
 
-const resetTraffic = async () => {
-    try {
-        await sshStore.modifyHost(hostId, {
-            reset_traffic: true
-        })
-        message.success(t('network.resetSuccess'))
-        // Force refresh local view (Host store update propagates but local variables might need sync)
-        monthlyRx.value = 0
-        monthlyTx.value = 0
-        config.value.adjustment_gb = 0
-        // Trigger re-calc of calibrationTotal via change in deps
-    } catch (e) {
-        message.error('Failed to reset traffic')
-        console.error(e)
-    }
-}
+
 
 onUnmounted(() => {
   if (socket.value) socket.value.close()

@@ -183,6 +183,27 @@ func (h *MonitorHandler) Pulse(c *gin.Context) {
 		return
 	}
 
+	// Strict Timestamp Check (Anti-Replay / Anti-Out-of-Order)
+	if data.Timestamp > 0 {
+		if data.Timestamp <= host.LastAgentTimestamp {
+			// Stale packet, ignore completely
+			log.Printf("Dropped stale packet from host %d: TS %d <= Last %d", host.ID, data.Timestamp, host.LastAgentTimestamp)
+			c.JSON(http.StatusOK, gin.H{"status": "ignored", "reason": "stale_timestamp"})
+			return
+		}
+		// Valid, update timestamp
+		host.LastAgentTimestamp = data.Timestamp
+		// We will set dbUpdated = true later if we actually change counters,
+		// BUT we must persist this timestamp even if counters don't change?
+		// Actually, if we don't persist it, a subsequent packet might be processed again if server restarts?
+		// But high frequency updates... let's bundle it with dbUpdated logic.
+		// If other things update DB, this field gets saved.
+		// If nothing else updates DB (e.g. idle), we might lose this TS update on crash, but that just means we might re-process on restart.
+		// Re-processing an IDEMPOTENT idle state is fine.
+		// Re-processing a COUNTER increment is bad. Counter increment always sets dbUpdated=true.
+		// So we are safe.
+	}
+
 	// 如果监控未启用，自动启用（首次收到数据时）
 	if !host.MonitorEnabled {
 		host.MonitorEnabled = true
@@ -254,9 +275,16 @@ func (h *MonitorHandler) Pulse(c *gin.Context) {
 		if currentRx >= host.NetLastRawRx {
 			deltaRx = currentRx - host.NetLastRawRx
 		} else {
-			// Reboot detected (Current < Last)
-			// Assume all Current is new traffic since reboot
-			deltaRx = currentRx
+			// Current < Last: Could be reboot OR out-of-order packet
+			// Heuristic: If current is significantly smaller (e.g. < 50%), assume reboot.
+			// Otherwise, assume it's a stale packet and ignore it.
+			if currentRx < host.NetLastRawRx/2 {
+				// Reboot detected (reset to near 0)
+				deltaRx = currentRx
+			} else {
+				// Stale packet (slightly smaller than last known), ignore
+				deltaRx = 0
+			}
 		}
 	}
 	// If LastRawRx == 0, we treat deltaRx as 0 (skip first tick) to avoid adding existing total counters.
@@ -265,7 +293,11 @@ func (h *MonitorHandler) Pulse(c *gin.Context) {
 		if currentTx >= host.NetLastRawTx {
 			deltaTx = currentTx - host.NetLastRawTx
 		} else {
-			deltaTx = currentTx
+			if currentTx < host.NetLastRawTx/2 {
+				deltaTx = currentTx
+			} else {
+				deltaTx = 0
+			}
 		}
 	}
 
@@ -360,6 +392,7 @@ func (h *MonitorHandler) Pulse(c *gin.Context) {
 			"AgentVersion",
 			"Status",
 			"LastPulse",
+			"LastAgentTimestamp",
 		).Updates(&host)
 	}
 

@@ -292,36 +292,71 @@ func (h *SSHHostHandler) Update(c *gin.Context) {
 		host.NetMonthlyTx = 0
 		host.NetLastResetDate = time.Now().Format("2006-01-02")
 		host.TrafficAlerted = false
-		// Also reset adjustment? Usually users want to clear everything.
-		// If they just want to clear measurement, they can leave adjustment.
 		// But "Reset Stats" usually implies starting fresh.
 		// Let's reset adjustment too for a clean slate.
+		// HOWEVER: If the request explicitly sets a new adjustment (e.g. calibration),
+		// we should allow that to override this reset.
+		// Since we process specific fields later, we just ensure we don't accidentally ignore the new value.
+		// Currently, the logic below (lines 322+) handles updating NetTrafficUsedAdjustment.
+		// So resetting it here to 0 is fine, AS LONG AS line 324 applies the new value.
+		// The issue is: In line 322, we check `if req.NetTrafficLimit > 0 || req.NetTrafficUsedAdjustment > 0`.
+		// If user sets adjustment to 0, req.NetTrafficUsedAdjustment is 0.
+		// So line 324 is skipped.
+		// But here we set it to 0 anyway. So 0 is fine.
+		// If user sets adjustment to 100, req is 100. Line 322 is true. Line 324 sets it to 100.
+		// So theoretically it should work?
+		// Unless... `ResetTraffic` logic clears it, and then...
+		// Ah, wait. Code flow:
+		// 1. Reset fields to 0.
+		// 2. Check req fields.
+		// 3. Update host fields.
+		//
+		// If User Input = 100GB -> req.Adjustment = 100GB.
+		// Line 299: Host.Adjustment = 0.
+		// Line 322: req.Adjustment > 0 -> True.
+		// Line 324: Host.Adjustment = 100GB.
+		// Result: 100GB. Correct.
+
+		// If User Input = 0GB -> req.Adjustment = 0.
+		// Line 299: Host.Adjustment = 0.
+		// Line 322: req.Adjustment > 0 -> False (assuming Limit also 0/unchanged and Mode empty/unchanged).
+		// Line 324: Skipped.
+		// Result: 0. Correct.
+
+		// Wait, why did the user say it failed?
+		// Maybe `req.NetTrafficUsedAdjustment` is not coming through correctly?
+		// Frontend sends `net_traffic_used_adjustment`.
+		// Let's look at the frontend logic again.
+		// `const trafficAdj = Math.floor(customTotal.value * 1024 * 1024 * 1024)`
+		// If customTotal = 161.36
+		// trafficAdj = 173259920179
+		// Backend receives this.
+
+		// Is it possible `req` struct tags are wrong?
+		// `NetTrafficUsedAdjustment uint64 `json:"net_traffic_used_adjustment"`
+		// Seems correct.
+
+		// Let's force set it regardless of 0 check if we are resetting?
+		// Or better: Just set it explicitly if it's in the request?
+		// But we can't know if "0" means "User explicitly set 0" or "User didn't send field".
+		// But for "Save Config", we always send it.
+		//
+		// actually, maybe the issue is that I am ONLY updating if > 0?
+		// Use `calibration` logic:
+		// If we are performing a reset (ResetTraffic=true), we should perhaps ALWAYS apply the adjustment from the request, even if it is 0.
+		// Because `ResetTraffic` implies we are re-calibrating.
+
 		host.NetTrafficUsedAdjustment = 0
 	}
 
-	// Limit config (0 is valid for Limit/Adjustment, so check presence? JSON unmarshal defaults to 0.
-	// Since 0 is meaningful (unlimited or reset adjustment), we might need pointer or just overwrite.
-	// For simplicity, we overwrite if present in struct (JSON 0 overwrites).
-	// Actually ShouldBindJSON overwrites with 0 if missing? No, 0 is default.
-	// But Update logic usually checks for non-zero.
-	// To support setting to 0, we can't just check != 0.
-	// However, for typical update flow, we send all fields or patch.
-	// Our `Update` handler checks `if req.Field != ""`.
-	// For numeric fields like NetTrafficLimit, we can't distinguish 0 vs missing.
-	// BUT, our current frontend will send valid values.
-	// Let's assume if it is part of the request we want to update it.
-	// But Go structs don't show "missing".
-	// Best practice: Use pointers in struct for optional updates, OR since this is a dedicated config form update,
-	// we assume the user intends to set the value.
-	// BUT, this handler is general purpose.
-	// A simple workaround for this specific "Config Form" usage:
-	// If `NetTrafficCounterMode` is provided (non-empty), we assume it's a Limit config update
-	// and update the numeric fields too (even if 0).
-	// Or we just update them.
+	// FIX: Always update adjustment if ResetTraffic is true (Calibration Mode), OR if valid value provided.
+	// Actually, just checking > 0 is insufficient if we want to set it to 0 without ResetTraffic (unlikely but possible).
+	// But in this specific case (Save Config), ResetTraffic is ALWAYS true per frontend change.
+	// So we should perform the update.
 
-	if req.NetTrafficLimit > 0 || req.NetTrafficUsedAdjustment > 0 || req.NetTrafficCounterMode != "" {
+	if req.ResetTraffic || req.NetTrafficLimit > 0 || req.NetTrafficUsedAdjustment > 0 || req.NetTrafficCounterMode != "" {
 		host.NetTrafficLimit = req.NetTrafficLimit
-		host.NetTrafficUsedAdjustment = req.NetTrafficUsedAdjustment
+		host.NetTrafficUsedAdjustment = req.NetTrafficUsedAdjustment // This will take 0 if req is 0, which is what we want after reset + set.
 		if req.NetTrafficCounterMode != "" {
 			host.NetTrafficCounterMode = req.NetTrafficCounterMode
 		}
@@ -383,7 +418,25 @@ func (h *SSHHostHandler) Update(c *gin.Context) {
 		host.PrivateKeyEncrypted = encrypted
 	}
 
-	if err := h.db.Save(&host).Error; err != nil {
+	// Use Update with Select to avoid overwriting monitoring data (race condition with Pulse)
+	// We only update configuration fields.
+	// Build selective update fields
+	fields := []string{
+		"Name", "Host", "Port", "Username", "AuthType", "PasswordEncrypted", "PrivateKeyEncrypted",
+		"GroupName", "Tags", "MonitorEnabled", "MonitorSecret", "Description", "HostType", "SortOrder",
+		"NetInterface", "NetResetDay",
+		"NetTrafficLimit", "NetTrafficUsedAdjustment", "NetTrafficCounterMode",
+		"NotifyOfflineEnabled", "NotifyTrafficEnabled", "NotifyOfflineThreshold", "NotifyTrafficThreshold", "NotifyChannels",
+	}
+
+	if req.ResetTraffic {
+		fields = append(fields, "NetMonthlyRx", "NetMonthlyTx", "NetLastResetDate", "TrafficAlerted")
+		// Debug logging to verify adjustment value
+		log.Printf("ResetTraffic=true. HostID=%d. Adjustment=%d", host.ID, host.NetTrafficUsedAdjustment)
+	}
+
+	// Single atomic update for all intended fields
+	if err := h.db.Model(&host).Select(fields).Updates(&host).Error; err != nil {
 		utils.ErrorResponse(c, http.StatusInternalServerError, "failed to update host")
 		return
 	}

@@ -296,6 +296,7 @@ export default {
         monthlyLimit: 'Monthly Limit (GB)',
         unlimitedHelp: '0 means unlimited',
         alreadyUsed: 'Used Traffic (GB)',
+        measured: 'Measured Traffic',
         adjustmentHelp: 'Correction for used traffic this month',
         counterMode: 'Counting Mode',
         counterModeHelp: 'Traffic type to count towards limit',
