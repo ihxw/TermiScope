@@ -68,6 +68,9 @@ type UpdateSSHHostRequest struct {
 	NotifyOfflineThreshold int    `json:"notify_offline_threshold"`
 	NotifyTrafficThreshold int    `json:"notify_traffic_threshold"`
 	NotifyChannels         string `json:"notify_channels"`
+
+	// Actions
+	ResetTraffic bool `json:"reset_traffic"`
 }
 
 // List returns a list of SSH hosts for the current user
@@ -281,6 +284,19 @@ func (h *SSHHostHandler) Update(c *gin.Context) {
 	}
 	if req.NetResetDay > 0 && req.NetResetDay <= 31 {
 		host.NetResetDay = req.NetResetDay
+	}
+
+	// Reset Traffic First if requested
+	if req.ResetTraffic {
+		host.NetMonthlyRx = 0
+		host.NetMonthlyTx = 0
+		host.NetLastResetDate = time.Now().Format("2006-01-02")
+		host.TrafficAlerted = false
+		// Also reset adjustment? Usually users want to clear everything.
+		// If they just want to clear measurement, they can leave adjustment.
+		// But "Reset Stats" usually implies starting fresh.
+		// Let's reset adjustment too for a clean slate.
+		host.NetTrafficUsedAdjustment = 0
 	}
 
 	// Limit config (0 is valid for Limit/Adjustment, so check presence? JSON unmarshal defaults to 0.

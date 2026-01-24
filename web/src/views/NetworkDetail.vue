@@ -50,6 +50,11 @@
                        <a-form-item :label="t('network.alreadyUsed')" :help="t('network.adjustmentHelp')" style="margin-bottom: 12px">
                           <a-input-number v-model:value="calibrationTotal" :min="0" style="width: 100%" size="small" />
                       </a-form-item>
+                      
+                       <div style="font-size: 11px; color: #8c8c8c; margin-bottom: 12px; border-left: 2px solid #f0f0f0; padding-left: 8px">
+                          <div>{{t('network.measured')}}: {{ formatBytes(monthlyRx + monthlyTx) }} (Reset on Save)</div>
+                      </div>
+
                        <a-form-item :label="t('network.counterMode')" :help="t('network.counterModeHelp')" style="margin-bottom: 12px">
                           <a-select v-model:value="config.net_traffic_counter_mode" size="small">
                               <a-select-option value="total">{{ t('network.modeTotal') }}</a-select-option>
@@ -59,6 +64,9 @@
                       </a-form-item>
 
                       <a-button type="primary" @click="saveConfig" :loading="saving" block size="small">{{ t('network.saveConfig') }}</a-button>
+                      <a-popconfirm :title="t('network.resetConfirm')" @confirm="resetTraffic" :okText="t('common.yes')" :cancelText="t('common.no')">
+                          <a-button type="dashed" danger block size="small" style="margin-top: 8px">{{ t('network.resetStats') }}</a-button>
+                      </a-popconfirm>
                   </a-form>
               </a-card>
               
@@ -180,27 +188,9 @@ const calibrationTotal = computed({
     },
     set: (val) => {
         // Val is user input in GB
+        // Direct setting: Adjustment = Input - 0  (Since we reset traffic on save)
         const userTotalBytes = (val || 0) * 1024 * 1024 * 1024
-        
-        // Calculate measured
-        let measured = 0
-        if (config.value.net_traffic_counter_mode === 'total') {
-            measured = monthlyRx.value + monthlyTx.value
-        } else if (config.value.net_traffic_counter_mode === 'rx') {
-            measured = monthlyRx.value
-        } else if (config.value.net_traffic_counter_mode === 'tx') {
-            measured = monthlyTx.value
-        }
-        
-        // New Adjustment = UserTotal - Measured
-        // If UserTotal < Measured, we set Adjustment to 0 (Calibration reset) or allow negative?
-        // Let's stick to non-negative for now as backend typically adds adjustment. 
-        // If user wants to "Reset" monthly total below measured, they should reset usage (backend feature).
-        // But for "Correction", usually it's increasing.
-        let diff = userTotalBytes - measured
-        if (diff < 0) diff = 0
-        
-        config.value.adjustment_gb = parseFloat((diff / (1024 * 1024 * 1024)).toFixed(2))
+        config.value.adjustment_gb = parseFloat((userTotalBytes / (1024 * 1024 * 1024)).toFixed(2))
     }
 })
 
@@ -348,7 +338,8 @@ const saveConfig = async () => {
             net_reset_day: config.value.net_reset_day,
             net_traffic_limit: trafficLimit,
             net_traffic_used_adjustment: trafficAdj,
-            net_traffic_counter_mode: config.value.net_traffic_counter_mode
+            net_traffic_counter_mode: config.value.net_traffic_counter_mode,
+            reset_traffic: true // Always reset measured traffic to anchor Total to Adjustment
         })
         message.success('Configuration saved')
     } catch (e) {
@@ -356,6 +347,23 @@ const saveConfig = async () => {
         console.error(e)
     } finally {
         saving.value = false
+    }
+}
+
+const resetTraffic = async () => {
+    try {
+        await sshStore.modifyHost(hostId, {
+            reset_traffic: true
+        })
+        message.success(t('network.resetSuccess'))
+        // Force refresh local view (Host store update propagates but local variables might need sync)
+        monthlyRx.value = 0
+        monthlyTx.value = 0
+        config.value.adjustment_gb = 0
+        // Trigger re-calc of calibrationTotal via change in deps
+    } catch (e) {
+        message.error('Failed to reset traffic')
+        console.error(e)
     }
 }
 
