@@ -22,7 +22,7 @@
 
     <!-- Card View -->
     <a-row :gutter="[5, 5]" v-if="viewMode === 'card'">
-      <a-col :xs="24" :sm="12" :md="8" :lg="6" :xl="4" class="col-5" v-for="host in sortedHosts" :key="host.host_id">
+      <a-col :xs="24" :sm="12" :md="8" class="col-5" v-for="host in sortedHosts" :key="host.host_id">
         <a-card hoverable class="monitor-card" :class="{ offline: isOffline(host) }">
           <template #title>
             <a-space>
@@ -155,7 +155,7 @@
     >
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'host'">
-          <a-space>
+          <a-space style="padding-left: 8px">
             <component :is="getOsIcon(record.os)" :style="{ fontSize: '18px' }" />
             <div>
               <div style="font-weight: 500">{{ getHostName(record.host_id) }}</div>
@@ -205,13 +205,27 @@
         </template>
 
         <template v-if="column.key === 'network'">
-           <div style="font-size: 12px">
-            <div style="color: #52c41a"><ArrowDownOutlined /> {{ formatSpeed(record.net_rx_rate || 0) }}</div>
-            <div style="color: #1890ff"><ArrowUpOutlined /> {{ formatSpeed(record.net_tx_rate || 0) }}</div>
-            <div v-if="record.net_traffic_limit > 0" style="margin-top: 4px; font-size: 10px; color: #8c8c8c">
-                {{ getTrafficUsagePct(record) }}% ({{ formatTrafficUsage(record) }})
+           <div style="font-size: 12px; width: 100%">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="color: #52c41a"><ArrowDownOutlined /> {{ formatSpeed(record.net_rx_rate || 0) }}</span>
+                <span style="color: #8c8c8c; font-size: 10px">{{ formatBytes(record.net_rx) }}</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="color: #1890ff"><ArrowUpOutlined /> {{ formatSpeed(record.net_tx_rate || 0) }}</span>
+                <span style="color: #8c8c8c; font-size: 10px">{{ formatBytes(record.net_tx) }}</span>
             </div>
            </div>
+        </template>
+
+        <template v-if="column.key === 'traffic'">
+            <div v-if="record.net_traffic_limit > 0" style="width: 100%">
+                <div style="font-size: 10px; color: #8c8c8c; display: flex; justify-content: space-between;">
+                    <span>{{ getTrafficUsagePct(record) }}%</span>
+                    <span>{{ formatTrafficUsage(record) }}</span>
+                </div>
+                <a-progress :percent="getTrafficUsagePct(record)" :status="getStatus(getTrafficUsagePct(record))" :show-info="false" stroke-linecap="square" size="small" :stroke-width="6" />
+            </div>
+            <div v-else style="font-size: 10px; color: #ccc; text-align: center">-</div>
         </template>
 
         <template v-if="column.key === 'actions'">
@@ -318,6 +332,7 @@ const listColumns = [
   { title: 'RAM', key: 'ram' },
   { title: 'Disk', key: 'disk' },
   { title: 'Network', key: 'network', width: 150 },
+  { title: 'Usage', key: 'traffic', width: 140 },
   { title: 'Actions', key: 'actions', width: 160, fixed: 'right' }
 ]
 
