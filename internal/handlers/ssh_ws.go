@@ -382,7 +382,7 @@ func (h *SSHWebSocketHandler) HandleWebSocket(c *gin.Context) {
 					recordFile.Write(entry)
 					recordFile.WriteString("\n")
 				}
-				if err := writeParams(websocket.TextMessage, data); err != nil {
+				if err := writeParams(websocket.BinaryMessage, data); err != nil {
 					utils.LogError("Error writing to WebSocket: %v", err)
 					done <- true
 					return
@@ -408,7 +408,7 @@ func (h *SSHWebSocketHandler) HandleWebSocket(c *gin.Context) {
 				return
 			}
 			if n > 0 {
-				if err := writeParams(websocket.TextMessage, buf[:n]); err != nil {
+				if err := writeParams(websocket.BinaryMessage, buf[:n]); err != nil {
 					utils.LogError("Error writing to WebSocket: %v", err)
 					return
 				}

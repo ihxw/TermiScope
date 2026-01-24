@@ -380,6 +380,8 @@ const connectWebSocket = async () => {
     
     ws.value = new WebSocket(wsUrl)
 
+    ws.value.binaryType = 'arraybuffer'
+
     ws.value.onopen = () => {
       connectionStatus.value = 'Connected'
       message.success('SSH connection established')
@@ -390,7 +392,15 @@ const connectWebSocket = async () => {
     }
 
     ws.value.onmessage = (event) => {
-      // console.log('WS Message:', event.data)
+      // Handle binary data (SSH output)
+      if (event.data instanceof ArrayBuffer) {
+        if (terminal.value) {
+            terminal.value.write(new Uint8Array(event.data))
+        }
+        return
+      }
+
+      // Handle text data (Control messages: JSON)
       if (!terminal.value) return
       try {
         const msg = JSON.parse(event.data)
@@ -435,7 +445,7 @@ const connectWebSocket = async () => {
           terminal.value.write(event.data)
         }
       } catch (e) {
-        // Not valid JSON, must be raw terminal output
+        // Not valid JSON, must be raw terminal output (fallback)
         terminal.value.write(event.data)
       }
     }
