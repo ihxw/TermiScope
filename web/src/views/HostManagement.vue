@@ -669,12 +669,36 @@ const initSortable = () => {
   if (tableWithBody && !tableWithBody._sortable) {
     tableWithBody._sortable = Sortable.create(tableWithBody, {
       handle: '.drag-handle',
+      draggable: '.ant-table-row',
       animation: 150,
-      onEnd: async ({ oldIndex, newIndex }) => {
+      onStart: () => {},
+      onEnd: async (evt) => {
+        const { oldIndex, newIndex } = evt
         if (oldIndex === newIndex) return
+
+        // Calculate offset (account for hidden rows like measure-row)
+        const tbody = document.querySelector('.ant-table-tbody')
+        const rows = Array.from(tbody.children)
+        const firstRowIndex = rows.findIndex(row => row.classList.contains('ant-table-row'))
+        const offset = firstRowIndex >= 0 ? firstRowIndex : 0
         
-        const item = sshStore.hosts.splice(oldIndex, 1)[0]
-        sshStore.hosts.splice(newIndex, 0, item)
+        const realOldIndex = oldIndex - offset
+        const realNewIndex = newIndex - offset
+
+        // Safety check with REAL indices
+        if (realOldIndex < 0 || realOldIndex >= sshStore.hosts.length || realNewIndex < 0 || realNewIndex >= sshStore.hosts.length) {
+            return
+        }
+
+        const item = sshStore.hosts[realOldIndex]
+        if (!item) {
+             console.error('Sortable: item not found at index', realOldIndex)
+             return
+        }
+
+        // Move item locally
+        sshStore.hosts.splice(realOldIndex, 1)
+        sshStore.hosts.splice(realNewIndex, 0, item)
         
         const ids = sshStore.hosts.map(h => h.id)
         try {

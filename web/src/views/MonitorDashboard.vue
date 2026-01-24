@@ -320,6 +320,7 @@ import { useI18n } from 'vue-i18n'
 import { getWSTicket } from '../api/auth'
 import { getMonitorLogs } from '../api/ssh'
 import { message } from 'ant-design-vue'
+import api from '../api/index'
 
 const { t } = useI18n()
 const sshStore = useSSHStore()
@@ -349,14 +350,9 @@ watch(viewMode, (val) => {
 // Fetch server agent version
 const fetchServerAgentVersion = async () => {
   try {
-    const response = await fetch('/api/system/agent-version', {
-      headers: {
-        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-      }
-    })
-    if (response.ok) {
-      const data = await response.json()
-      serverAgentVersion.value = data.data.version
+    const data = await api.get('/system/agent-version')
+    if (data && data.version) {
+      serverAgentVersion.value = data.version
     }
   } catch (error) {
     console.error('Failed to fetch agent version:', error)

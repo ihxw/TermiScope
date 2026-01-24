@@ -341,7 +341,16 @@ func (h *MonitorHandler) Pulse(c *gin.Context) {
 	}
 
 	if dbUpdated {
-		h.DB.Save(&host)
+		h.DB.Model(&host).Select(
+			"MonitorEnabled",
+			"NetMonthlyRx", "NetMonthlyTx",
+			"NetLastRawRx", "NetLastRawTx",
+			"NetLastResetDate",
+			"TrafficAlerted",
+			"AgentVersion",
+			"Status",
+			"LastPulse",
+		).Updates(&host)
 	}
 
 	// 4. Update Data for View

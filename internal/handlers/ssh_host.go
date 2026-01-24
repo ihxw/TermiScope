@@ -3,6 +3,7 @@ package handlers
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"log"
 	"net"
 	"net/http"
 	"strconv"
@@ -475,12 +476,14 @@ func (h *SSHHostHandler) Reorder(c *gin.Context) {
 	}
 
 	// Transaction to ensure atomicity
+	log.Printf("Reorder Request: UserID %d, DeviceIDs %v", userID, req.DeviceIds)
 	err := h.db.Transaction(func(tx *gorm.DB) error {
 		for i, id := range req.DeviceIds {
 			// Update only if the host belongs to the user
 			if err := tx.Model(&models.SSHHost{}).
 				Where("id = ? AND user_id = ?", id, userID).
 				Update("sort_order", i).Error; err != nil {
+				log.Printf("Reorder Error: ID %d, Error %v", id, err)
 				return err
 			}
 		}

@@ -137,6 +137,7 @@ export default {
         failAdd: '添加主机失败',
         failLoad: '加载主机列表失败',
         searchPlaceholder: '搜索主机...',
+        orderUpdated: '排序已更新',
         type: '类型',
         controlAndMonitor: '控制+监控',
         monitorOnly: '仅监控',

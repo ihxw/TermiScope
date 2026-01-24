@@ -128,6 +128,7 @@ export default {
         failAdd: 'Failed to add host',
         failLoad: 'Failed to load SSH hosts',
         searchPlaceholder: 'Search hosts...',
+        orderUpdated: 'Order updated successfully',
         monitorOnly: 'Monitor Only'
     },
     history: {

@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { getHosts, getHost, createHost, updateHost, deleteHost, testConnection, reorderHosts } from '../api/ssh'
+import { getHosts, getHost, createHost, updateHost, deleteHost, testConnection, reorderHosts as apiReorderHosts } from '../api/ssh'
 
 export const useSSHStore = defineStore('ssh', {
     state: () => ({
@@ -80,14 +80,7 @@ export const useSSHStore = defineStore('ssh', {
 
         async reorderHosts(ids) {
             try {
-                // We need to import reorderHosts first, but let's assume it's imported at top
-                // Wait, I missed adding the import in the previous step or this file.
-                // Let me check imports first.
-                // Actually I can adding it now.
-                // But I should fixing the tool call first.
-                // The previous tool call failed, so no changes made. 
-                // Using the available reorderHosts from api.
-                await reorderHosts(ids)
+                await apiReorderHosts(ids)
             } catch (error) {
                 console.error('Failed to reorder hosts:', error)
                 throw error
