@@ -9,8 +9,20 @@
       style="margin-bottom: 24px"
     />
 
-    <a-row :gutter="[24, 24]">
-      <a-col :xs="24" :sm="12" :md="8" class="col-5" v-for="host in sortedHosts" :key="host.host_id">
+    <div style="display: flex; justify-content: flex-start; margin-bottom: 5px">
+      <a-radio-group v-model:value="viewMode" button-style="solid">
+        <a-radio-button value="card">
+          <AppstoreOutlined />
+        </a-radio-button>
+        <a-radio-button value="list">
+          <UnorderedListOutlined />
+        </a-radio-button>
+      </a-radio-group>
+    </div>
+
+    <!-- Card View -->
+    <a-row :gutter="[5, 5]" v-if="viewMode === 'card'">
+      <a-col :xs="24" :sm="12" :md="8" :lg="6" :xl="4" class="col-5" v-for="host in sortedHosts" :key="host.host_id">
         <a-card hoverable class="monitor-card" :class="{ offline: isOffline(host) }">
           <template #title>
             <a-space>
@@ -132,6 +144,103 @@
       </a-col>
     </a-row>
 
+    <!-- List View -->
+    <a-table 
+      v-if="viewMode === 'list'" 
+      :dataSource="sortedHosts" 
+      :columns="listColumns" 
+      :pagination="false" 
+      rowKey="host_id"
+      size="middle"
+    >
+      <template #bodyCell="{ column, record }">
+        <template v-if="column.key === 'host'">
+          <a-space>
+            <component :is="getOsIcon(record.os)" :style="{ fontSize: '18px' }" />
+            <div>
+              <div style="font-weight: 500">{{ getHostName(record.host_id) }}</div>
+              <div style="font-size: 12px; color: #8c8c8c">{{ record.hostname }}</div>
+            </div>
+          </a-space>
+        </template>
+        
+        <template v-if="column.key === 'status'">
+            <div style="display: flex; flex-direction: column; gap: 4px;">
+                <a-tag :color="isOffline(record) ? 'red' : 'green'" style="margin: 0; width: fit-content;">
+                    {{ isOffline(record) ? 'OFFLINE' : 'ONLINE' }}
+                </a-tag>
+                <span v-if="!isOffline(record)" style="font-size: 12px; color: #8c8c8c">{{ formatUptime(record.uptime) }}</span>
+            </div>
+        </template>
+
+        <template v-if="column.key === 'cpu'">
+          <a-tooltip :title="`${record.cpu_count}C ${record.cpu_model}`">
+            <div style="width: 100%">
+               <div style="display: flex; justify-content: space-between; font-size: 12px;">
+                 <span>{{ formatCpu(record.cpu) }}%</span>
+               </div>
+               <a-progress :percent="record.cpu" :status="getStatus(record.cpu)" :show-info="false" stroke-linecap="square" size="small" />
+            </div>
+          </a-tooltip>
+        </template>
+
+        <template v-if="column.key === 'ram'">
+          <div style="width: 100%">
+             <div style="display: flex; justify-content: space-between; font-size: 12px;">
+               <span>{{ formatPct(record.mem_used, record.mem_total) }}%</span>
+               <span style="color: grey; font-size: 10px">{{ formatBytes(record.mem_used) }} / {{ formatBytes(record.mem_total) }}</span>
+             </div>
+             <a-progress :percent="calcPct(record.mem_used, record.mem_total)" :status="getStatus(calcPct(record.mem_used, record.mem_total))" :show-info="false" stroke-linecap="square" size="small" />
+          </div>
+        </template>
+
+        <template v-if="column.key === 'disk'">
+            <div style="width: 100%">
+             <div style="display: flex; justify-content: space-between; font-size: 12px;">
+               <span>{{ formatPct(record.disk_used, record.disk_total) }}%</span>
+               <span style="color: grey; font-size: 10px">{{ formatBytes(record.disk_used) }} / {{ formatBytes(record.disk_total) }}</span>
+             </div>
+             <a-progress :percent="calcPct(record.disk_used, record.disk_total)" :show-info="false" stroke-linecap="square" size="small" />
+          </div>
+        </template>
+
+        <template v-if="column.key === 'network'">
+           <div style="font-size: 12px">
+            <div style="color: #52c41a"><ArrowDownOutlined /> {{ formatSpeed(record.net_rx_rate || 0) }}</div>
+            <div style="color: #1890ff"><ArrowUpOutlined /> {{ formatSpeed(record.net_tx_rate || 0) }}</div>
+            <div v-if="record.net_traffic_limit > 0" style="margin-top: 4px; font-size: 10px; color: #8c8c8c">
+                {{ getTrafficUsagePct(record) }}% ({{ formatTrafficUsage(record) }})
+            </div>
+           </div>
+        </template>
+
+        <template v-if="column.key === 'actions'">
+          <a-space size="small">
+            <a-tooltip :title="t('terminal.connect')">
+               <a-button type="text" size="small" @click="handleConnect(record)" :disabled="isMonitorOnly(record.host_id)">
+                   <template #icon><CodeOutlined /></template>
+               </a-button>
+            </a-tooltip>
+            <a-tooltip :title="t('network.title')">
+               <a-button type="text" size="small" @click="$router.push({ name: 'NetworkDetail', params: { id: record.host_id } })">
+                   <template #icon><LineChartOutlined /></template>
+               </a-button>
+            </a-tooltip>
+            <a-tooltip :title="t('monitor.history')">
+               <a-button type="text" size="small" @click="showHistory(record.host_id)">
+                   <template #icon><HistoryOutlined /></template>
+               </a-button>
+            </a-tooltip>
+             <a-tooltip :title="t('monitor.notificationSettings')">
+                <a-button type="text" size="small" @click="openSettings(record)">
+                    <template #icon><SettingOutlined /></template>
+                </a-button>
+            </a-tooltip>
+          </a-space>
+        </template>
+      </template>
+    </a-table>
+
     <!-- History Logs Modal -->
     <a-modal v-model:open="historyVisible" :title="t('monitor.statusHistory')" :footer="null" width="600px">
         <a-table :dataSource="histLogs" :columns="histColumns" :pagination="histPagination" :loading="histLoading" size="small" rowKey="id" @change="handleHistTableChange">
@@ -186,7 +295,7 @@
 import { ref, onMounted, onUnmounted, computed, h, watch, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSSHStore } from '../stores/ssh'
-import { ArrowDownOutlined, ArrowUpOutlined, AppleOutlined, WindowsOutlined, DesktopOutlined, LineChartOutlined, HistoryOutlined, SettingOutlined, CodeOutlined } from '@ant-design/icons-vue'
+import { ArrowDownOutlined, ArrowUpOutlined, AppleOutlined, WindowsOutlined, DesktopOutlined, LineChartOutlined, HistoryOutlined, SettingOutlined, CodeOutlined, AppstoreOutlined, UnorderedListOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { getWSTicket } from '../api/auth'
 import { getMonitorLogs } from '../api/ssh'
@@ -200,6 +309,21 @@ const hosts = ref([])
 const connected = ref(true)
 const socket = ref(null)
 const serverAgentVersion = ref(null)
+
+const viewMode = ref(localStorage.getItem('monitor_view_mode') || 'card')
+const listColumns = [
+  { title: 'Host', key: 'host', width: 250 },
+  { title: 'Status', key: 'status', width: 120 },
+  { title: 'CPU', key: 'cpu' },
+  { title: 'RAM', key: 'ram' },
+  { title: 'Disk', key: 'disk' },
+  { title: 'Network', key: 'network', width: 150 },
+  { title: 'Actions', key: 'actions', width: 160, fixed: 'right' }
+]
+
+watch(viewMode, (val) => {
+    localStorage.setItem('monitor_view_mode', val)
+})
 
 // Fetch server agent version
 const fetchServerAgentVersion = async () => {
@@ -566,7 +690,7 @@ onUnmounted(() => {
 
 <style scoped>
 .monitor-dashboard-container {
-  padding: 24px;
+  padding: 5px;
 }
 
 @media (max-width: 768px) {
@@ -588,6 +712,9 @@ onUnmounted(() => {
 .monitor-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+.monitor-card :deep(.ant-card-body) {
+  padding: 12px;
 }
 .card-content {
   display: flex;
