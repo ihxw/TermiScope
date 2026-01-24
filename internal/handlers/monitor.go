@@ -276,7 +276,17 @@ func (h *MonitorHandler) Pulse(c *gin.Context) {
 
 		// Check Traffic Threshold
 		if host.NetTrafficLimit > 0 {
-			totalUsed := host.NetMonthlyRx + host.NetMonthlyTx
+			var measured uint64
+			switch host.NetTrafficCounterMode {
+			case "rx":
+				measured = host.NetMonthlyRx
+			case "tx":
+				measured = host.NetMonthlyTx
+			default: // "total" or empty
+				measured = host.NetMonthlyRx + host.NetMonthlyTx
+			}
+
+			totalUsed := measured + host.NetTrafficUsedAdjustment
 			// Careful with overflow if limit is huge? uint64 is fine.
 			// Calculate percentage
 			percent := uint64(0)

@@ -174,8 +174,21 @@ const initConfig = () => {
         
         // Convert bytes to GB for display
         config.value.limit_gb = parseFloat(( (host.value.net_traffic_limit || 0) / (1024*1024*1024) ).toFixed(2))
-        config.value.adjustment_gb = parseFloat(( (host.value.net_traffic_used_adjustment || 0) / (1024*1024*1024) ).toFixed(2))
         config.value.net_traffic_counter_mode = host.value.net_traffic_counter_mode || 'total'
+
+        // Calculate current measured traffic based on mode to display Total Used in input
+        let measured = 0
+        if (config.value.net_traffic_counter_mode === 'total') {
+            measured = (host.value.net_monthly_rx || 0) + (host.value.net_monthly_tx || 0)
+        } else if (config.value.net_traffic_counter_mode === 'rx') {
+            measured = host.value.net_monthly_rx || 0
+        } else if (config.value.net_traffic_counter_mode === 'tx') {
+            measured = host.value.net_monthly_tx || 0
+        }
+        
+        // Initial value in input should be Total Used (Measured + Adjustment)
+        const totalUsed = measured + (host.value.net_traffic_used_adjustment || 0)
+        config.value.adjustment_gb = parseFloat((totalUsed / (1024*1024*1024)).toFixed(2))
     }
 }
 
@@ -290,7 +303,28 @@ const saveConfig = async () => {
     try {
         // Convert GB back to Bytes
         const trafficLimit = Math.floor(config.value.limit_gb * 1024 * 1024 * 1024)
-        const trafficAdj = Math.floor(config.value.adjustment_gb * 1024 * 1024 * 1024)
+        // Calculate new adjustment: User Input (Total) - Measured
+        // We need to re-calculate measured because mode might have changed
+        let measured = 0
+        if (config.value.net_traffic_counter_mode === 'total') {
+            measured = monthlyRx.value + monthlyTx.value
+        } else if (config.value.net_traffic_counter_mode === 'rx') {
+            measured = monthlyRx.value
+        } else if (config.value.net_traffic_counter_mode === 'tx') {
+            measured = monthlyTx.value
+        }
+
+        const userTotalBytes = Math.floor(config.value.adjustment_gb * 1024 * 1024 * 1024)
+        // Adjustment can be negative if user enters less than measured? 
+        // Typically adjustment is positive to ADD to measured.
+        // If user enters less than measured, it implies measured is wrong or reset needed. (But we can't decrease measured easily without reset).
+        // Let's assume adjustment allows negative? Backend uses uint64 so negative might be tricky.
+        // Backend logic: total = measured + adjustment.
+        // models.SSHHost adjustment is uint64. 
+        // If user wants Total < Measured, we can't support it with uint64 adjustment unless we support negative adjustment.
+        // But let's assume valid case is Calibration > Measured.
+        let trafficAdj = userTotalBytes - measured
+        if (trafficAdj < 0) trafficAdj = 0 // Prevent underflow/negative for now
         
         // Join list to string
         const interfaceStr = config.value.net_interface_list.join(',')

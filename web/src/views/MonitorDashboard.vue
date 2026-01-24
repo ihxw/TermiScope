@@ -125,11 +125,11 @@
             <div style="margin-top: 8px; display: flex; justify-content: space-between; font-size: 12px">
               <div style="text-align: center">
                 <div style="color: #52c41a"><ArrowDownOutlined /> {{ formatSpeed(host.net_rx_rate || 0) }}</div>
-                <div style="color: #8c8c8c">{{ t('monitor.total') }}: {{ formatBytes(host.net_rx) }}</div>
+                <div style="color: #8c8c8c">{{ t('monitor.total') }}: {{ formatBytes(host.net_monthly_rx) }}</div>
               </div>
               <div style="text-align: center">
                 <div style="color: #1890ff"><ArrowUpOutlined /> {{ formatSpeed(host.net_tx_rate || 0) }}</div>
-                <div style="color: #8c8c8c">{{ t('monitor.total') }}: {{ formatBytes(host.net_tx) }}</div>
+                <div style="color: #8c8c8c">{{ t('monitor.total') }}: {{ formatBytes(host.net_monthly_tx) }}</div>
               </div>
             </div>
             
@@ -214,11 +214,11 @@
            <div style="font-size: 12px; width: 100%">
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <span style="color: #52c41a"><ArrowDownOutlined /> {{ formatSpeed(record.net_rx_rate || 0) }}</span>
-                <span style="color: #8c8c8c; font-size: 10px">{{ formatBytes(record.net_rx) }}</span>
+                <span style="color: #8c8c8c; font-size: 10px">{{ formatBytes(record.net_monthly_rx) }}</span>
             </div>
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <span style="color: #1890ff"><ArrowUpOutlined /> {{ formatSpeed(record.net_tx_rate || 0) }}</span>
-                <span style="color: #8c8c8c; font-size: 10px">{{ formatBytes(record.net_tx) }}</span>
+                <span style="color: #8c8c8c; font-size: 10px">{{ formatBytes(record.net_monthly_tx) }}</span>
             </div>
            </div>
         </template>
@@ -438,6 +438,8 @@ const syncHostsFromStore = () => {
         disk_total: 0,
         net_rx: 0,
         net_tx: 0,
+        net_monthly_rx: 0,
+        net_monthly_tx: 0,
         last_updated: 0
       }
     }
