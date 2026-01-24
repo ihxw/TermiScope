@@ -52,12 +52,12 @@
           :data-source="sshStore.hosts"
           :loading="loading"
           row-key="id"
-          size="small"
-          :scroll="{ x: isMobile ? 600 : undefined }"
+          :pagination="false"
+          :scroll="{ x: isMobile ? 600 : undefined, y: 'calc(100vh - 280px)' }"
         >
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'drag'">
-            <div class="drag-handle" style="cursor: move; color: #999;">
+            <div class="drag-handle" style="cursor: move; color: #999; display: flex; justify-content: center; align-items: center; height: 100%;">
                <HolderOutlined />
             </div>
           </template>
@@ -512,7 +512,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, onUnmounted } from 'vue'
+import { ref, onMounted, computed, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { message, Modal } from 'ant-design-vue'
 import {
@@ -527,11 +527,15 @@ import {
   SafetyOutlined,
   EditOutlined,
   DownOutlined,
-  MoreOutlined
+  MoreOutlined,
+  PlusOutlined,
+  LoadingOutlined,
+  HolderOutlined
 } from '@ant-design/icons-vue'
 import { useSSHStore } from '../stores/ssh'
 import { useI18n } from 'vue-i18n'
 import { deployMonitor, stopMonitor, batchDeployMonitor, batchStopMonitor } from '../api/ssh'
+import Sortable from 'sortablejs'
 
 const router = useRouter()
 const sshStore = useSSHStore()
@@ -658,41 +662,44 @@ const handleStopMonitor = async (host) => {
 const hostStatuses = ref({})
 const checkingStatus = ref(false)
 
-import Sortable from 'sortablejs'
 
-// ... existing imports
 
-onMounted(async () => {
-  checkMobile()
-  window.addEventListener('resize', checkMobile)
-  await loadHosts()
-  checkAllStatuses()
-  
+const initSortable = () => {
   const tableWithBody = document.querySelector('.ant-table-tbody')
-  if (tableWithBody) {
-    Sortable.create(tableWithBody, {
-      handle: '.drag-handle', // We'll add a handle column or row cursor
+  if (tableWithBody && !tableWithBody._sortable) {
+    tableWithBody._sortable = Sortable.create(tableWithBody, {
+      handle: '.drag-handle',
       animation: 150,
       onEnd: async ({ oldIndex, newIndex }) => {
         if (oldIndex === newIndex) return
         
-        // Update local list instantly for UI responsiveness
         const item = sshStore.hosts.splice(oldIndex, 1)[0]
         sshStore.hosts.splice(newIndex, 0, item)
         
-        // Send order to backend
         const ids = sshStore.hosts.map(h => h.id)
         try {
             await sshStore.reorderHosts(ids)
             message.success(t('host.orderUpdated'))
         } catch (e) {
             message.error(t('host.failUpdateOrder'))
-            // Revert on failure? Ideally yes, but simplified for now.
-             await loadHosts() // Reload to restore correct state
+             await loadHosts() 
         }
       }
     })
   }
+}
+
+watch(() => sshStore.hosts, () => {
+  nextTick(() => {
+    initSortable()
+  })
+}, { deep: true })
+
+onMounted(async () => {
+  checkMobile()
+  window.addEventListener('resize', checkMobile)
+  await loadHosts()
+  checkAllStatuses()
 })
 
 const checkAllStatuses = async () => {

@@ -12,7 +12,8 @@
          </a-button>
          <a-select v-model:value="timeRange" size="small" style="width: 100px" @change="fetchChartData">
              <a-select-option value="1h">1h</a-select-option>
-             <a-select-option value="6h">6h</a-select-option>
+             <a-select-option value="8h">8h</a-select-option>
+             <a-select-option value="16h">16h</a-select-option>
              <a-select-option value="24h">24h</a-select-option>
          </a-select>
        </a-space>

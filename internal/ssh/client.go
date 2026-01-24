@@ -3,6 +3,7 @@ package ssh
 import (
 	"fmt"
 	"net"
+	"strconv"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -86,7 +87,7 @@ func NewSSHClient(cfg *SSHConfig) (*SSHClient, error) {
 
 // Connect establishes the SSH connection
 func (c *SSHClient) Connect() error {
-	addr := fmt.Sprintf("%s:%d", c.host, c.port)
+	addr := net.JoinHostPort(c.host, strconv.Itoa(c.port))
 	client, err := ssh.Dial("tcp", addr, c.config)
 	if err != nil {
 		return fmt.Errorf("failed to dial: %w", err)

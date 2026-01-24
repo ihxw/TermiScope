@@ -7,7 +7,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -470,7 +472,7 @@ func (h *MonitorHandler) Deploy(c *gin.Context) {
 		Timeout:         10 * time.Second,
 	}
 
-	client, err := ssh.Dial("tcp", fmt.Sprintf("%s:%d", host.Host, host.Port), sshConfig)
+	client, err := ssh.Dial("tcp", net.JoinHostPort(host.Host, strconv.Itoa(host.Port)), sshConfig)
 	if err != nil {
 		log.Printf("Monitor Deploy: SSH Dial failed: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("SSH Connection failed: %v", err)})

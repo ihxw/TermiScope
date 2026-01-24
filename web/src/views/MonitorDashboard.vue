@@ -9,7 +9,7 @@
       style="margin-bottom: 24px"
     />
 
-    <div style="display: flex; justify-content: flex-start; margin-bottom: 5px">
+    <div style="display: flex; align-items: center; margin-bottom: 5px; gap: 16px">
       <a-radio-group v-model:value="viewMode" button-style="solid">
         <a-radio-button value="card">
           <AppstoreOutlined />
@@ -18,6 +18,12 @@
           <UnorderedListOutlined />
         </a-radio-button>
       </a-radio-group>
+
+      <div style="font-size: 13px; color: #8c8c8c">
+        <span style="font-weight: 500">{{ t('monitor.total') }}: {{ totalHosts }}</span>
+        <a-divider type="vertical" />
+        <span style="color: #52c41a">{{ t('monitor.online') }}: {{ onlineHosts }}</span>
+      </div>
     </div>
 
     <!-- Card View -->
@@ -325,16 +331,16 @@ const socket = ref(null)
 const serverAgentVersion = ref(null)
 
 const viewMode = ref(localStorage.getItem('monitor_view_mode') || 'card')
-const listColumns = [
-  { title: 'Host', key: 'host', width: 250 },
-  { title: 'Status', key: 'status', width: 120 },
-  { title: 'CPU', key: 'cpu' },
-  { title: 'RAM', key: 'ram' },
-  { title: 'Disk', key: 'disk' },
-  { title: 'Network', key: 'network', width: 150 },
-  { title: 'Usage', key: 'traffic', width: 140 },
-  { title: 'Actions', key: 'actions', width: 160, fixed: 'right' }
-]
+const listColumns = computed(() => [
+  { title: t('host.host'), key: 'host', width: 250 },
+  { title: t('monitor.status'), key: 'status', width: 120 },
+  { title: t('monitor.cpu'), key: 'cpu' },
+  { title: t('monitor.ram'), key: 'ram' },
+  { title: t('monitor.disk'), key: 'disk' },
+  { title: t('common.network'), key: 'network', width: 150 },
+  { title: t('monitor.usage'), key: 'traffic', width: 140 },
+  { title: t('common.actions'), key: 'actions', width: 160, fixed: 'right' }
+])
 
 watch(viewMode, (val) => {
     localStorage.setItem('monitor_view_mode', val)
@@ -550,6 +556,9 @@ const sortedHosts = computed(() => {
     // Return hosts as is (already sorted by syncHostsFromStore matching sshStore.hosts order)
     return hosts.value
 })
+
+const totalHosts = computed(() => sortedHosts.value.length)
+const onlineHosts = computed(() => sortedHosts.value.filter(h => !isOffline(h)).length)
 
 const connect = async () => {
   try {

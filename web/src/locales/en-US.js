@@ -1,5 +1,6 @@
 export default {
     common: {
+        network: 'Network',
         confirm: 'Confirm',
         cancel: 'Cancel',
         save: 'Save',

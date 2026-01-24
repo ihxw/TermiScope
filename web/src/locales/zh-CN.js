@@ -1,5 +1,6 @@
 export default {
     common: {
+        network: '网络',
         confirm: '确认',
         cancel: '取消',
         save: '保存',
