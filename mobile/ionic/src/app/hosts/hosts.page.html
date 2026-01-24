@@ -1,0 +1,60 @@
+<ion-header [translucent]="true">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button></ion-menu-button>
+    </ion-buttons>
+    <ion-title>主机管理</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="openAddModal()">
+        <ion-icon name="add"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [fullscreen]="true">
+  <ion-refresher slot="fixed" (ionRefresh)="doRefresh($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
+  <div *ngIf="loading" class="ion-text-center ion-padding">
+    <ion-spinner></ion-spinner>
+    <p>Loading...</p>
+  </div>
+
+  <ion-list *ngIf="!loading">
+    <ion-item-sliding *ngFor="let host of hosts$ | async">
+      <ion-item button (click)="openEditModal(host)">
+        <ion-label>
+          <h2>{{ host.name }}</h2>
+          <p>{{ host.host }}:{{ host.port }}</p>
+          <p class="secondary-info">{{ host.username }} | {{ host.group_name || 'No Group' }}</p>
+        </ion-label>
+        <ion-badge slot="end" [color]="host.monitor_enabled ? 'success' : 'medium'">
+          {{ host.monitor_enabled ? 'Monitored' : 'No Monitor' }}
+        </ion-badge>
+        <ion-button slot="end" fill="clear" (click)="openSftp(host); $event.stopPropagation()">
+          <ion-icon name="folder-open-outline"></ion-icon>
+        </ion-button>
+        <ion-button slot="end" fill="clear" (click)="connect(host); $event.stopPropagation()">
+          <ion-icon name="terminal-outline"></ion-icon>
+        </ion-button>
+      </ion-item>
+
+      <ion-item-options side="end">
+        <ion-item-option color="primary" (click)="openEditModal(host)">
+          <ion-icon slot="icon-only" name="create"></ion-icon>
+        </ion-item-option>
+        <ion-item-option color="danger" (click)="deleteHost(host)">
+          <ion-icon slot="icon-only" name="trash"></ion-icon>
+        </ion-item-option>
+      </ion-item-options>
+    </ion-item-sliding>
+  </ion-list>
+
+  <div *ngIf="!loading && (hosts$ | async)?.length === 0" class="ion-text-center ion-padding">
+    <p>No hosts found. Tap + to add one.</p>
+  </div>
+
+  <!-- Add/Edit Modal would be better as a component or inline modal, for now simplified placeholder -->
+</ion-content>

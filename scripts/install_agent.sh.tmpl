@@ -1,0 +1,199 @@
+#!/bin/bash
+# TermiScope 监控代理一键安装脚本
+# 主机: {{HOST_NAME}} (ID: {{HOST_ID}})
+# 服务器: {{SERVER_URL}}
+
+set -e
+
+echo "========================================="
+echo " TermiScope 监控代理安装程序"
+echo "========================================="
+echo "主机: {{HOST_NAME}}"
+echo "服务器: {{SERVER_URL}}"
+echo ""
+
+# 检测操作系统和架构
+OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+ARCH=$(uname -m)
+
+# 转换架构名称
+case $ARCH in
+    x86_64|amd64)
+        ARCH="amd64"
+        ;;
+    aarch64|arm64)
+        ARCH="arm64"
+        ;;
+    armv7l|armv7)
+        ARCH="arm"
+        ;;
+    *)
+        echo "错误: 不支持的架构 $ARCH"
+        exit 1
+        ;;
+esac
+
+# 设置变量
+INSTALL_DIR="/opt/termiscope/agent"
+BIN_NAME="termiscope-agent-$OS-$ARCH"
+USE_SYSTEMD=false
+
+case $OS in
+    linux)
+        if command -v systemctl &> /dev/null; then
+            USE_SYSTEMD=true
+            SERVICE_FILE="/etc/systemd/system/termiscope-agent.service"
+        else
+            SERVICE_FILE="/etc/init.d/termiscope-agent"
+        fi
+        ;;
+    darwin)
+        INSTALL_DIR="$HOME/Library/TermiScope/agent"
+        SERVICE_FILE="$HOME/Library/LaunchAgents/com.termiscope.agent.plist"
+        ;;
+    *)
+        echo "错误: 不支持的操作系统 $OS"
+        exit 1
+        ;;
+esac
+
+echo "检测到系统: $OS ($ARCH)"
+echo "安装目录: $INSTALL_DIR"
+echo ""
+
+# 创建安装目录
+echo "[1/6] 创建安装目录..."
+if [ "$OS" = "linux" ]; then
+    sudo mkdir -p $INSTALL_DIR
+else
+    mkdir -p $INSTALL_DIR
+fi
+cd $INSTALL_DIR
+
+# 停止旧服务（如果存在）
+echo "[2/6] 停止已存在的服务（如果有）..."
+if [ "$USE_SYSTEMD" = true ]; then
+    sudo systemctl stop termiscope-agent 2>/dev/null || true
+    sudo systemctl disable termiscope-agent 2>/dev/null || true
+elif [ "$OS" = "darwin" ]; then
+    launchctl unload $SERVICE_FILE 2>/dev/null || true
+fi
+
+# 下载代理程序
+echo "[3/6] 下载监控代理..."
+DOWNLOAD_URL="{{SERVER_URL}}/api/monitor/agent/$BIN_NAME?secret={{SECRET}}&host_id={{HOST_ID}}"
+echo "下载地址: $DOWNLOAD_URL"
+
+if [ "$OS" = "linux" ]; then
+    sudo curl -f -L -o termiscope-agent "$DOWNLOAD_URL" || {
+        echo "错误: 下载失败，请检查服务器是否可访问"
+        exit 1
+    }
+    sudo chmod +x termiscope-agent
+else
+    curl -f -L -o termiscope-agent "$DOWNLOAD_URL" || {
+        echo "错误: 下载失败，请检查服务器是否可访问"
+        exit 1
+    }
+    chmod +x termiscope-agent
+fi
+
+# 创建服务
+echo "[4/6] 创建系统服务..."
+if [ "$USE_SYSTEMD" = true ]; then
+    # Linux systemd 服务
+    sudo tee $SERVICE_FILE > /dev/null <<EOF
+[Unit]
+Description=TermiScope Monitor Agent
+After=network.target
+
+[Service]
+ExecStart=$INSTALL_DIR/termiscope-agent -server "{{SERVER_URL}}" -secret "{{SECRET}}" -id {{HOST_ID}}
+Restart=always
+User=root
+WorkingDirectory=$INSTALL_DIR
+
+[Install]
+WantedBy=multi-user.target
+EOF
+else
+    # macOS LaunchAgent
+    mkdir -p $(dirname $SERVICE_FILE)
+    cat > $SERVICE_FILE <<EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.termiscope.agent</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>$INSTALL_DIR/termiscope-agent</string>
+        <string>-server</string>
+        <string>{{SERVER_URL}}</string>
+        <string>-secret</string>
+        <string>{{SECRET}}</string>
+        <string>-id</string>
+        <string>{{HOST_ID}}</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>$INSTALL_DIR/agent.log</string>
+    <key>StandardErrorPath</key>
+    <string>$INSTALL_DIR/agent.error.log</string>
+</dict>
+</plist>
+EOF
+fi
+
+# 启动服务
+echo "[5/6] 启动监控服务..."
+if [ "$USE_SYSTEMD" = true ]; then
+    sudo systemctl daemon-reload
+    sudo systemctl enable termiscope-agent
+    sudo systemctl start termiscope-agent
+    
+    echo ""
+    echo "[6/6] 验证服务状态..."
+    sleep 2
+    if sudo systemctl is-active --quiet termiscope-agent; then
+        echo "✓ 服务运行正常"
+    else
+        echo "✗ 服务启动失败，请检查日志:"
+        echo "  sudo systemctl status termiscope-agent"
+        echo "  sudo journalctl -u termiscope-agent -n 50"
+        exit 1
+    fi
+else
+    launchctl load $SERVICE_FILE
+    
+    echo ""
+    echo "[6/6] 验证服务状态..."
+    sleep 2
+    if launchctl list | grep -q com.termiscope.agent; then
+        echo "✓ 服务运行正常"
+    else
+        echo "✗ 服务启动失败，请检查日志:"
+        echo "  cat $INSTALL_DIR/agent.error.log"
+        exit 1
+    fi
+fi
+
+echo ""
+echo "========================================="
+echo " 安装完成！"
+echo "========================================="
+echo ""
+
+if [ "$USE_SYSTEMD" = true ]; then
+    echo "查看服务状态: sudo systemctl status termiscope-agent"
+    echo "查看日志: sudo journalctl -u termiscope-agent -f"
+    echo "停止服务: sudo systemctl stop termiscope-agent"
+else
+    echo "查看服务状态: launchctl list | grep termiscope"
+    echo "查看日志: cat $INSTALL_DIR/agent.log"
+    echo "停止服务: launchctl unload $SERVICE_FILE"
+fi

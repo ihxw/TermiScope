@@ -1,0 +1,41 @@
+<ion-header [translucent]="true">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button></ion-menu-button>
+    </ion-buttons>
+    <ion-title>命令模板</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="addCommand()">
+        <ion-icon name="add"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [fullscreen]="true">
+  <ion-refresher slot="fixed" (ionRefresh)="doRefresh($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
+  <ion-list>
+    <ion-item-sliding *ngFor="let item of templates">
+      <ion-item button (click)="editCommand(item)">
+        <ion-icon slot="start" name="terminal-outline" color="secondary"></ion-icon>
+        <ion-label>
+          <h2>{{ item.name }}</h2>
+          <p class="ion-text-wrap" style="font-family: monospace; font-size: 12px; color: #888;">{{ item.command }}</p>
+        </ion-label>
+      </ion-item>
+
+      <ion-item-options side="end">
+        <ion-item-option color="danger" (click)="deleteCommand(item)">
+          <ion-icon slot="icon-only" name="trash"></ion-icon>
+        </ion-item-option>
+      </ion-item-options>
+    </ion-item-sliding>
+  </ion-list>
+
+  <div *ngIf="templates.length === 0 && !loading" class="ion-text-center ion-padding">
+    <p>暂无命令模板</p>
+  </div>
+</ion-content>

@@ -1,0 +1,73 @@
+<ion-header [translucent]="true">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button></ion-menu-button>
+    </ion-buttons>
+    <ion-title>个人中心</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [fullscreen]="true">
+  <div class="ion-padding">
+    <ion-card>
+      <ion-card-header>
+        <ion-card-title>{{ user.username || 'User' }}</ion-card-title>
+        <ion-card-subtitle>Role: {{ user.role || 'User' }}</ion-card-subtitle>
+      </ion-card-header>
+      <ion-card-content>
+        <ion-list>
+          <ion-item button detail (click)="changePassword()">
+            <ion-icon slot="start" name="key-outline"></ion-icon>
+            <ion-label>修改密码</ion-label>
+          </ion-item>
+        </ion-list>
+      </ion-card-content>
+    </ion-card>
+
+    <ion-card>
+      <ion-card-header>
+        <ion-card-title>双因素认证 (2FA)</ion-card-title>
+      </ion-card-header>
+      <ion-card-content>
+        <div *ngIf="user.two_factor_enabled">
+          <ion-text color="success">
+            <p><ion-icon name="checkmark-circle"></ion-icon> 已启用</p>
+          </ion-text>
+          <ion-button color="danger" expand="block" (click)="disable2FA()">关闭 2FA</ion-button>
+        </div>
+
+        <div *ngIf="!user.two_factor_enabled && !setupMode">
+          <ion-text color="medium">
+            <p>未启用。建议启用以提高账户安全性。</p>
+          </ion-text>
+          <ion-button expand="block" (click)="setup2FA()">开启 2FA</ion-button>
+        </div>
+
+        <div *ngIf="setupMode" class="ion-text-center">
+          <h3>设置 2FA</h3>
+          <p>请使用 Google Authenticator 扫描下方二维码</p>
+          <div *ngIf="qrcode" style="background: white; padding: 10px; display: inline-block;">
+            <img [src]="qrcode" style="width: 200px; height: 200px;">
+          </div>
+          <p *ngIf="secret" class="ion-text-wrap selectable">密钥: {{ secret }}</p>
+
+          <ion-item>
+            <ion-label position="floating">验证码</ion-label>
+            <ion-input [(ngModel)]="verifyToken" type="number" placeholder="6位数字"></ion-input>
+          </ion-item>
+
+          <ion-grid>
+            <ion-row>
+              <ion-col>
+                <ion-button expand="block" color="medium" (click)="cancelSetup()">取消</ion-button>
+              </ion-col>
+              <ion-col>
+                <ion-button expand="block" (click)="verifySetup()">验证并开启</ion-button>
+              </ion-col>
+            </ion-row>
+          </ion-grid>
+        </div>
+      </ion-card-content>
+    </ion-card>
+  </div>
+</ion-content>

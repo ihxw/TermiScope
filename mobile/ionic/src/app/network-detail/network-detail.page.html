@@ -1,0 +1,134 @@
+<ion-header [translucent]="true">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/dashboard"></ion-back-button>
+    </ion-buttons>
+    <ion-title>{{ host?.name || '网络详情' }}</ion-title>
+  </ion-toolbar>
+  <ion-toolbar>
+    <ion-segment [(ngModel)]="segment" mode="md">
+      <ion-segment-button value="overview">
+        <ion-label>概览</ion-label>
+      </ion-segment-button>
+      <ion-segment-button value="config">
+        <ion-label>配置</ion-label>
+      </ion-segment-button>
+    </ion-segment>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [fullscreen]="true" class="ion-padding-xs">
+  <ion-refresher slot="fixed" (ionRefresh)="doRefresh($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
+  <div *ngIf="loading" class="ion-text-center ion-padding">
+    <ion-spinner></ion-spinner>
+  </div>
+
+  <div *ngIf="host">
+
+    <!-- Overview Tab -->
+    <div *ngIf="segment === 'overview'">
+      <!-- Speed Card -->
+      <ion-card>
+        <ion-card-content>
+          <ion-grid>
+            <ion-row>
+              <ion-col class="ion-text-center">
+                <div style="font-size: 20px; color: #52c41a; font-weight: bold;">
+                  <ion-icon name="arrow-down"></ion-icon>
+                  {{ (currentRxRate || 0) | number:'1.0-0' }} B/s
+                </div>
+                <div class="text-muted">实时下载</div>
+              </ion-col>
+              <div style="width: 1px; background: #eee; height: 40px; margin: 0 10px;"></div>
+              <ion-col class="ion-text-center">
+                <div style="font-size: 20px; color: #1890ff; font-weight: bold;">
+                  <ion-icon name="arrow-up"></ion-icon>
+                  {{ (currentTxRate || 0) | number:'1.0-0' }} B/s
+                </div>
+                <div class="text-muted">实时上传</div>
+              </ion-col>
+            </ion-row>
+            <ion-row class="ion-margin-top">
+              <ion-col class="ion-text-center">
+                <div>总量: {{ (monthlyRx || 0) | number:'1.0-1' }} Bytes</div>
+              </ion-col>
+              <ion-col class="ion-text-center">
+                <div>总量: {{ (monthlyTx || 0) | number:'1.0-1' }} Bytes</div>
+              </ion-col>
+            </ion-row>
+          </ion-grid>
+        </ion-card-content>
+      </ion-card>
+
+      <!-- Interface List -->
+      <ion-list-header>
+        <ion-label>网卡列表</ion-label>
+      </ion-list-header>
+      <ion-card *ngFor="let iface of interfaces">
+        <ion-card-header>
+          <ion-card-subtitle>{{ iface.mac }}</ion-card-subtitle>
+          <ion-card-title>
+            {{ iface.name }}
+            <ion-badge
+              *ngIf="config.net_interface_list.includes(iface.name) || config.net_interface_list.includes('auto')"
+              color="primary">Primary</ion-badge>
+          </ion-card-title>
+        </ion-card-header>
+        <ion-card-content>
+          <p *ngFor="let ip of iface.ips">IP: {{ ip }}</p>
+          <div class="ion-margin-top" style="display: flex; justify-content: space-between; font-size: 12px;">
+            <span style="color: #52c41a">Rx: {{ iface.rx_rate | number:'1.0-0' }}/s</span>
+            <span style="color: #1890ff">Tx: {{ iface.tx_rate | number:'1.0-0' }}/s</span>
+          </div>
+        </ion-card-content>
+      </ion-card>
+    </div>
+
+    <!-- Config Tab -->
+    <div *ngIf="segment === 'config'" class="ion-padding">
+      <ion-list>
+        <ion-item>
+          <ion-label position="stacked">流量重置日</ion-label>
+          <ion-input type="number" [(ngModel)]="config.net_reset_day" placeholder="1-31"></ion-input>
+          <ion-note slot="helper">每月几号重置流量统计</ion-note>
+        </ion-item>
+
+        <ion-item>
+          <ion-label position="stacked">月流量限制 (GB)</ion-label>
+          <ion-input type="number" [(ngModel)]="config.limit_gb" placeholder="0 = 无限制"></ion-input>
+        </ion-item>
+
+        <ion-item>
+          <ion-label position="stacked">已用流量调整 (GB)</ion-label>
+          <ion-input type="number" [(ngModel)]="config.adjustment_gb" placeholder="初始已用量"></ion-input>
+        </ion-item>
+
+        <ion-item>
+          <ion-label position="stacked">统计模式</ion-label>
+          <ion-select [(ngModel)]="config.net_traffic_counter_mode">
+            <ion-select-option value="total">双向统计 (Tx+Rx)</ion-select-option>
+            <ion-select-option value="tx">仅流出 (Tx)</ion-select-option>
+            <ion-select-option value="rx">仅流入 (Rx)</ion-select-option>
+          </ion-select>
+        </ion-item>
+
+        <ion-item>
+          <ion-label position="stacked">主网卡 (多选, 输入名)</ion-label>
+          <!-- Simplified text input for MVP or could be select if interfaces loaded -->
+          <ion-input [(ngModel)]="config.net_interface_list" placeholder="auto 或 eth0,eth1"></ion-input>
+          <ion-note slot="helper">逗号分隔，默认 auto</ion-note>
+        </ion-item>
+      </ion-list>
+
+      <div class="ion-margin-top">
+        <ion-button expand="block" (click)="saveConfig()" [disabled]="saving">
+          {{ saving ? '保存中...' : '保存配置' }}
+        </ion-button>
+      </div>
+    </div>
+
+  </div>
+</ion-content>

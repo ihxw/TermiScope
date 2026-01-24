@@ -1,0 +1,33 @@
+<ion-header [translucent]="true">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button></ion-menu-button>
+    </ion-buttons>
+    <ion-title>系统设置</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [fullscreen]="true" class="ion-padding">
+  <ion-list-header>
+    <ion-label>服务器连接</ion-label>
+  </ion-list-header>
+
+  <ion-item>
+    <ion-label position="floating">后端 API 地址</ion-label>
+    <ion-input type="url" [(ngModel)]="serverUrl" placeholder="http://1.2.3.4:8080"></ion-input>
+  </ion-item>
+
+  <ion-button expand="block" (click)="saveSettings()" class="ion-margin-top">
+    保存设置
+  </ion-button>
+
+  <ion-list-header class="ion-margin-top">
+    <ion-label>个人信息</ion-label>
+  </ion-list-header>
+  <ion-item>
+    <ion-label>
+      <h3>当前用户</h3>
+      <p>管理员 (admin)</p>
+    </ion-label>
+  </ion-item>
+</ion-content>

@@ -1,0 +1,36 @@
+<ion-header [translucent]="true">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button></ion-menu-button>
+    </ion-buttons>
+    <ion-title>连接历史</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [fullscreen]="true">
+  <ion-refresher slot="fixed" (ionRefresh)="doRefresh($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
+  <div *ngIf="loading" class="ion-text-center ion-padding">
+    <ion-spinner></ion-spinner>
+  </div>
+
+  <ion-list *ngIf="!loading">
+    <ion-item *ngFor="let log of logs">
+      <ion-label>
+        <h2>{{ log.host_name }} ({{ log.username }})</h2>
+        <p>源 IP: {{ log.ip }}</p>
+        <p class="time-info">开始: {{ log.start_time | date:'yyyy-MM-dd HH:mm:ss' }}</p>
+        <p class="time-info" *ngIf="log.end_time">结束: {{ log.end_time | date:'yyyy-MM-dd HH:mm:ss' }}</p>
+      </ion-label>
+      <ion-badge slot="end" [color]="log.status === 'success' ? 'success' : 'danger'">
+        {{ log.status }}
+      </ion-badge>
+    </ion-item>
+  </ion-list>
+
+  <div *ngIf="!loading && logs.length === 0" class="ion-text-center ion-padding">
+    <p>暂无连接记录</p>
+  </div>
+</ion-content>

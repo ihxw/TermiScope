@@ -1,0 +1,63 @@
+server:
+  # 服务器监听端口
+  port: 3000
+  # 运行模式: debug (调试模式) release (发布模式)
+  # debug 模式下会输出更多日志，release 模式适用于生产环境
+  mode: debug
+  
+  # 允许的跨域来源 (CORS)
+  # 生产环境：如果前端由同一服务器提供，可以留空或删除此配置（自动信任同源请求）
+  # 开发环境：需要配置 Vite 开发服务器地址 (如 http://localhost:5173)
+  allowed_origins:
+    - "http://localhost:5173"     # 开发环境 (Web)
+    - "http://localhost:8100"     # 开发环境 (Ionic)
+    - "http://127.0.0.1:8100"
+    - "http://localhost:3000"
+    - "http://192.168.1.7:5173"
+    - "http://192.168.1.7:54376"
+    - "*"
+  
+  # 最大上传文件大小 (字节)，默认 1000MB
+  max_upload_size: 1048576000
+
+database:
+  # SQLite 数据库文件存储路
+  path: ./data/termiscope.db
+
+security:
+  # JWT 签名密钥
+  # 重要: 在生产环境中请务必修改！
+  # 可以通过环境变量 TERMISCOPE_JWT_SECRET 设置
+  jwt_secret: "cd10c783bd85d22d2dd1db8c8614db2a"
+  
+  # 数据加密密钥 (用于加密存储的密码和私钥)
+  # 重要: 必须正好32 字节 (AES-256)
+  # 可以通过环境变量 TERMISCOPE_ENCRYPTION_KEY 设置
+  encryption_key: "f9751dd3bec89bfbbebe6d45f02d60b7"
+  
+  # # 登录频率限制 (每分钟允许的尝试次数)
+  # login_rate_limit: 20
+
+  # # Access Token 有效(默认 60m)
+  # access_expiration: 60m
+  
+  # # Refresh Token 有效期 (默认 168h = 7天)
+  # refresh_expiration: 24h
+  
+  # SMTP TLS 证书验证 (生产环境必须为 false)
+  # 警告: 设置为 true 会禁用 TLS 证书验证，仅用于测试环境
+  smtp_tls_skip_verify: false
+
+# ssh:
+#   # SSH 连接建立超时时间
+#   timeout: 30s
+#   # SSH 会话空闲超时时间 (超过此时间无操作将自动断开)
+#   idle_timeout: 30m
+#   # 每个用户允许的最大并SSH 连接
+#   max_connections_per_user: 10
+
+log:
+  # 日志级别: debug, info, warn, error
+  level: info
+  # 日志文件输出路径
+  file: ./logs/app.log

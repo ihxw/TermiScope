@@ -1,0 +1,113 @@
+<ion-header [translucent]="true" class="ion-no-border">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button></ion-menu-button>
+    </ion-buttons>
+    <ion-title>状态监控</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="refresh()">
+        <ion-icon name="refresh"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [fullscreen]="true" class="dashboard-content">
+  <ion-refresher slot="fixed" (ionRefresh)="doRefresh($event)">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
+  <div *ngIf="loading" class="ion-text-center ion-padding">
+    <ion-spinner></ion-spinner>
+    <p>Loading hosts...</p>
+  </div>
+
+  <div *ngIf="!loading && (hosts$ | async)?.length === 0" class="ion-text-center ion-padding">
+    <p>No hosts found.</p>
+  </div>
+
+  <div class="hosts-container">
+    <ion-card *ngFor="let host of hosts$ | async" class="host-custom-card" [class.offline]="isOffline(host)">
+
+      <!-- Card Header: Name & Actions -->
+      <div class="card-header-row">
+        <div class="host-title-group">
+          <ion-icon [name]="getOsIcon(host.os)" class="os-icon"></ion-icon>
+          <span class="host-name">{{ host.name }}</span>
+          <span class="host-os-hint">({{ host.os || 'linux' }})</span>
+        </div>
+        <div class="host-actions">
+          <ion-button fill="clear" size="small" (click)="connect(host)" [disabled]="host.host_type === 'monitor_only'">
+            <ion-icon slot="icon-only" name="terminal-outline"></ion-icon>
+          </ion-button>
+          <ion-button fill="clear" size="small" (click)="viewHistory(host)">
+            <ion-icon slot="icon-only" name="time-outline"></ion-icon>
+          </ion-button>
+          <ion-button fill="clear" size="small" [routerLink]="['/hosts', host.id]">
+            <ion-icon slot="icon-only" name="settings-outline"></ion-icon>
+          </ion-button>
+        </div>
+      </div>
+
+      <!-- Info Row -->
+      <div class="card-info-row">
+        <span><ion-icon name="laptop-outline"></ion-icon> {{ host.host }}</span>
+        <span class="divider">|</span>
+        <span>uptime: {{ formatUptime(host.uptime) }}</span>
+        <span class="divider">|</span>
+        <span>Agent: {{ host.agent_version || 'v?' }}</span>
+      </div>
+
+      <!-- Metrics -->
+      <div class="metrics-container">
+        <!-- CPU -->
+        <div class="metric-block">
+          <div class="metric-top">
+            <span class="metric-name">CPU</span>
+            <span class="metric-detail">{{ host.cpu || 0 }}%</span>
+          </div>
+          <ion-progress-bar [value]="(host.cpu || 0) / 100" [color]="getStatusColor(host.cpu)"></ion-progress-bar>
+        </div>
+
+        <!-- RAM -->
+        <div class="metric-block">
+          <div class="metric-top">
+            <span class="metric-name">内存</span>
+            <span class="metric-detail">{{ formatBytes(host.mem_used) }} / {{ formatBytes(host.mem_total) }}</span>
+            <span class="metric-pct">{{ calcPct(host.mem_used, host.mem_total) }}%</span>
+          </div>
+          <ion-progress-bar [value]="calcPct(host.mem_used, host.mem_total) / 100"
+            [color]="getStatusColor(calcPct(host.mem_used, host.mem_total))"></ion-progress-bar>
+        </div>
+
+        <!-- Disk -->
+        <div class="metric-block">
+          <div class="metric-top">
+            <span class="metric-name">磁盘</span>
+            <span class="metric-detail">{{ formatBytes(host.disk_used) }} / {{ formatBytes(host.disk_total) }}</span>
+            <span class="metric-pct">{{ calcPct(host.disk_used, host.disk_total) }}%</span>
+          </div>
+          <ion-progress-bar [value]="calcPct(host.disk_used, host.disk_total) / 100"
+            [color]="getStatusColor(calcPct(host.disk_used, host.disk_total))"></ion-progress-bar>
+        </div>
+      </div>
+
+      <!-- Network Footer -->
+      <div class="network-footer">
+        <div class="net-item">
+          <div class="net-speed down">
+            <ion-icon name="arrow-down"></ion-icon> {{ formatSpeed(host.net_rx_rate) }}
+          </div>
+          <div class="net-total">总量: {{ formatBytes(host.net_rx) }}</div>
+        </div>
+        <div class="net-item right">
+          <div class="net-speed up">
+            <ion-icon name="arrow-up"></ion-icon> {{ formatSpeed(host.net_tx_rate) }}
+          </div>
+          <div class="net-total">总量: {{ formatBytes(host.net_tx) }}</div>
+        </div>
+      </div>
+
+    </ion-card>
+  </div>
+</ion-content>
