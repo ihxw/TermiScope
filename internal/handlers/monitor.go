@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -1125,13 +1126,30 @@ func (h *MonitorHandler) BatchDeploy(c *gin.Context) {
 		return
 	}
 
-	results := make([]BatchDeployResult, 0, len(req.HostIDs))
+	// Set headers for streaming
+	c.Header("Content-Type", "application/x-ndjson")
+	c.Header("Transfer-Encoding", "chunked")
+	c.Header("X-Content-Type-Options", "nosniff")
+
+	// Flush headers immediately
+	c.Writer.Flush()
 
 	// 并发部署(限制并发数避免资源耗尽)
-	maxConcurrent := 5
+	maxConcurrent := 20
 	semaphore := make(chan struct{}, maxConcurrent)
-	var mu sync.Mutex
 	var wg sync.WaitGroup
+
+	// Channel to collect results for streaming
+	resultChan := make(chan BatchDeployResult)
+
+	// Start result streamer
+	go func() {
+		encoder := json.NewEncoder(c.Writer)
+		for res := range resultChan {
+			encoder.Encode(res)
+			c.Writer.Flush()
+		}
+	}()
 
 	for _, hostID := range req.HostIDs {
 		wg.Add(1)
@@ -1147,9 +1165,7 @@ func (h *MonitorHandler) BatchDeploy(c *gin.Context) {
 			if err := h.DB.First(&host, id).Error; err != nil {
 				result.Success = false
 				result.Message = "主机不存在"
-				mu.Lock()
-				results = append(results, result)
-				mu.Unlock()
+				resultChan <- result
 				return
 			}
 
@@ -1165,17 +1181,12 @@ func (h *MonitorHandler) BatchDeploy(c *gin.Context) {
 				result.Message = "部署成功"
 			}
 
-			mu.Lock()
-			results = append(results, result)
-			mu.Unlock()
+			resultChan <- result
 		}(hostID)
 	}
 
 	wg.Wait()
-
-	c.JSON(http.StatusOK, gin.H{
-		"results": results,
-	})
+	close(resultChan)
 }
 
 // deployToHost - 部署agent到指定主机(从Deploy函数提取的核心逻辑)
@@ -1399,13 +1410,27 @@ func (h *MonitorHandler) BatchStop(c *gin.Context) {
 		return
 	}
 
-	results := make([]BatchStopResult, 0, len(req.HostIDs))
+	// Set headers for streaming
+	c.Header("Content-Type", "application/x-ndjson")
+	c.Header("Transfer-Encoding", "chunked")
+	c.Header("X-Content-Type-Options", "nosniff")
+	c.Writer.Flush()
 
 	// 并发停止(限制并发数)
-	maxConcurrent := 5
+	maxConcurrent := 20
 	semaphore := make(chan struct{}, maxConcurrent)
-	var mu sync.Mutex
 	var wg sync.WaitGroup
+
+	resultChan := make(chan BatchStopResult)
+
+	// Streamer
+	go func() {
+		encoder := json.NewEncoder(c.Writer)
+		for res := range resultChan {
+			encoder.Encode(res)
+			c.Writer.Flush()
+		}
+	}()
 
 	for _, hostID := range req.HostIDs {
 		wg.Add(1)
@@ -1421,9 +1446,7 @@ func (h *MonitorHandler) BatchStop(c *gin.Context) {
 			if err := h.DB.First(&host, id).Error; err != nil {
 				result.Success = false
 				result.Message = "主机不存在"
-				mu.Lock()
-				results = append(results, result)
-				mu.Unlock()
+				resultChan <- result
 				return
 			}
 
@@ -1439,17 +1462,12 @@ func (h *MonitorHandler) BatchStop(c *gin.Context) {
 				result.Message = "停止成功"
 			}
 
-			mu.Lock()
-			results = append(results, result)
-			mu.Unlock()
+			resultChan <- result
 		}(hostID)
 	}
 
 	wg.Wait()
-
-	c.JSON(http.StatusOK, gin.H{
-		"results": results,
-	})
+	close(resultChan)
 }
 
 // stopMonitorOnHost - 停止指定主机的监控(从Stop函数提取的核心逻辑)

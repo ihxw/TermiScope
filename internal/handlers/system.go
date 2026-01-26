@@ -18,14 +18,16 @@ import (
 )
 
 type SystemHandler struct {
-	db     *gorm.DB
-	config *config.Config
+	db      *gorm.DB
+	config  *config.Config
+	version string
 }
 
-func NewSystemHandler(db *gorm.DB, cfg *config.Config) *SystemHandler {
+func NewSystemHandler(db *gorm.DB, cfg *config.Config, version string) *SystemHandler {
 	return &SystemHandler{
-		db:     db,
-		config: cfg,
+		db:      db,
+		config:  cfg,
+		version: version,
 	}
 }
 
@@ -315,13 +317,10 @@ func (h *SystemHandler) UpdateSettings(c *gin.Context) {
 	})
 }
 
-// GetAgentVersion returns the current agent version from package.json
+// GetAgentVersion returns the current agent version
 func (h *SystemHandler) GetAgentVersion(c *gin.Context) {
-	// Read version from package.json (webpackage.json location)
-	// In production, this should be set during build
-	version := "2.0.12" // This will be replaced during build with actual version
-
+	// Version is injected during build
 	utils.SuccessResponse(c, http.StatusOK, gin.H{
-		"version": version,
+		"version": h.version,
 	})
 }

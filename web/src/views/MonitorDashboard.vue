@@ -359,13 +359,18 @@ const fetchServerAgentVersion = async () => {
   }
 }
 
+// Helper to clean version strings for comparison
+const cleanVersion = (v) => {
+  if (!v) return ''
+  return v.toString().replace(/^v/, '').trim()
+}
+
 // Check if agent version is outdated
 const isAgentOutdated = (host) => {
   if (!host.agent_version || !serverAgentVersion.value) {
     return false
   }
-  // Simple version comparison (assumes semantic versioning)
-  return host.agent_version !== serverAgentVersion.value
+  return cleanVersion(host.agent_version) !== cleanVersion(serverAgentVersion.value)
 }
 
 const getHostName = (hostId) => {

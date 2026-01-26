@@ -45,15 +45,97 @@ export const reorderHosts = async (ids) => {
     return await api.put('/ssh-hosts/reorder', { device_ids: ids })
 }
 
-export const batchDeployMonitor = async (hostIds, insecure = false) => {
-    return await api.post('/ssh-hosts/monitor/batch-deploy', {
-        host_ids: hostIds,
-        insecure: insecure
+export const batchDeployMonitor = async (hostIds, insecure = false, onResult) => {
+    const token = localStorage.getItem('token')
+    const response = await fetch('/api/ssh-hosts/monitor/batch-deploy', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+            host_ids: hostIds,
+            insecure: insecure
+        })
     })
+
+    if (!response.ok) {
+        let errorMsg = 'Request failed'
+        try {
+            const errorData = await response.json()
+            errorMsg = errorData.error || errorMsg
+        } catch (e) { }
+        throw new Error(errorMsg)
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop()
+
+        for (const line of lines) {
+            if (line.trim()) {
+                try {
+                    const result = JSON.parse(line)
+                    if (onResult) onResult(result)
+                } catch (e) {
+                    console.error('JSON parse error:', e)
+                }
+            }
+        }
+    }
 }
 
-export const batchStopMonitor = async (hostIds) => {
-    return await api.post('/ssh-hosts/monitor/batch-stop', {
-        host_ids: hostIds
+export const batchStopMonitor = async (hostIds, onResult) => {
+    const token = localStorage.getItem('token')
+    const response = await fetch('/api/ssh-hosts/monitor/batch-stop', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+            host_ids: hostIds
+        })
     })
+
+    if (!response.ok) {
+        let errorMsg = 'Request failed'
+        try {
+            const errorData = await response.json()
+            errorMsg = errorData.error || errorMsg
+        } catch (e) { }
+        throw new Error(errorMsg)
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+
+    while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop()
+
+        for (const line of lines) {
+            if (line.trim()) {
+                try {
+                    const result = JSON.parse(line)
+                    if (onResult) onResult(result)
+                } catch (e) {
+                    console.error('JSON parse error:', e)
+                }
+            }
+        }
+    }
 }

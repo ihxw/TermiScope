@@ -18,6 +18,11 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
+var (
+	// Version is set during build via ldflags (-X main.Version=x.x.x)
+	Version = "dev"
+)
+
 func main() {
 	// Load configuration
 	cfg, err := config.LoadConfig()
@@ -204,7 +209,7 @@ func main() {
 			}
 
 			// System management
-			systemHandler := handlers.NewSystemHandler(db, cfg)
+			systemHandler := handlers.NewSystemHandler(db, cfg, Version)
 			system := adminGroup.Group("/system")
 			{
 				system.GET("/backup", systemHandler.Backup)
@@ -215,7 +220,7 @@ func main() {
 		}
 
 		// System routes (Protected but not Admin-only)
-		systemHandler := handlers.NewSystemHandler(db, cfg)
+		systemHandler := handlers.NewSystemHandler(db, cfg, Version)
 		protected.GET("/system/agent-version", systemHandler.GetAgentVersion)
 	}
 

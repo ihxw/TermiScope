@@ -889,54 +889,22 @@ const handleBatchDeploy = async () => {
   
   // 初始化状态
   selectedRowKeys.value.forEach(id => {
-    deployStatus.value[id] = { status: 'deploying', message: t('monitor.deploying') }
+    deployStatus.value[id] = { status: 'waiting', message: t('monitor.deploying') }
   })
   
+  let successCount = 0
+  let failCount = 0
+  
   try {
-    // 使用API函数确保认证token被正确传递
-    const response = await batchDeployMonitor(selectedRowKeys.value, batchDeployInsecure.value)
-    
-    console.log('批量部署完整响应:', response)
-    console.log('response.data:', response.data)
-    
-    // 检查响应数据 - axios返回的数据在response.data中
-    let results = []
-    
-    if (response.data && response.data.results) {
-      // 标准格式: { results: [...] }
-      results = response.data.results
-    } else if (Array.isArray(response.data)) {
-      // 直接是数组
-      results = response.data
-    } else if (response.results) {
-      // 数据直接在response中
-      results = response.results
-    } else {
-      console.error('无法解析响应数据:', response)
-      throw new Error('服务端返回数据格式错误')
-    }
-    
-    console.log('解析的results:', results)
-    
-    if (results.length === 0) {
-      message.warning('未收到部署结果')
-      return
-    }
-    
-    // 更新每个主机的部署状态
-    results.forEach(result => {
-      console.log('更新主机状态:', result)
-      deployStatus.value[result.host_id] = {
-        status: result.success ? 'success' : 'error',
-        message: result.message
-      }
+    await batchDeployMonitor(selectedRowKeys.value, batchDeployInsecure.value, (result) => {
+        // Real-time update
+        deployStatus.value[result.host_id] = {
+            status: result.success ? 'success' : 'error',
+            message: result.message
+        }
+        if (result.success) successCount++
+        else failCount++
     })
-    
-    console.log('更新后的deployStatus:', deployStatus.value)
-    
-    // 统计结果
-    const successCount = results.filter(r => r.success).length
-    const failCount = results.length - successCount
     
     if (failCount === 0) {
       message.success(t('monitor.batchDeploySuccess', { count: successCount }))
@@ -950,17 +918,18 @@ const handleBatchDeploy = async () => {
     }
   } catch (error) {
     console.error('批量部署错误:', error)
-    console.error('错误详情:', error.response)
     
-    // 清除部署状态
+    // Mark remaining waiting hosts as error
     selectedRowKeys.value.forEach(id => {
-      deployStatus.value[id] = {
-        status: 'error',
-        message: error.response?.data?.error || error.message || '部署失败'
+      if (deployStatus.value[id].status === 'waiting') {
+          deployStatus.value[id] = {
+            status: 'error',
+            message: error.message || '部署失败'
+          }
       }
     })
     
-    message.error(t('monitor.batchDeployFailed') + ': ' + (error.response?.data?.error || error.message))
+    message.error(t('monitor.batchDeployFailed') + ': ' + (error.message || 'Error'))
   } finally {
     batchDeploying.value = false
   }
@@ -1027,43 +996,21 @@ const handleBatchStop = async () => {
   
   // 初始化状态
   selectedRowKeys.value.forEach(id => {
-    stopStatus.value[id] = { status: 'stopping', message: t('monitor.stopping') }
+    stopStatus.value[id] = { status: 'waiting', message: t('monitor.stopping') }
   })
   
+  let successCount = 0
+  let failCount = 0
+  
   try {
-    const response = await batchStopMonitor(selectedRowKeys.value)
-    
-    console.log('批量停止响应:', response)
-    
-    let results = []
-    
-    if (response.data && response.data.results) {
-      results = response.data.results
-    } else if (Array.isArray(response.data)) {
-      results = response.data
-    } else if (response.results) {
-      results = response.results
-    } else {
-      console.error('无法解析响应数据:', response)
-      throw new Error('服务端返回数据格式错误')
-    }
-    
-    if (results.length === 0) {
-      message.warning('未收到停止结果')
-      return
-    }
-    
-    // 更新每个主机的停止状态
-    results.forEach(result => {
-      stopStatus.value[result.host_id] = {
-        status: result.success ? 'success' : 'error',
-        message: result.message
-      }
+    await batchStopMonitor(selectedRowKeys.value, (result) => {
+        stopStatus.value[result.host_id] = {
+            status: result.success ? 'success' : 'error',
+            message: result.message
+        }
+        if (result.success) successCount++
+        else failCount++
     })
-    
-    // 统计结果
-    const successCount = results.filter(r => r.success).length
-    const failCount = results.length - successCount
     
     if (failCount === 0) {
       message.success(t('monitor.batchStopSuccess', { count: successCount }))
@@ -1078,14 +1025,16 @@ const handleBatchStop = async () => {
   } catch (error) {
     console.error('批量停止错误:', error)
     
-    selectedRowKeys.value.forEach(id => {
-      stopStatus.value[id] = {
-        status: 'error',
-        message: error.response?.data?.error || error.message || '停止失败'
+     selectedRowKeys.value.forEach(id => {
+      if (stopStatus.value[id].status === 'waiting') {
+          stopStatus.value[id] = {
+            status: 'error',
+            message: error.message || '停止失败'
+          }
       }
     })
     
-    message.error(t('monitor.batchStopFailed') + ': ' + (error.response?.data?.error || error.message))
+    message.error(t('monitor.batchStopFailed') + ': ' + (error.message || 'Error'))
   } finally {
     batchStopping.value = false
   }
