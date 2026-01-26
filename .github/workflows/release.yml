@@ -54,10 +54,3 @@ jobs:
           generate_release_notes: true
           draft: false
           prerelease: false
-
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
-        if: startsWith(github.ref, 'refs/tags/')
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./web/dist
