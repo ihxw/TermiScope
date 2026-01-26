@@ -53,11 +53,12 @@
                     <template #icon><HistoryOutlined /></template>
                 </a-button>
              </a-tooltip>
-             <a-tooltip :title="t('monitor.notificationSettings')">
-                <a-button type="text" shape="circle" @click="openSettings(host)">
+             <a-tooltip :title="t('common.settings')">
+                <a-button type="text" shape="circle" @click="$router.push({ name: 'NetworkDetail', params: { id: host.host_id }, query: { tab: 'config' } })">
                     <template #icon><SettingOutlined /></template>
                 </a-button>
              </a-tooltip>
+
           </template>
           
           <div class="card-content">
@@ -251,11 +252,12 @@
                    <template #icon><HistoryOutlined /></template>
                </a-button>
             </a-tooltip>
-             <a-tooltip :title="t('monitor.notificationSettings')">
-                <a-button type="text" size="small" @click="openSettings(record)">
+             <a-tooltip :title="t('common.settings')">
+                <a-button type="text" size="small" @click="$router.push({ name: 'NetworkDetail', params: { id: record.host_id }, query: { tab: 'config' } })">
                     <template #icon><SettingOutlined /></template>
                 </a-button>
-            </a-tooltip>
+             </a-tooltip>
+
           </a-space>
         </template>
       </template>
@@ -275,39 +277,7 @@
         </a-table>
     </a-modal>
 
-    <!-- Notification Settings Modal -->
-    <a-modal v-model:open="settingsVisible" :title="t('monitor.notificationSettings')" @ok="handleSaveSettings" :confirmLoading="settingsLoading">
-        <a-form layout="vertical">
-            <a-form-item>
-                <a-switch v-model:checked="settingsForm.notify_offline_enabled" :checked-children="t('common.enabled')" :un-checked-children="t('common.disabled')" />
-                <span style="margin-left: 8px">{{ t('monitor.enableOfflineNotify') }}</span>
-            </a-form-item>
-            <a-form-item :label="t('monitor.offlineThreshold')" v-if="settingsForm.notify_offline_enabled">
-                <a-input-number v-model:value="settingsForm.notify_offline_threshold" :min="1" style="width: 100%" />
-            </a-form-item>
-            
-            <a-divider />
 
-            <a-form-item>
-                <a-switch v-model:checked="settingsForm.notify_traffic_enabled" :checked-children="t('common.enabled')" :un-checked-children="t('common.disabled')" />
-                <span style="margin-left: 8px">{{ t('monitor.enableTrafficNotify') }}</span>
-            </a-form-item>
-            <a-form-item :label="t('monitor.trafficThreshold')" v-if="settingsForm.notify_traffic_enabled">
-                <a-input-number v-model:value="settingsForm.notify_traffic_threshold" :min="0" :max="100" style="width: 100%" />
-            </a-form-item>
-
-            <a-divider />
-
-            <a-form-item :label="t('monitor.notifyChannels')">
-                <a-checkbox-group v-model:value="settingsForm.notify_channels_list">
-                    <a-row>
-                        <a-col :span="12"><a-checkbox value="email">{{ t('monitor.channelEmail') }}</a-checkbox></a-col>
-                        <a-col :span="12"><a-checkbox value="telegram">{{ t('monitor.channelTelegram') }}</a-checkbox></a-col>
-                    </a-row>
-                </a-checkbox-group>
-            </a-form-item>
-        </a-form>
-    </a-modal>
   </div>
 </template>
 
@@ -662,54 +632,7 @@ const showHistory = (hostId) => {
 const handleHistTableChange = (pag) => {
     loadHistory(pag.current)
 }
-
-// Notification Settings Logic
-const settingsVisible = ref(false)
-const settingsLoading = ref(false)
-const currentSettingsHostId = ref(0)
-const settingsForm = reactive({
-    notify_offline_enabled: true,
-    notify_traffic_enabled: true,
-    notify_offline_threshold: 1,
-    notify_traffic_threshold: 90,
-    notify_channels_list: ['email', 'telegram']
-})
-
-const openSettings = (host) => {
-    currentSettingsHostId.value = host.host_id
-    const originalHost = sshStore.hosts.find(h => h.id === host.host_id)
-    if (originalHost) {
-        settingsForm.notify_offline_enabled = originalHost.notify_offline_enabled !== undefined ? originalHost.notify_offline_enabled : true
-        settingsForm.notify_traffic_enabled = originalHost.notify_traffic_enabled !== undefined ? originalHost.notify_traffic_enabled : true
-        settingsForm.notify_offline_threshold = originalHost.notify_offline_threshold || 1
-        settingsForm.notify_traffic_threshold = originalHost.notify_traffic_threshold || 90
-        const channels = originalHost.notify_channels || 'email,telegram'
-        settingsForm.notify_channels_list = channels.split(',').filter(c => c)
-    }
-    settingsVisible.value = true
-}
-
-const handleSaveSettings = async () => {
-    settingsLoading.value = true
-    try {
-        const updateData = {
-            notify_offline_enabled: settingsForm.notify_offline_enabled,
-            notify_traffic_enabled: settingsForm.notify_traffic_enabled,
-            notify_offline_threshold: settingsForm.notify_offline_threshold,
-            notify_traffic_threshold: settingsForm.notify_traffic_threshold,
-            notify_channels: settingsForm.notify_channels_list.join(',')
-        }
-        await sshStore.modifyHost(currentSettingsHostId.value, updateData)
-        message.success(t('common.saveSuccess'))
-        settingsVisible.value = false
-    } catch (e) {
-        console.error(e)
-        message.error(t('common.saveFailed'))
-    } finally {
-        settingsLoading.value = false
-    }
-}
-
+    
 onUnmounted(() => {
   if (socket.value) socket.value.close()
 })

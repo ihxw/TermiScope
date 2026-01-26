@@ -2,7 +2,7 @@
   <div style="padding: 12px">
     <a-page-header 
         @back="$router.back()" 
-        :title="t('network.title')" 
+        :title="isSettingsMode ? t('common.hostSettings') : t('network.title')" 
         :sub-title="host?.name || t('host.name')"
         style="padding: 0 0 12px 0"
     >
@@ -17,12 +17,13 @@
     </div>
 
     <a-card v-else :bordered="false" :bodyStyle="{ padding: '12px' }">
-      <a-tabs v-model:activeKey="activeTab">
-        <!-- Network Connectivity Tab -->
-        <a-tab-pane key="connectivity" :tab="t('network.connectivity')">
+      <!-- Monitor Mode: Direct View -->
+      <div v-if="!isSettingsMode">
           <NetworkLatencyMonitor :hostId="hostId" v-if="hostId" />
-        </a-tab-pane>
+      </div>
 
+      <!-- Settings Mode: Tabbed View -->
+      <a-tabs v-model:activeKey="activeTab" v-else>
         <!-- Configuration Tab -->
         <a-tab-pane key="config" :tab="t('network.configuration')">
           <a-row :gutter="12">
@@ -85,17 +86,17 @@
                   </div>
                   
                   <div v-if="config.limit_gb > 0" style="margin-top: 12px">
-                      <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 12px">
+                      <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 11px">
                           <span>{{ t('network.usage') }} ({{ usagePercentage }}%)</span>
                           <span>{{ formatBytes(totalUsedBytes) }} / {{ config.limit_gb }} GB</span>
                       </div>
                       <a-progress :percent="usagePercentage" :status="usageStatus" size="small" />
-                      <div style="margin-top: 4px; font-size: 12px; color: #8c8c8c">
+                      <div style="margin-top: 4px; font-size: 11px; color: #8c8c8c">
                           {{ t('network.remaining') }}: {{ formatBytes(remainingBytes) }}
                       </div>
                   </div>
 
-                   <a-alert :message="t('network.calcInfo')" type="info" show-icon style="font-size: 12px; margin-top: 12px" />
+                   <a-alert :message="t('network.calcInfo')" type="info" show-icon style="font-size: 11px; margin-top: 12px" />
               </a-card>
             </a-col>
 
@@ -133,13 +134,51 @@
             </a-col>
           </a-row>
         </a-tab-pane>
+        
+        <!-- Notifications Tab -->
+        <a-tab-pane key="notifications" :tab="t('monitor.notificationSettings')">
+            <a-card :title="t('monitor.notificationSettings')" :bordered="false" size="small" style="max-width: 600px">
+                <a-form layout="vertical">
+                    <a-form-item>
+                        <a-switch v-model:checked="notifyConfig.notify_offline_enabled" :checked-children="t('common.enabled')" :un-checked-children="t('common.disabled')" />
+                        <span style="margin-left: 8px">{{ t('monitor.enableOfflineNotify') }}</span>
+                    </a-form-item>
+                    <a-form-item :label="t('monitor.offlineThreshold')" v-if="notifyConfig.notify_offline_enabled">
+                        <a-input-number v-model:value="notifyConfig.notify_offline_threshold" :min="1" style="width: 100%" />
+                    </a-form-item>
+                    
+                    <a-divider />
+
+                    <a-form-item>
+                        <a-switch v-model:checked="notifyConfig.notify_traffic_enabled" :checked-children="t('common.enabled')" :un-checked-children="t('common.disabled')" />
+                        <span style="margin-left: 8px">{{ t('monitor.enableTrafficNotify') }}</span>
+                    </a-form-item>
+                    <a-form-item :label="t('monitor.trafficThreshold')" v-if="notifyConfig.notify_traffic_enabled">
+                        <a-input-number v-model:value="notifyConfig.notify_traffic_threshold" :min="0" :max="100" style="width: 100%" />
+                    </a-form-item>
+
+                    <a-divider />
+
+                    <a-form-item :label="t('monitor.notifyChannels')">
+                        <a-checkbox-group v-model:value="notifyConfig.notify_channels_list">
+                            <a-row>
+                                <a-col :span="12"><a-checkbox value="email">{{ t('monitor.channelEmail') }}</a-checkbox></a-col>
+                                <a-col :span="12"><a-checkbox value="telegram">{{ t('monitor.channelTelegram') }}</a-checkbox></a-col>
+                            </a-row>
+                        </a-checkbox-group>
+                    </a-form-item>
+                    
+                    <a-button type="primary" @click="saveNotifyConfig" :loading="saving" block>{{ t('common.save') }}</a-button>
+                </a-form>
+            </a-card>
+        </a-tab-pane>
       </a-tabs>
     </a-card>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch, reactive } from 'vue'
 import { useRoute } from 'vue-router'
 import { useSSHStore } from '../stores/ssh'
 import { ArrowDownOutlined, ArrowUpOutlined } from '@ant-design/icons-vue'
@@ -155,7 +194,12 @@ const hostId = parseInt(route.params.id)
 
 const host = computed(() => sshStore.hosts.find(h => h.id === hostId))
 const connected = ref(false)
-const activeTab = ref('connectivity') // Default to connectivity tab
+
+const isSettingsMode = computed(() => {
+    return ['notifications', 'config'].includes(route.query.tab)
+})
+
+const activeTab = ref(route.query.tab || 'connectivity')
 const socket = ref(null)
 const interfaces = ref([])
 const monthlyRx = ref(0)
@@ -170,6 +214,15 @@ const config = ref({
     limit_gb: 0,
     adjustment_gb: 0,
     net_traffic_counter_mode: 'total'
+})
+
+// Notification Configuration
+const notifyConfig = reactive({
+    notify_offline_enabled: true,
+    notify_traffic_enabled: true,
+    notify_offline_threshold: 1,
+    notify_traffic_threshold: 90,
+    notify_channels_list: ['email', 'telegram']
 })
 
 const isInputFocused = ref(false)
@@ -214,6 +267,14 @@ const initConfig = () => {
         // Initialize monthly stats from store to avoid "0" measured if WS not yet connected
         monthlyRx.value = host.value.net_monthly_rx || 0
         monthlyTx.value = host.value.net_monthly_tx || 0
+
+        // Init Notification Config
+        notifyConfig.notify_offline_enabled = host.value.notify_offline_enabled !== undefined ? host.value.notify_offline_enabled : true
+        notifyConfig.notify_traffic_enabled = host.value.notify_traffic_enabled !== undefined ? host.value.notify_traffic_enabled : true
+        notifyConfig.notify_offline_threshold = host.value.notify_offline_threshold || 1
+        notifyConfig.notify_traffic_threshold = host.value.notify_traffic_threshold || 90
+        const channels = host.value.notify_channels || 'email,telegram'
+        notifyConfig.notify_channels_list = channels.split(',').filter(c => c)
     }
 }
 
@@ -359,7 +420,25 @@ const saveConfig = async () => {
     }
 }
 
-
+const saveNotifyConfig = async () => {
+    saving.value = true
+    try {
+         const updateData = {
+            notify_offline_enabled: notifyConfig.notify_offline_enabled,
+            notify_traffic_enabled: notifyConfig.notify_traffic_enabled,
+            notify_offline_threshold: notifyConfig.notify_offline_threshold,
+            notify_traffic_threshold: notifyConfig.notify_traffic_threshold,
+            notify_channels: notifyConfig.notify_channels_list.join(',')
+        }
+        await sshStore.modifyHost(hostId, updateData)
+        message.success(t('common.saveSuccess'))
+    } catch (e) {
+        console.error(e)
+        message.error(t('common.saveFailed'))
+    } finally {
+        saving.value = false
+    }
+}
 
 onUnmounted(() => {
   if (socket.value) socket.value.close()

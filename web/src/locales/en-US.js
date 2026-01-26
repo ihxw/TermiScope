@@ -33,7 +33,10 @@ export default {
         addFailed: 'Failed to add',
         deleteSuccess: 'Deleted successfully',
         deleteFailed: 'Failed to delete',
-        confirmDelete: 'Confirm delete?'
+        confirmDelete: 'Confirm delete?',
+        confirmDelete: 'Confirm delete?',
+        settings: 'Settings',
+        hostSettings: 'Host Settings'
     },
     nav: {
         terminal: 'Terminal',

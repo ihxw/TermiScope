@@ -39,7 +39,10 @@ export default {
         enabled: '已启用',
         disabled: '已禁用',
         saveSuccess: '保存成功',
-        saveFailed: '保存失败'
+        saveFailed: '保存失败',
+        saveFailed: '保存失败',
+        settings: '设置',
+        hostSettings: '主机设置'
     },
     nav: {
         terminal: '终端',
