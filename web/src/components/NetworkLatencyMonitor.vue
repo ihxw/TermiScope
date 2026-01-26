@@ -47,6 +47,9 @@ const chartRef = ref(null)
 let chartInstance = null
 let refreshInterval = null // Store interval ID
 
+// Store raw aligned data for recalculation on toggle
+const rawSeriesData = ref([])
+
 onMounted(() => {
    fetchTasks()
    window.addEventListener('resize', handleResize)
@@ -67,13 +70,7 @@ const isSmooth = ref(true)
 
 const toggleSmooth = () => {
     isSmooth.value = !isSmooth.value
-    if (chartInstance) {
-        const option = chartInstance.getOption()
-        // ECharts getOption returns internal model, we might need to be careful.
-        // But updating series.smooth works.
-        const newSeries = option.series.map(s => ({ ...s, smooth: isSmooth.value }))
-        chartInstance.setOption({ series: newSeries })
-    }
+    updateChart()
 }
 
 const handleResize = () => {
@@ -94,14 +91,37 @@ const fetchTasks = async () => {
    }
 }
 
+// EMA Algorithm
+// alpha = 2 / (N + 1), where N is the smoothing factor (e.g. 10 points)
+const calculateEWMA = (data, alpha = 0.3) => {
+    let ema = []
+    let previousEma = null
+
+    for (let point of data) {
+        // point format: [Time, Value, OriginalTime]
+        const val = point[1]
+        
+        if (val === null || val === undefined) {
+             ema.push(point)
+             continue
+        }
+
+        if (previousEma === null) {
+            previousEma = val
+            ema.push(point)
+        } else {
+            const newEma = (val * alpha) + (previousEma * (1 - alpha))
+            previousEma = newEma
+            ema.push([point[0], newEma, point[2]])
+        }
+    }
+    return ema
+}
+
 const fetchChartData = async () => {
    if (tasks.value.length === 0) {
       if (chartInstance) chartInstance.clear()
       return
-   }
-   
-   if (!chartInstance) {
-      chartInstance = echarts.init(chartRef.value)
    }
    
    try {
@@ -150,66 +170,87 @@ const fetchChartData = async () => {
               currentClusterSeries.add(p.sIdx)
           })
       }
+      
+      // Store globally
+      rawSeriesData.value = alignedSeriesData
+      updateChart()
 
-      const series = []
-      tasks.value.forEach((task, index) => {
-         series.push({
-            name: task.label || task.target,
-            type: 'line',
-            showSymbol: false,
-            data: alignedSeriesData[index],
-            smooth: isSmooth.value, // Use reactive state
-            itemStyle: {
-               color: task.color || '#1890ff'
-            }
-         })
-      })
-      
-      const option = {
-         tooltip: {
-            trigger: 'axis',
-            formatter: (params) => {
-                let result = params[0].axisValueLabel + '<br/>'
-                params.forEach(param => {
-                    const originalTime = param.data[2]
-                    const timeStr = originalTime 
-                        ? originalTime.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute:'2-digit', second:'2-digit' }) 
-                        : ''
-                    
-                    const marker = param.marker
-                    const seriesName = param.seriesName
-                    const value = param.value[1] ? param.value[1].toFixed(1) : ''
-                    
-                    result += `${marker} ${seriesName}: <b>${value} ms</b> <span style="color:#888; font-size:12px; margin-left:8px">(${timeStr})</span><br/>`
-                })
-                return result
-            }
-         },
-         legend: {
-            data: series.map(s => s.name),
-            bottom: 0
-         },
-         grid: {
-            left: '3%',
-            right: '4%',
-            bottom: '10%',
-            containLabel: true
-         },
-         xAxis: {
-            type: 'time',
-            boundaryGap: false
-         },
-         yAxis: {
-            type: 'value',
-            name: 'Latency (ms)'
-         },
-         series: series
-      }
-      
-      chartInstance.setOption(option, true)
    } catch(e) {
       console.error(e)
    }
+}
+
+const updateChart = () => {
+   if (!chartRef.value) return
+   if (!chartInstance) {
+      chartInstance = echarts.init(chartRef.value)
+   }
+
+   const series = []
+   
+   // Process data based on mode
+   const displayData = rawSeriesData.value.map(sData => {
+       if (isSmooth.value) {
+           return calculateEWMA(sData, 0.2) // Alpha 0.2 gives decent smoothing
+       }
+       return sData
+   })
+
+   tasks.value.forEach((task, index) => {
+      series.push({
+         name: task.label || task.target,
+         type: 'line',
+         showSymbol: false,
+         data: displayData[index],
+         smooth: true, // Keep visual smoothing on top of data smoothing for best look
+         itemStyle: {
+            color: task.color || '#1890ff'
+         }
+      })
+   })
+   
+   const option = {
+      tooltip: {
+         trigger: 'axis',
+         formatter: (params) => {
+             let result = params[0].axisValueLabel + '<br/>'
+             params.forEach(param => {
+                 const originalTime = param.data[2]
+                 const timeStr = originalTime 
+                     ? originalTime.toLocaleTimeString([], { hour12: false, hour: '2-digit', minute:'2-digit', second:'2-digit' }) 
+                     : ''
+                 
+                 const marker = param.marker
+                 const seriesName = param.seriesName
+                 const value = param.value[1] ? param.value[1].toFixed(1) : ''
+                 
+                 result += `${marker} ${seriesName}: <b>${value} ms</b> <span style="color:#888; font-size:12px; margin-left:8px">(${timeStr})</span><br/>`
+             })
+             return result
+         }
+      },
+      legend: {
+         data: series.map(s => s.name),
+         bottom: 0
+      },
+      grid: {
+         left: '3%',
+         right: '4%',
+         bottom: '10%',
+         containLabel: true
+      },
+      xAxis: {
+         type: 'time',
+         boundaryGap: false
+      },
+      yAxis: {
+         type: 'value',
+         name: 'Latency (ms)'
+      },
+      series: series
+   }
+   
+   chartInstance.setOption(option, true)
 }
 
 </script>
