@@ -211,6 +211,8 @@ func main() {
 				system.POST("/restore", systemHandler.Restore)
 				system.GET("/settings", systemHandler.GetSettings)
 				system.PUT("/settings", systemHandler.UpdateSettings)
+				system.POST("/check-update", systemHandler.CheckUpdate)
+				system.POST("/upgrade", systemHandler.PerformUpdate)
 			}
 		}
 

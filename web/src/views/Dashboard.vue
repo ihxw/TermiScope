@@ -68,8 +68,18 @@
           <!-- Right Section: Actions -->
           <div style="display: flex; align-items: center; gap: 8px" class="header-actions">
             <!-- Version (desktop only) -->
-            <div v-if="!isMobile" style="font-size: 12px; color: #8c8c8c">
-              v{{ frontendVersion }}
+            <div v-if="!isMobile" style="font-size: 12px; color: #8c8c8c; display: flex; align-items: center; gap: 8px">
+              v{{ backendVersion }}
+              <a-button 
+                v-if="updateAvailable" 
+                type="primary" 
+                size="small" 
+                :loading="updateLoading"
+                @click="handleUpdateClick"
+                style="font-size: 12px; height: 20px; padding: 0 8px;"
+              >
+                {{ t('common.update') }}
+              </a-button>
             </div>
             
             <!-- Language Toggle -->
@@ -226,31 +236,71 @@ const checkMobile = () => {
   isMobile.value = window.innerWidth <= 768
 }
 
-// Initialize theme on mount
-onMounted(async () => {
-  themeStore.initTheme()
-  checkMobile()
-  window.addEventListener('resize', checkMobile)
-  
-  // Fetch backend version
+const handleLogout = async () => {
+  await authStore.logout()
+  router.push('/login')
+}
+
+// Update Logic
+import { checkUpdate, performUpdate } from '../api/system'
+import { Modal, message } from 'ant-design-vue'
+
+const updateAvailable = ref(false)
+const updateInfo = ref(null)
+const updateLoading = ref(false)
+
+const checkForUpdates = async () => {
+  if (isMobile.value) return 
   try {
-    const info = await getSystemInfo()
-    backendVersion.value = info.version
-  } catch (err) {
-    console.error('Failed to fetch backend version:', err)
-    backendVersion.value = 'unknown'
-  }
-  
-  // Ensure user info is loaded
-  if (authStore.isAuthenticated && !authStore.user) {
-    try {
-      await authStore.fetchCurrentUser()
-    } catch (error) {
-      console.error('Failed to fetch user info:', error)
-      router.push('/login')
+    const res = await checkUpdate()
+    if (res.update_available) {
+      updateAvailable.value = true
+      updateInfo.value = res
     }
+  } catch (err) {
+    console.error('Failed to check updates:', err)
   }
-})
+}
+
+const handleUpdateClick = () => {
+  Modal.confirm({
+    title: t('system.updateAvailable', { version: updateInfo.value.version }),
+    content: h('div', [
+      h('p', t('system.updateDesc')),
+      h('div', { 
+        style: {
+          maxHeight: '200px', 
+          overflowY: 'auto', 
+          background: themeStore.isDark ? '#303030' : '#f5f5f5', 
+          color: themeStore.isDark ? '#e0e0e0' : '#000000',
+          padding: '10px', 
+          borderRadius: '4px', 
+          whiteSpace: 'pre-wrap',
+          marginTop: '8px'
+        }
+      }, updateInfo.value.body)
+    ]),
+    okText: t('common.updateNow'),
+    cancelText: t('common.cancel'),
+    onOk: async () => {
+      try {
+        updateLoading.value = true
+        message.loading({ content: t('system.updating'), key: 'update' })
+        await performUpdate(updateInfo.value.download_url)
+        message.success({ content: t('system.updateSuccess'), key: 'update', duration: 5 })
+        Modal.info({
+          title: t('system.updateSuccess'),
+          content: t('system.restartDesc'),
+          onOk: () => window.location.reload()
+        })
+      } catch (err) {
+        message.error({ content: t('system.updateFailed') + ': ' + (err.response?.data?.error || err.message), key: 'update' })
+      } finally {
+        updateLoading.value = false
+      }
+    }
+  })
+}
 
 onUnmounted(() => {
   window.removeEventListener('resize', checkMobile)
@@ -272,10 +322,30 @@ const handleMobileMenuSelect = ({ key }) => {
   router.push({ name: key })
 }
 
-const handleLogout = async () => {
-  await authStore.logout()
-  router.push('/login')
-}
+
+onMounted(() => {
+  themeStore.initTheme()
+  checkMobile()
+  window.addEventListener('resize', checkMobile)
+  
+  // Fetch backend version
+  getSystemInfo().then(info => {
+    backendVersion.value = info.version
+    // Check for updates after getting version
+    checkForUpdates()
+  }).catch(err => {
+     console.error('Failed to fetch backend version:', err)
+     backendVersion.value = 'unknown'
+  })
+  
+  // Ensure user info is loaded
+  if (authStore.isAuthenticated && !authStore.user) {
+    authStore.fetchCurrentUser().catch((error) => {
+      console.error('Failed to fetch user info:', error)
+      router.push('/login')
+    })
+  }
+})
 </script>
 
 <style scoped>

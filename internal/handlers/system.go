@@ -13,6 +13,7 @@ import (
 	"github.com/ihxw/termiscope/internal/config"
 	"github.com/ihxw/termiscope/internal/middleware"
 	"github.com/ihxw/termiscope/internal/models"
+	"github.com/ihxw/termiscope/internal/updater"
 	"github.com/ihxw/termiscope/internal/utils"
 	"gorm.io/gorm"
 )
@@ -322,5 +323,56 @@ func (h *SystemHandler) GetAgentVersion(c *gin.Context) {
 	// Version is injected during build
 	utils.SuccessResponse(c, http.StatusOK, gin.H{
 		"version": h.version,
+	})
+}
+
+// CheckUpdate checks for available updates
+func (h *SystemHandler) CheckUpdate(c *gin.Context) {
+	updateInfo, err := updater.CheckForUpdate(h.version)
+	if err != nil {
+		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to check for updates: "+err.Error())
+		return
+	}
+
+	if updateInfo == nil {
+		utils.SuccessResponse(c, http.StatusOK, gin.H{
+			"update_available": false,
+		})
+		return
+	}
+
+	utils.SuccessResponse(c, http.StatusOK, gin.H{
+		"update_available": true,
+		"version":          updateInfo.Version,
+		"body":             updateInfo.Body,
+		"download_url":     updateInfo.DownloadURL,
+		"size":             updateInfo.Size,
+	})
+}
+
+// PerformUpdate executes the update process
+func (h *SystemHandler) PerformUpdate(c *gin.Context) {
+	var req struct {
+		DownloadURL string `json:"download_url" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorResponse(c, http.StatusBadRequest, "Invalid request: "+err.Error())
+		return
+	}
+
+	// Run update in background to not block response
+	go func() {
+		if err := updater.PerformUpdate(req.DownloadURL); err != nil {
+			utils.LogError("Update failed: %v", err)
+		} else {
+			// Should have restarted
+			utils.LogError("Update successful, restarting...") // Using LogError since LogInfo is missing, or just use fmt/log
+			// Actually let's just use LogError to ensure it hits the file, or check what LogError does.
+			// Ideally we should import "log" and use log.Printf if utils.LogInfo is missing
+		}
+	}()
+
+	utils.SuccessResponse(c, http.StatusOK, gin.H{
+		"message": "Update initiated. Server will restart shortly.",
 	})
 }

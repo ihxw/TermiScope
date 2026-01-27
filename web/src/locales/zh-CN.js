@@ -42,7 +42,9 @@ export default {
         saveFailed: '保存失败',
         saveFailed: '保存失败',
         settings: '设置',
-        hostSettings: '主机设置'
+        hostSettings: '主机设置',
+        update: '更新',
+        updateNow: '立即更新'
     },
     nav: {
         terminal: '终端',
@@ -294,7 +296,13 @@ export default {
         telegramChatId: 'Telegram Chat ID',
         notificationTemplate: '通知模板',
         resetTemplate: '恢复默认模板',
-        templateHelp: '可用变量'
+        templateHelp: '可用变量',
+        updateAvailable: '发现新版本: v{version}',
+        updateDesc: '更新内容:',
+        updating: '正在更新中...',
+        updateSuccess: '更新成功',
+        restartDesc: '更新已完成，系统将自动重启以应用更改。',
+        updateFailed: '更新失败'
     },
     network: {
         title: '网络详情',

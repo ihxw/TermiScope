@@ -36,7 +36,9 @@ export default {
         confirmDelete: 'Confirm delete?',
         confirmDelete: 'Confirm delete?',
         settings: 'Settings',
-        hostSettings: 'Host Settings'
+        hostSettings: 'Host Settings',
+        update: 'Update',
+        updateNow: 'Update Now'
     },
     nav: {
         terminal: 'Terminal',
@@ -284,7 +286,13 @@ export default {
         telegramChatId: 'Telegram Chat ID',
         notificationTemplate: 'Notification Template',
         resetTemplate: 'Reset to Default',
-        templateHelp: 'Available variables'
+        templateHelp: 'Available variables',
+        updateAvailable: 'New Version Available: v{version}',
+        updateDesc: 'Release Notes:',
+        updating: 'Updating...',
+        updateSuccess: 'Update Successful',
+        restartDesc: 'Update completed. The system will restart to apply changes.',
+        updateFailed: 'Update Failed'
     },
     network: {
         title: 'Network Detail',
