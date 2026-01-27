@@ -308,6 +308,7 @@ func (h *AuthHandler) GetTokenInfo(c *gin.Context) {
 type Verify2FALoginRequest struct {
 	UserID uint   `json:"user_id" binding:"required"`
 	Code   string `json:"code" binding:"required"`
+	Token  string `json:"token" binding:"required"`
 }
 
 // Verify2FALogin verifies 2FA code and completes login
@@ -315,6 +316,25 @@ func (h *AuthHandler) Verify2FALogin(c *gin.Context) {
 	var req Verify2FALoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		utils.ErrorResponse(c, http.StatusBadRequest, "invalid request: "+err.Error())
+		return
+	}
+
+	// Validate temp token
+	claims, err := utils.ValidateToken(req.Token, h.config.Security.JWTSecret)
+	if err != nil {
+		utils.ErrorResponse(c, http.StatusUnauthorized, "invalid or expired session token")
+		return
+	}
+
+	// Check token type
+	if claims.TokenType != "2fa_temp" {
+		utils.ErrorResponse(c, http.StatusUnauthorized, "invalid token type")
+		return
+	}
+
+	// Check if token belongs to the user
+	if claims.UserID != req.UserID {
+		utils.ErrorResponse(c, http.StatusUnauthorized, "token does not match user")
 		return
 	}
 

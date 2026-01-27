@@ -215,6 +215,8 @@ const handleLogin = async () => {
     if (response.requires_2fa) {
       requires2FA.value = true
       tempUserId.value = response.user_id
+      // Store temp token for verification
+      sessionStorage.setItem('2fa_temp_token', response.temp_token)
       message.info(t('twofa.enterCode'))
     } else {
       // Normal login without 2FA
@@ -244,7 +246,11 @@ const handleVerify2FA = async () => {
   error.value = ''
 
   try {
-    await authStore.verify2FA(tempUserId.value, twoFAForm.code)
+    const token = sessionStorage.getItem('2fa_temp_token')
+    await authStore.verify2FA(tempUserId.value, twoFAForm.code, token)
+    
+    // Clear temp token
+    sessionStorage.removeItem('2fa_temp_token')
     
     message.success(t('auth.loginSuccess'))
     

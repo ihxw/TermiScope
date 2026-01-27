@@ -571,7 +571,8 @@ func (h *MonitorHandler) Deploy(c *gin.Context) {
 	session, _ = client.NewSession()
 	stopCmd := "systemctl stop termiscope-agent || true"
 	if host.Username != "root" {
-		stopCmd = "echo '" + password + "' | sudo -S sh -c 'systemctl stop termiscope-agent || true'"
+		stopCmd = "sudo -S sh -c 'systemctl stop termiscope-agent || true'"
+		session.Stdin = strings.NewReader(password + "\n")
 	}
 	// We ignore errors here because the service might not exist yet
 	session.Run(stopCmd)
@@ -581,7 +582,8 @@ func (h *MonitorHandler) Deploy(c *gin.Context) {
 	session, _ = client.NewSession()
 	setupCmd := "mkdir -p /opt/termiscope/agent"
 	if host.Username != "root" {
-		setupCmd = "echo '" + password + "' | sudo -S mkdir -p /opt/termiscope/agent"
+		setupCmd = "sudo -S mkdir -p /opt/termiscope/agent"
+		session.Stdin = strings.NewReader(password + "\n")
 	}
 	if out, err := session.CombinedOutput(setupCmd); err != nil {
 		log.Printf("Monitor Deploy: Setup dir failed: %v, Out: %s", err, string(out))
@@ -618,7 +620,8 @@ func (h *MonitorHandler) Deploy(c *gin.Context) {
 	// 4. Move and Chmod
 	if host.Username != "root" {
 		session, _ = client.NewSession()
-		moveCmd := fmt.Sprintf("echo '%s' | sudo -S mv %s %s", password, uploadPath, remoteBinaryPath)
+		moveCmd := fmt.Sprintf("sudo -S mv %s %s", uploadPath, remoteBinaryPath)
+		session.Stdin = strings.NewReader(password + "\n")
 		if out, err := session.CombinedOutput(moveCmd); err != nil {
 			log.Printf("Monitor Deploy: Move failed: %v, Out: %s", err, string(out))
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to move binary: " + string(out)})
@@ -630,7 +633,8 @@ func (h *MonitorHandler) Deploy(c *gin.Context) {
 	session, _ = client.NewSession()
 	chmodCmd := fmt.Sprintf("chmod +x %s", remoteBinaryPath)
 	if host.Username != "root" {
-		chmodCmd = fmt.Sprintf("echo '%s' | sudo -S chmod +x %s", password, remoteBinaryPath)
+		chmodCmd = fmt.Sprintf("sudo -S chmod +x %s", remoteBinaryPath)
+		session.Stdin = strings.NewReader(password + "\n")
 	}
 	if out, err := session.CombinedOutput(chmodCmd); err != nil {
 		log.Printf("Monitor Deploy: Chmod failed: %v, Out: %s", err, string(out))
@@ -728,7 +732,8 @@ WantedBy=multi-user.target
 
 		if host.Username != "root" && targetPath == "/tmp/termiscope-agent.service" {
 			session, _ := client.NewSession()
-			session.Run("echo '" + password + "' | sudo -S mv /tmp/termiscope-agent.service /etc/systemd/system/termiscope-agent.service")
+			session.Stdin = strings.NewReader(password + "\n")
+			session.Run("sudo -S mv /tmp/termiscope-agent.service /etc/systemd/system/termiscope-agent.service")
 			session.Close()
 		}
 
@@ -736,7 +741,8 @@ WantedBy=multi-user.target
 		session, _ = client.NewSession()
 		cmd := "systemctl daemon-reload && systemctl enable --now termiscope-agent"
 		if host.Username != "root" {
-			cmd = "echo '" + password + "' | sudo -S sh -c '" + cmd + "'"
+			cmd = "sudo -S sh -c '" + cmd + "'"
+			session.Stdin = strings.NewReader(password + "\n")
 		}
 		output, err = session.CombinedOutput(cmd)
 		if err != nil {
@@ -833,7 +839,8 @@ exec %s
 
 		if host.Username != "root" {
 			session, _ := client.NewSession()
-			session.Run("echo '" + password + "' | sudo -S mv /tmp/termiscope-agent.conf /etc/init/termiscope-agent.conf")
+			session.Stdin = strings.NewReader(password + "\n")
+			session.Run("sudo -S mv /tmp/termiscope-agent.conf /etc/init/termiscope-agent.conf")
 			session.Close()
 		}
 
@@ -841,7 +848,8 @@ exec %s
 		session, _ = client.NewSession()
 		cmd := "initctl reload-configuration && initctl start termiscope-agent"
 		if host.Username != "root" {
-			cmd = "echo '" + password + "' | sudo -S sh -c '" + cmd + "'"
+			cmd = "sudo -S sh -c '" + cmd + "'"
+			session.Stdin = strings.NewReader(password + "\n")
 		}
 		output, err = session.CombinedOutput(cmd)
 		if err != nil {
@@ -981,7 +989,8 @@ esac
 
 		if host.Username != "root" {
 			session, _ := client.NewSession()
-			session.Run("echo '" + password + "' | sudo -S mv /tmp/termiscope-agent /etc/init.d/termiscope-agent")
+			session.Stdin = strings.NewReader(password + "\n")
+			session.Run("sudo -S mv /tmp/termiscope-agent /etc/init.d/termiscope-agent")
 			session.Close()
 		}
 
@@ -992,7 +1001,8 @@ esac
 		cmd += "(chkconfig --add termiscope-agent && chkconfig termiscope-agent on || update-rc.d termiscope-agent defaults) && "
 		cmd += "/etc/init.d/termiscope-agent start"
 		if host.Username != "root" {
-			cmd = "echo '" + password + "' | sudo -S sh -c '" + cmd + "'"
+			cmd = "sudo -S sh -c '" + cmd + "'"
+			session.Stdin = strings.NewReader(password + "\n")
 		}
 		output, err = session.CombinedOutput(cmd)
 		if err != nil {
@@ -1061,7 +1071,8 @@ func (h *MonitorHandler) Stop(c *gin.Context) {
 
 	cmd := "systemctl disable --now termiscope-agent && rm -f /etc/systemd/system/termiscope-agent.service && systemctl daemon-reload && rm -rf /opt/termiscope/agent"
 	if host.Username != "root" {
-		cmd = "echo " + password + " | sudo -S sh -c '" + cmd + "'"
+		cmd = "sudo -S sh -c '" + cmd + "'"
+		session.Stdin = strings.NewReader(password + "\n")
 	}
 
 	if err := session.Run(cmd); err != nil {
@@ -1267,7 +1278,8 @@ func (h *MonitorHandler) deployToHost(host *models.SSHHost, insecure bool, reque
 	session, _ = client.NewSession()
 	stopCmd := "systemctl stop termiscope-agent || true"
 	if host.Username != "root" {
-		stopCmd = "echo '" + password + "' | sudo -S sh -c 'systemctl stop termiscope-agent || true'"
+		stopCmd = "sudo -S sh -c 'systemctl stop termiscope-agent || true'"
+		session.Stdin = strings.NewReader(password + "\n")
 	}
 	session.Run(stopCmd)
 	session.Close()
@@ -1276,7 +1288,8 @@ func (h *MonitorHandler) deployToHost(host *models.SSHHost, insecure bool, reque
 	session, _ = client.NewSession()
 	setupCmd := "mkdir -p /opt/termiscope/agent"
 	if host.Username != "root" {
-		setupCmd = "echo '" + password + "' | sudo -S mkdir -p /opt/termiscope/agent"
+		setupCmd = "sudo -S mkdir -p /opt/termiscope/agent"
+		session.Stdin = strings.NewReader(password + "\n")
 	}
 	if out, err := session.CombinedOutput(setupCmd); err != nil {
 		return fmt.Errorf("创建目录失败: %s", string(out))
@@ -1305,7 +1318,8 @@ func (h *MonitorHandler) deployToHost(host *models.SSHHost, insecure bool, reque
 	// Move and Chmod
 	if host.Username != "root" {
 		session, _ = client.NewSession()
-		moveCmd := fmt.Sprintf("echo '%s' | sudo -S mv %s %s", password, uploadPath, remoteBinaryPath)
+		moveCmd := fmt.Sprintf("sudo -S mv %s %s", uploadPath, remoteBinaryPath)
+		session.Stdin = strings.NewReader(password + "\n")
 		if out, err := session.CombinedOutput(moveCmd); err != nil {
 			return fmt.Errorf("移动文件失败: %s", string(out))
 		}
@@ -1315,7 +1329,8 @@ func (h *MonitorHandler) deployToHost(host *models.SSHHost, insecure bool, reque
 	session, _ = client.NewSession()
 	chmodCmd := fmt.Sprintf("chmod +x %s", remoteBinaryPath)
 	if host.Username != "root" {
-		chmodCmd = fmt.Sprintf("echo '%s' | sudo -S chmod +x %s", password, remoteBinaryPath)
+		chmodCmd = fmt.Sprintf("sudo -S chmod +x %s", remoteBinaryPath)
+		session.Stdin = strings.NewReader(password + "\n")
 	}
 	if out, err := session.CombinedOutput(chmodCmd); err != nil {
 		return fmt.Errorf("设置权限失败: %s", string(out))
@@ -1362,7 +1377,8 @@ WantedBy=multi-user.target
 
 	if host.Username != "root" && targetPath == "/tmp/termiscope-agent.service" {
 		session, _ := client.NewSession()
-		session.Run("echo '" + password + "' | sudo -S mv /tmp/termiscope-agent.service /etc/systemd/system/termiscope-agent.service")
+		session.Stdin = strings.NewReader(password + "\n")
+		session.Run("sudo -S mv /tmp/termiscope-agent.service /etc/systemd/system/termiscope-agent.service")
 		session.Close()
 	}
 
@@ -1370,7 +1386,8 @@ WantedBy=multi-user.target
 	session, _ = client.NewSession()
 	cmd := "systemctl daemon-reload && systemctl enable --now termiscope-agent"
 	if host.Username != "root" {
-		cmd = "echo '" + password + "' | sudo -S sh -c '" + cmd + "'"
+		cmd = "sudo -S sh -c '" + cmd + "'"
+		session.Stdin = strings.NewReader(password + "\n")
 	}
 	output, err = session.CombinedOutput(cmd)
 	if err != nil {
@@ -1509,7 +1526,8 @@ func (h *MonitorHandler) stopMonitorOnHost(host *models.SSHHost) error {
 	session, _ := client.NewSession()
 	cmd := "systemctl stop termiscope-agent && systemctl disable termiscope-agent && rm -f /etc/systemd/system/termiscope-agent.service && systemctl daemon-reload"
 	if host.Username != "root" {
-		cmd = "echo " + password + " | sudo -S sh -c '" + cmd + "'"
+		cmd = "sudo -S sh -c '" + cmd + "'"
+		session.Stdin = strings.NewReader(password + "\n")
 	}
 
 	session.Run(cmd)
