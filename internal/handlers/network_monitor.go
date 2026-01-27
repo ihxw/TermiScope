@@ -335,30 +335,41 @@ func (h *NetworkMonitorHandler) BatchApplyTemplate(c *gin.Context) {
 	// We use transaction to ensure atomicity
 	tx := h.DB.Begin()
 	for _, hostID := range req.HostIDs {
-		// First, delete existing tasks for this host with the same target and type
-		// This prevents duplicates when re-deploying a template
-		if err := tx.Where("host_id = ? AND type = ? AND target = ? AND port = ?",
-			hostID, tmpl.Type, tmpl.Target, tmpl.Port).
-			Delete(&models.NetworkMonitorTask{}).Error; err != nil {
-			tx.Rollback()
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to clean old tasks"})
-			return
-		}
+		// Check if task exists for this host with the same target and type
+		var task models.NetworkMonitorTask
+		result := tx.Where("host_id = ? AND type = ? AND target = ? AND port = ?",
+			hostID, tmpl.Type, tmpl.Target, tmpl.Port).First(&task)
 
-		// Create new task with template ID
-		task := models.NetworkMonitorTask{
-			HostID:     hostID,
-			TemplateID: req.TemplateID, // Link to template
-			Type:       tmpl.Type,
-			Target:     tmpl.Target,
-			Port:       tmpl.Port,
-			Frequency:  tmpl.Frequency,
-			Label:      tmpl.Label,
-		}
-		if err := tx.Create(&task).Error; err != nil {
+		if result.Error == nil {
+			// Update existing task
+			task.TemplateID = req.TemplateID
+			task.Frequency = tmpl.Frequency
+			task.Label = tmpl.Label
+			if err := tx.Save(&task).Error; err != nil {
+				tx.Rollback()
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update task"})
+				return
+			}
+		} else if result.Error == gorm.ErrRecordNotFound {
+			// Create new task
+			newTask := models.NetworkMonitorTask{
+				HostID:     hostID,
+				TemplateID: req.TemplateID, // Link to template
+				Type:       tmpl.Type,
+				Target:     tmpl.Target,
+				Port:       tmpl.Port,
+				Frequency:  tmpl.Frequency,
+				Label:      tmpl.Label,
+			}
+			if err := tx.Create(&newTask).Error; err != nil {
+				tx.Rollback()
+				c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to apply to host"})
+				return
+			}
+		} else {
+			// Other DB error
 			tx.Rollback()
-			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to apply to host"})
-
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error checking task"})
 			return
 		}
 	}

@@ -339,7 +339,9 @@ export default {
         templates: '延迟检测设置',
         addTemplate: '添加模板',
         deployTemplate: '部署模板',
-        selectHostsToDeploy: '选择要部署的主机: '
+        selectHostsToDeploy: '选择要部署的主机: ',
+        sharp: '实时',
+        smooth: '平滑'
     },
     monitor: {
         title: '监控',

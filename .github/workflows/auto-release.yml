@@ -98,7 +98,7 @@ jobs:
           git push origin $VERSION
           
           # Create release using GitHub CLI
-          $RELEASE_NOTES = @"
+          $ReleaseNotesContent = @"
           ## TermiScope $VERSION
           
           自动发布版本 $VERSION
@@ -107,8 +107,10 @@ jobs:
           请查看提交历史了解详细变更。
           "@
           
+          Set-Content -Path "release_notes.md" -Value $ReleaseNotesContent -Encoding UTF8
+          
           gh release create $VERSION `
             --title "Release $VERSION" `
-            --notes $RELEASE_NOTES `
+            --notes-file "release_notes.md" `
             release/* `
             scripts/install.sh

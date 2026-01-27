@@ -329,7 +329,9 @@ export default {
         templates: 'Monitor Templates',
         addTemplate: 'Add Template',
         deployTemplate: 'Deploy Template',
-        selectHostsToDeploy: 'Select hosts to deploy: '
+        selectHostsToDeploy: 'Select hosts to deploy: ',
+        sharp: 'Sharp',
+        smooth: 'Smooth'
     },
     monitor: {
         cpu: 'CPU',

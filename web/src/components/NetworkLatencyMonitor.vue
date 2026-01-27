@@ -8,7 +8,7 @@
             @click="toggleSmooth"
          >
             <template #icon><LineChartOutlined /></template>
-            {{ isSmooth ? 'Smooth' : 'Sharp' }}
+            {{ isSmooth ? t('network.smooth') : t('network.sharp') }}
          </a-button>
          <a-select v-model:value="timeRange" size="small" style="width: 100px" @change="fetchChartData">
              <a-select-option value="1h">1h</a-select-option>
