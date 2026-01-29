@@ -172,7 +172,7 @@
 </template>
 
 <script setup>
-import { ref, shallowRef, reactive, onMounted, onUnmounted, onActivated, nextTick, watch } from 'vue'
+import { ref, shallowRef, reactive, onMounted, onUnmounted, onActivated, nextTick, watch, h } from 'vue'
 import { Terminal } from 'xterm'
 import { FitAddon } from 'xterm-addon-fit'
 import { WebLinksAddon } from 'xterm-addon-web-links'
