@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime/debug"
+	"strings"
 	"sync"
 	"time"
 
@@ -210,12 +211,11 @@ func (h *SSHWebSocketHandler) HandleWebSocket(c *gin.Context) {
 		connLog.ErrorMessage = err.Error()
 		h.db.Save(connLog)
 
-		// Check for host key mismatch
-		if err.Error() == "host key fingerprint mismatch" || (len(err.Error()) > 29 && err.Error()[:29] == "host key fingerprint mismatch") {
+		// Check for host key mismatch - use Contains since error may be wrapped
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "host key fingerprint mismatch") {
 			// Extract the new fingerprint from the error or client
-			// The error message format is "host key fingerprint mismatch: anticipated %s, got %s"
-			// But we can also get it from client.GetFingerprint() because the callback sets it even on error?
-			// Let's check client implementation. The callback sets client.fingerprint = fp BEFORE returning error.
+			// The callback sets client.fingerprint = fp BEFORE returning error.
 			newFp := sshClient.GetFingerprint()
 			writeJSON(gin.H{
 				"type": "error",

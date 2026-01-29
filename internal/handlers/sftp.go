@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"path"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -83,6 +84,12 @@ func (h *SftpHandler) getSftpClient(userID uint, hostID string) (*sftp.Client, *
 	}
 
 	if err := sshClient.Connect(); err != nil {
+		errMsg := err.Error()
+		// Check for host key fingerprint mismatch
+		if strings.Contains(errMsg, "host key fingerprint mismatch") {
+			newFp := sshClient.GetFingerprint()
+			return nil, nil, fmt.Errorf("FINGERPRINT_MISMATCH:%s", newFp)
+		}
 		return nil, nil, fmt.Errorf("failed to connect: %w", err)
 	}
 
