@@ -11,7 +11,7 @@
             @search="handleSearch"
           />
           <a-button 
-            v-if="selectedRowKeys.length > 0"
+            v-if="hasSelected"
             type="primary"
             size="small"
             @click="openBatchDeployModal"
@@ -20,8 +20,46 @@
             <CloudUploadOutlined />
             <span v-if="!isMobile" class="btn-text">{{ t('monitor.batchDeploy') }} ({{ selectedRowKeys.length }})</span>
           </a-button>
+
+          <!-- Batch Traffic Notification -->
+          <a-dropdown v-if="hasSelected">
+            <template #overlay>
+              <a-menu @click="handleBatchNotifyTraffic">
+                <a-menu-item key="enable">
+                  <CheckCircleOutlined style="color: #52c41a" /> {{ t('monitor.enable') }}
+                </a-menu-item>
+                <a-menu-item key="disable">
+                  <StopOutlined style="color: #ff4d4f" /> {{ t('monitor.disable') }}
+                </a-menu-item>
+              </a-menu>
+            </template>
+            <a-button size="small" class="action-btn">
+              <BellOutlined /> 
+              <span v-if="!isMobile" class="btn-text">{{ t('monitor.batchTrafficNotify') }}</span>
+              <DownOutlined />
+            </a-button>
+          </a-dropdown>
+
+          <!-- Batch Offline Notification -->
+           <a-dropdown v-if="hasSelected">
+            <template #overlay>
+              <a-menu @click="handleBatchNotifyOffline">
+                <a-menu-item key="enable">
+                  <CheckCircleOutlined style="color: #52c41a" /> {{ t('monitor.enable') }}
+                </a-menu-item>
+                <a-menu-item key="disable">
+                  <StopOutlined style="color: #ff4d4f" /> {{ t('monitor.disable') }}
+                </a-menu-item>
+              </a-menu>
+            </template>
+            <a-button size="small" class="action-btn">
+              <WifiOutlined /> 
+              <span v-if="!isMobile" class="btn-text">{{ t('monitor.batchOfflineNotify') }}</span>
+              <DownOutlined />
+            </a-button>
+          </a-dropdown>
           <a-button 
-            v-if="selectedRowKeys.length > 0"
+            v-if="hasSelected"
             danger
             size="small"
             @click="openBatchStopModal"
@@ -593,7 +631,10 @@ import {
   MoreOutlined,
   PlusOutlined,
   LoadingOutlined,
-  HolderOutlined
+  HolderOutlined,
+  BellOutlined,
+  WifiOutlined,
+  CheckCircleOutlined
 } from '@ant-design/icons-vue'
 import { useSSHStore } from '../stores/ssh'
 import { useThemeStore } from '../stores/theme'
@@ -636,6 +677,7 @@ const batchDeployVisible = ref(false)
 const batchDeploying = ref(false)
 const batchDeployInsecure = ref(false)
 const deployStatus = ref({})
+const hasSelected = computed(() => selectedRowKeys.value.length > 0)
 
 const batchStopVisible = ref(false)
 const batchStopping = ref(false)
@@ -1134,6 +1176,76 @@ const handleBatchDeploy = async () => {
     message.error(t('monitor.batchDeployFailed') + ': ' + (error.message || 'Error'))
   } finally {
     batchDeploying.value = false
+  }
+}
+
+const handleBatchNotifyTraffic = async ({ key }) => {
+  const enable = key === 'enable'
+  const actionText = enable ? t('monitor.enable') : t('monitor.disable')
+  const hide = message.loading(t('monitor.updating'), 0)
+  
+  try {
+    let successCount = 0
+    let failCount = 0
+    
+    // Process sequentially (or parallelLimit) to avoid flooding backend
+    for (const id of selectedRowKeys.value) {
+      try {
+        await sshStore.modifyHost(id, { notify_traffic_enabled: enable })
+        successCount++
+      } catch (e) {
+        failCount++
+        console.error(`Failed to update traffic notify for host ${id}:`, e)
+      }
+    }
+    
+    hide()
+    if (failCount === 0) {
+      message.success(`${t('monitor.batchTrafficNotify')} ${actionText}: ${t('monitor.batchUpdateSuccess')}`)
+    } else {
+      message.warning(t('monitor.batchUpdatePartial', { success: successCount, fail: failCount }))
+    }
+    
+    // Refresh list to reflect changes (though ModifyHost updates store, full refresh ensures consistency)
+    loadHosts()
+    selectedRowKeys.value = [] // Clear selection
+  } catch (error) {
+    hide()
+    message.error(t('monitor.batchUpdateFailed'))
+  }
+}
+
+const handleBatchNotifyOffline = async ({ key }) => {
+  const enable = key === 'enable'
+  const actionText = enable ? t('monitor.enable') : t('monitor.disable')
+  const hide = message.loading(t('monitor.updating'), 0)
+  
+  try {
+    let successCount = 0
+    let failCount = 0
+    
+    for (const id of selectedRowKeys.value) {
+      try {
+        await sshStore.modifyHost(id, { notify_offline_enabled: enable })
+        successCount++
+      } catch (e) {
+        failCount++
+        console.error(`Failed to update offline notify for host ${id}:`, e)
+      }
+    }
+    
+    hide()
+    if (failCount === 0) {
+      message.success(`${t('monitor.batchOfflineNotify')} ${actionText}: ${t('monitor.batchUpdateSuccess')}`)
+    } else {
+      message.warning(t('monitor.batchUpdatePartial', { success: successCount, fail: failCount }))
+    }
+    
+    loadHosts()
+    selectedRowKeys.value = []
+  } catch (error) {
+    hide()
+    message.error(t('monitor.batchUpdateFailed'))
   }
 }
 

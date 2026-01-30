@@ -19,36 +19,6 @@ import (
 )
 
 type SSHHostHandler struct {
-// ... existing struct definition ...
-
-// Delete deletes an SSH host
-func (h *SSHHostHandler) Delete(c *gin.Context) {
-	userID := middleware.GetUserID(c)
-	idStr := c.Param("id")
-	
-	id, err := strconv.ParseUint(idStr, 10, 64)
-	if err != nil {
-		utils.ErrorResponse(c, http.StatusBadRequest, "invalid host id")
-		return
-	}
-
-	result := h.db.Where("id = ? AND user_id = ?", id, userID).Delete(&models.SSHHost{})
-	if result.Error != nil {
-		utils.ErrorResponse(c, http.StatusInternalServerError, "failed to delete host")
-		return
-	}
-	if result.RowsAffected == 0 {
-		utils.ErrorResponse(c, http.StatusNotFound, "host not found")
-		return
-	}
-
-	// Remove from Monitor Hub immediately
-	monitor.GlobalHub.RemoveHost(uint(id))
-
-	utils.SuccessResponse(c, http.StatusOK, gin.H{
-		"message": "host deleted successfully",
-	})
-}
 	db     *gorm.DB
 	config *config.Config
 }
@@ -337,6 +307,7 @@ func (h *SSHHostHandler) Update(c *gin.Context) {
 	// Network Config
 	if req.NetInterface != "" {
 		// If interface selection changed, we MUST reset LastRaw to avoid massive delta spikes
+		// (false positive reboot or huge jump)
 		// (false positive reboot or huge jump)
 		if host.NetInterface != req.NetInterface {
 			host.NetLastRawRx = 0
