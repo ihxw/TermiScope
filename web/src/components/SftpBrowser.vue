@@ -281,13 +281,24 @@ const handleUpload = async ({ file, onSuccess, onError }) => {
         placement: 'bottomRight'
     })
 
+    const startTime = Date.now()
     await uploadFile(props.hostId, currentPath.value, file, (percent) => {
+        const elapsed = (Date.now() - startTime) / 1000 // seconds
+        const uploaded = (percent / 100) * file.size
+        const speed = elapsed > 0 ? uploaded / elapsed : 0
+        const speedStr = speed > 1024 * 1024 
+            ? (speed / (1024 * 1024)).toFixed(2) + ' MB/s' 
+            : (speed / 1024).toFixed(2) + ' KB/s'
+
         notification.open({
             key,
             message: t('sftp.uploading'),
             description: h('div', [
                 h(Progress, { percent: percent, status: 'active', size: 'small' }),
-                h('div', { style: 'margin-top: 8px' }, file.name)
+                h('div', { style: 'display: flex; justify-content: space-between; margin-top: 8px' }, [
+                    h('span', { style: 'color: #8c8c8c; font-size: 12px' }, file.name),
+                    h('span', { style: 'color: #1890ff; font-weight: 500; font-size: 12px' }, speedStr)
+                ])
             ]),
             duration: 0,
             placement: 'bottomRight'
@@ -332,13 +343,30 @@ const download = async (name) => {
         placement: 'bottomRight'
     })
 
+    const startTime = Date.now()
+    const fileRecord = files.value.find(f => f.name === name)
+    const fileSize = fileRecord ? fileRecord.size : 0
+
     const response = await downloadFile(props.hostId, fullPath, (percent) => {
-         notification.open({
+        const elapsed = (Date.now() - startTime) / 1000
+        let speedStr = ''
+        if (elapsed > 0 && fileSize > 0) {
+            const downloaded = (percent / 100) * fileSize
+            const speed = downloaded / elapsed
+            speedStr = speed > 1024 * 1024 
+                ? (speed / (1024 * 1024)).toFixed(2) + ' MB/s' 
+                : (speed / 1024).toFixed(2) + ' KB/s'
+        }
+        
+        notification.open({
             key,
             message: t('sftp.downloading'),
             description: h('div', [
                 h(Progress, { percent: percent, status: 'active', size: 'small' }),
-                h('div', { style: 'margin-top: 8px' }, name)
+                h('div', { style: 'display: flex; justify-content: space-between; margin-top: 8px' }, [
+                    h('span', { style: 'color: #8c8c8c; font-size: 12px' }, name),
+                    h('span', { style: 'color: #1890ff; font-weight: 500; font-size: 12px' }, speedStr)
+                ])
             ]),
             duration: 0,
             placement: 'bottomRight'

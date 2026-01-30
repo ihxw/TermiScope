@@ -9,6 +9,7 @@ export const downloadFile = async (hostId, path, onProgress) => {
     return await api.get(`/sftp/download/${hostId}`, {
         params: { path, token },
         responseType: 'blob',
+        timeout: 0,
         onDownloadProgress: (progressEvent) => {
             if (onProgress) {
                 const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total)
@@ -26,6 +27,7 @@ export const uploadFile = async (hostId, path, file, onProgress) => {
         headers: {
             'Content-Type': 'multipart/form-data'
         },
+        timeout: 0,
         onUploadProgress: (progressEvent) => {
             if (onProgress) {
                 const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total)

@@ -295,7 +295,7 @@
         <!-- SSH 相关字段 - 仅在"控制+监控"模式下显示 -->
         <template v-if="hostForm.host_type === 'control_monitor'">
           <a-form-item :label="t('host.host')" required>
-            <a-input v-model:value="hostForm.host" :placeholder="t('host.placeholderHost')" />
+            <a-input v-model:value="hostForm.host" :placeholder="t('host.placeholderHost')" autocomplete="new-password" />
           </a-form-item>
 
           <a-form-item :label="t('host.port')">
@@ -303,7 +303,7 @@
           </a-form-item>
 
           <a-form-item :label="t('host.username')" required>
-            <a-input v-model:value="hostForm.username" :placeholder="t('host.placeholderUsername')" />
+            <a-input v-model:value="hostForm.username" :placeholder="t('host.placeholderUsername')" autocomplete="new-password" />
           </a-form-item>
 
           <a-form-item :label="t('host.authMethod')" required>
@@ -314,7 +314,7 @@
           </a-form-item>
 
           <a-form-item v-if="hostForm.auth_type === 'password'" :label="t('host.password')" :required="!editingHost">
-            <a-input-password v-model:value="hostForm.password" :placeholder="editingHost ? t('host.placeholderKeepPassword') : t('host.placeholderPassword')" />
+            <a-input-password v-model:value="hostForm.password" :placeholder="editingHost ? t('host.placeholderKeepPassword') : t('host.placeholderPassword')" autocomplete="new-password" />
           </a-form-item>
 
           <a-form-item v-if="hostForm.auth_type === 'key'" :label="t('host.privateKey')" :required="!editingHost">
@@ -705,10 +705,10 @@ const columns = computed(() => {
       { title: t('host.port'), dataIndex: 'port', key: 'port', width: 60 },
       { title: t('host.username'), dataIndex: 'username', key: 'username', width: 100 },
       { title: t('host.group'), dataIndex: 'group_name', key: 'group_name', width: 100 },
-      { title: t('host.description'), key: 'description', width: 150, ellipsis: true },
       { title: t('host.expirationDate'), key: 'expiration_date', width: 110 },
       { title: t('host.billingPeriod'), key: 'billing_period', width: 90 },
       { title: t('host.remainingValue'), key: 'remaining_value', width: 100 },
+      { title: t('host.description'), key: 'description', width: 150, ellipsis: true },
     )
   }
   
@@ -1000,6 +1000,16 @@ const handleSave = async () => {
       if (!updateData.password) delete updateData.password
       if (!updateData.private_key) delete updateData.private_key
       
+      // Cleanup SSH data for monitor_only hosts (prevent browser auto-fill contamination)
+      if (updateData.host_type === 'monitor_only') {
+        updateData.host = ""
+        updateData.port = 22
+        updateData.username = ""
+        updateData.auth_type = "password"
+        delete updateData.password
+        delete updateData.private_key
+      }
+
       // Convert dayjs date to ISO string for backend
       if (updateData.expiration_date) {
         updateData.expiration_date = updateData.expiration_date.format('YYYY-MM-DD')
@@ -1010,6 +1020,16 @@ const handleSave = async () => {
     } else {
       const addData = { ...hostForm.value }
       
+      // Cleanup SSH data for monitor_only hosts
+      if (addData.host_type === 'monitor_only') {
+        addData.host = ""
+        addData.port = 22
+        addData.username = ""
+        addData.auth_type = "password"
+        delete addData.password
+        delete addData.private_key
+      }
+
       // Convert dayjs date to ISO string for backend
       if (addData.expiration_date) {
         addData.expiration_date = addData.expiration_date.format('YYYY-MM-DD')

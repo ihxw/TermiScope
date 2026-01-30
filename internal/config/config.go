@@ -62,7 +62,7 @@ func LoadConfig() (*Config, error) {
 	viper.SetDefault("server.port", 8080)
 	viper.SetDefault("server.mode", "debug")
 	viper.SetDefault("server.allowed_origins", []string{}) // Empty = no CORS by default
-	viper.SetDefault("server.max_upload_size", 10485760)   // 10MB
+	viper.SetDefault("server.max_upload_size", 524288000)  // 500MB
 	viper.SetDefault("database.path", "./data/termiscope.db")
 	viper.SetDefault("ssh.timeout", "30s")
 	viper.SetDefault("ssh.idle_timeout", "30m")

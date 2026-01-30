@@ -142,6 +142,31 @@
                </div>
                <a-progress :percent="getTrafficUsagePct(host)" :status="getStatus(getTrafficUsagePct(host))" :show-info="false" stroke-linecap="square" size="small" />
             </div>
+
+            <!-- Financial Info (If Available) -->
+            <div v-if="host.expiration_date || host.billing_amount" style="margin-top: 8px; border-top: 1px dashed #f0f0f0; padding-top: 8px; font-size: 11px; color: #8c8c8c">
+              <div style="display: flex; justify-content: space-between; align-items: center">
+                <!-- Left: Expiration Date -->
+                <span style="display: flex; align-items: center; gap: 4px">
+                  <InfoCircleOutlined style="font-size: 10px" />
+                  <template v-if="host.expiration_date">
+                    <span>{{ t('host.expirationDate') }}:</span>
+                    <span :style="{ color: getDaysUntilExpiration(host.expiration_date) < 0 ? '#f5222d' : (getDaysUntilExpiration(host.expiration_date) <= 7 ? '#faad14' : undefined) }">
+                      {{ dayjs(host.expiration_date).format('YYYY-MM-DD') }}({{ t('host.remainingDays', { days: getDaysUntilExpiration(host.expiration_date) }) }})
+                    </span>
+                  </template>
+                  <template v-else>-</template>
+                </span>
+                
+                <!-- Right: Billing & Value -->
+                <span v-if="host.billing_period || host.billing_amount">
+                  {{ formatBillingPeriod(host.billing_period) }}:{{ getCurrencySymbol(host.currency) }}{{ host.billing_amount }} 
+                  <template v-if="host.expiration_date && host.billing_period && host.billing_amount">
+                    ({{ t('host.remainingValueLong') }}:{{ formatRemainingValueOnly(host.expiration_date, host.billing_period, host.billing_amount, host.currency) }})
+                  </template>
+                </span>
+              </div>
+            </div>
           </div>
         </a-card>
       </a-col>
@@ -223,7 +248,7 @@
             </div>
            </div>
         </template>
-
+        
         <template v-if="column.key === 'traffic'">
             <div v-if="record.net_traffic_limit > 0" style="width: 100%">
                 <div style="font-size: 10px; color: #8c8c8c; display: flex; justify-content: space-between;">
@@ -233,6 +258,24 @@
                 <a-progress :percent="getTrafficUsagePct(record)" :status="getStatus(getTrafficUsagePct(record))" :show-info="false" stroke-linecap="square" size="small" :stroke-width="6" />
             </div>
             <div v-else style="font-size: 10px; color: #ccc; text-align: center">-</div>
+        </template>
+
+        <template v-if="column.key === 'financial'">
+          <div v-if="record.expiration_date || record.billing_amount" style="font-size: 11px;">
+            <div v-if="record.expiration_date">
+               <span :style="{ color: getDaysUntilExpiration(record.expiration_date) < 0 ? '#f5222d' : (getDaysUntilExpiration(record.expiration_date) <= 7 ? '#faad14' : undefined) }">
+                 {{ dayjs(record.expiration_date).format('YYYY-MM-DD') }}
+               </span>
+               <span style="color: #8c8c8c; margin-left: 4px; font-size: 10px">({{ t('host.remainingDays', { days: getDaysUntilExpiration(record.expiration_date) }) }})</span>
+            </div>
+            <div v-if="record.billing_period || record.billing_amount" style="color: #8c8c8c; font-size: 10px">
+              {{ formatBillingPeriod(record.billing_period) }}:{{ getCurrencySymbol(record.currency) }}{{ record.billing_amount }}
+              <template v-if="record.expiration_date && record.billing_period && record.billing_amount">
+                ({{ t('host.remainingValueLong') }}:{{ formatRemainingValueOnly(record.expiration_date, record.billing_period, record.billing_amount, record.currency) }})
+              </template>
+            </div>
+          </div>
+          <div v-else style="color: #ccc; text-align: center">-</div>
         </template>
 
         <template v-if="column.key === 'actions'">
@@ -285,16 +328,23 @@
 import { ref, onMounted, onUnmounted, computed, h, watch, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSSHStore } from '../stores/ssh'
-import { ArrowDownOutlined, ArrowUpOutlined, AppleOutlined, WindowsOutlined, DesktopOutlined, LineChartOutlined, HistoryOutlined, SettingOutlined, CodeOutlined, AppstoreOutlined, UnorderedListOutlined } from '@ant-design/icons-vue'
+import { ArrowDownOutlined, ArrowUpOutlined, AppleOutlined, WindowsOutlined, DesktopOutlined, LineChartOutlined, HistoryOutlined, SettingOutlined, CodeOutlined, AppstoreOutlined, UnorderedListOutlined, InfoCircleOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { getWSTicket } from '../api/auth'
 import { getMonitorLogs } from '../api/ssh'
 import { message } from 'ant-design-vue'
 import api from '../api/index'
+import dayjs from 'dayjs'
+import 'dayjs/locale/zh-cn'
 
-const { t } = useI18n()
+const { t, locale: i18nLocale } = useI18n()
 const sshStore = useSSHStore()
 const router = useRouter()
+
+// Configure dayjs locale based on current language
+watch(i18nLocale, (newLocale) => {
+  dayjs.locale(newLocale === 'zh-CN' ? 'zh-cn' : 'en')
+}, { immediate: true })
 
 const hosts = ref([])
 const connected = ref(true)
@@ -303,13 +353,14 @@ const serverAgentVersion = ref(null)
 
 const viewMode = ref(localStorage.getItem('monitor_view_mode') || 'card')
 const listColumns = computed(() => [
-  { title: t('host.host'), key: 'host', width: 250 },
-  { title: t('monitor.status'), key: 'status', width: 120 },
+  { title: t('host.host'), key: 'host', width: 220 },
+  { title: t('monitor.status'), key: 'status', width: 100 },
   { title: t('monitor.cpu'), key: 'cpu' },
   { title: t('monitor.ram'), key: 'ram' },
   { title: t('monitor.disk'), key: 'disk' },
-  { title: t('common.network'), key: 'network', width: 150 },
-  { title: t('monitor.usage'), key: 'traffic', width: 140 },
+  { title: t('common.network'), key: 'network', width: 140 },
+  { title: t('monitor.usage'), key: 'traffic', width: 120 },
+  { title: t('host.financialManagement'), key: 'financial', width: 180 },
   { title: t('common.actions'), key: 'actions', width: 160, fixed: 'right' }
 ])
 
@@ -396,6 +447,11 @@ const syncHostsFromStore = () => {
       existing.notify_offline_threshold = sh.notify_offline_threshold
       existing.notify_traffic_threshold = sh.notify_traffic_threshold
       existing.notify_channels = sh.notify_channels
+      // Update financial info
+      existing.expiration_date = sh.expiration_date
+      existing.billing_period = sh.billing_period
+      existing.billing_amount = sh.billing_amount
+      existing.currency = sh.currency
       return existing
     } else {
       // Add new host with default/empty metrics
@@ -416,7 +472,12 @@ const syncHostsFromStore = () => {
         net_tx: 0,
         net_monthly_rx: 0,
         net_monthly_tx: 0,
-        last_updated: 0
+        last_updated: 0,
+        // Financial logic
+        expiration_date: sh.expiration_date,
+        billing_period: sh.billing_period,
+        billing_amount: sh.billing_amount,
+        currency: sh.currency
       }
     }
   })
@@ -524,6 +585,72 @@ const formatTrafficUsage = (host) => {
     }
     const used = measured + (host.net_traffic_used_adjustment || 0)
     return formatBytes(used) + ' / ' + formatBytes(host.net_traffic_limit)
+}
+
+// Financial calculation helpers
+const getDaysUntilExpiration = (expirationDate) => {
+  if (!expirationDate) return 0
+  const now = dayjs()
+  const expDate = dayjs(expirationDate)
+  return expDate.diff(now, 'day')
+}
+
+const calculateRemainingValue = (expirationDate, billingPeriod, billingAmount, currency = 'CNY') => {
+  const daysRemaining = getDaysUntilExpiration(expirationDate)
+  if (daysRemaining < 0) return t('host.expired')
+  
+  // Days per billing period
+  const periodDays = {
+    'monthly': 30,
+    'quarterly': 90,
+    'semiannually': 180,
+    'annually': 365,
+    'biennial': 730,
+    'triennial': 1095
+  }
+  
+  // Currency symbols
+  const currencySymbols = {
+    'CNY': '¥',
+    'USD': '$',
+    'EUR': '€',
+    'GBP': '£',
+    'JPY': '¥'
+  }
+  
+  const days = periodDays[billingPeriod] || 30
+  const dailyRate = billingAmount / days
+  const remaining = (dailyRate * daysRemaining).toFixed(2)
+  const symbol = currencySymbols[currency] || '¥'
+  
+  return `${symbol}${remaining} (${daysRemaining}${t('host.daysRemaining')})`
+}
+
+const formatRemainingValueOnly = (expirationDate, billingPeriod, billingAmount, currency = 'CNY') => {
+  const daysRemaining = getDaysUntilExpiration(expirationDate)
+  if (daysRemaining < 0) return t('host.expired')
+  
+  const periodDays = {
+    'monthly': 30, 'quarterly': 90, 'semiannually': 180, 'annually': 365, 'biennial': 730, 'triennial': 1095
+  }
+  
+  const currencySymbols = { 'CNY': '¥', 'USD': '$', 'EUR': '€', 'GBP': '£', 'JPY': '¥' }
+  const days = periodDays[billingPeriod] || 30
+  const dailyRate = billingAmount / days
+  const remaining = (dailyRate * daysRemaining).toFixed(2)
+  const symbol = currencySymbols[currency] || '¥'
+  
+  return `${symbol}${remaining}`
+}
+
+const formatBillingPeriod = (period) => {
+  if (!period) return ''
+  return t(`host.billing${period.charAt(0).toUpperCase() + period.slice(1)}`)
+}
+
+const getCurrencySymbol = (currency) => {
+  const currencySymbols = { 'CNY': '¥', 'USD': '$', 'EUR': '€', 'GBP': '£', 'JPY': '¥' }
+  return currencySymbols[currency] || '¥'
 }
 
 const sortedHosts = computed(() => {
