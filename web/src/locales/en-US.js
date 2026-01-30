@@ -92,7 +92,28 @@ export default {
         temporaryGroup: 'Temporary',
         onetimeSession: 'One-time session',
         theme: 'Theme',
-        themeAuto: 'Auto (Follow System)'
+        themeAuto: 'Auto (Follow System)',
+        // Fingerprint mismatch dialog
+        fingerprintMismatchTitle: 'Host Identity Changed',
+        fingerprintMismatchWarning1: 'The remote host identification has changed!',
+        fingerprintMismatchWarning2: 'This could mean that someone is eavesdropping on you, or that the host key has just changed.',
+        fingerprintNew: 'New Fingerprint',
+        fingerprintAcceptPrompt: 'Do you want to accept the new fingerprint and connect?',
+        fingerprintAccept: 'Accept & Connect',
+        fingerprintUpdated: 'Fingerprint updated',
+        fingerprintUpdateFailed: 'Failed to update fingerprint',
+        fingerprintRejected: 'Connection cancelled by user',
+        // Terminal toolbar
+        reconnect: 'Reconnect',
+        disconnect: 'Disconnect',
+        font: 'Font',
+        sftp: 'SFTP',
+        commands: 'Commands',
+        manageTemplates: 'Manage Templates',
+        fileExplorer: 'File Explorer',
+        // Font settings
+        fontFamily: 'Font Family',
+        fontSize: 'Font Size'
     },
     host: {
         name: 'Name',

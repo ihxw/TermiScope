@@ -1,5 +1,8 @@
 <template>
-  <a-config-provider :theme="{ algorithm: themeStore.themeAlgorithm, token: themeStore.themeToken }">
+  <a-config-provider 
+    :theme="{ algorithm: themeStore.themeAlgorithm, token: themeStore.themeToken }"
+    :locale="antdLocale"
+  >
     <div :class="[themeStore.isDark ? 'dark-theme' : 'light-theme']" style="min-height: 100vh">
       <router-view />
     </div>
@@ -7,10 +10,19 @@
 </template>
 
 <script setup>
-import { onMounted } from 'vue'
+import { onMounted, computed } from 'vue'
 import { useThemeStore } from './stores/theme'
+import { useI18n } from 'vue-i18n'
+import zhCN from 'ant-design-vue/es/locale/zh_CN'
+import enUS from 'ant-design-vue/es/locale/en_US'
 
 const themeStore = useThemeStore()
+const { locale } = useI18n()
+
+// Switch Ant Design locale based on current i18n locale
+const antdLocale = computed(() => {
+  return locale.value === 'zh-CN' ? zhCN : enUS
+})
 
 onMounted(() => {
   themeStore.initTheme()

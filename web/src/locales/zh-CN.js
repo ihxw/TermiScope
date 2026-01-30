@@ -101,7 +101,28 @@ export default {
         temporaryGroup: '临时',
         onetimeSession: '一次性会话',
         theme: '主题',
-        themeAuto: '自动 (跟随系统)'
+        themeAuto: '自动 (跟随系统)',
+        // Fingerprint mismatch dialog
+        fingerprintMismatchTitle: '主机身份已变更',
+        fingerprintMismatchWarning1: '远程主机标识已发生变化！',
+        fingerprintMismatchWarning2: '这可能意味着有人正在窃听您的连接，或者主机密钥刚刚更改。',
+        fingerprintNew: '新指纹',
+        fingerprintAcceptPrompt: '您要接受新指纹并连接吗？',
+        fingerprintAccept: '接受并连接',
+        fingerprintUpdated: '指纹已更新',
+        fingerprintUpdateFailed: '更新指纹失败',
+        fingerprintRejected: '连接已被用户取消',
+        // Terminal toolbar
+        reconnect: '重新连接',
+        disconnect: '断开连接',
+        font: '字体',
+        sftp: 'SFTP',
+        commands: '命令',
+        manageTemplates: '管理模板',
+        fileExplorer: '文件浏览器',
+        // Font settings
+        fontFamily: '字体',
+        fontSize: '字体大小'
     },
     host: {
         name: '名称',

@@ -30,6 +30,11 @@
           :class="{ active: modifiers.alt, 'dark-mode': themeStore.isDark }" 
           @click="toggleModifier('alt')"
         >Alt</button>
+        <button 
+          class="key-btn modifier" 
+          :class="{ active: modifiers.shift, 'dark-mode': themeStore.isDark }" 
+          @click="toggleModifier('shift')"
+        >Shift</button>
         
         <span class="key-separator"></span>
         
@@ -66,6 +71,12 @@
         <button class="key-btn" :class="{ 'dark-mode': themeStore.isDark }" @click="sendChar('/')">/</button>
         <button class="key-btn" :class="{ 'dark-mode': themeStore.isDark }" @click="sendChar('-')">-</button>
         <button class="key-btn" :class="{ 'dark-mode': themeStore.isDark }" @click="sendChar('_')">_</button>
+        
+        <span class="key-separator"></span>
+        
+        <!-- Copy/Paste Buttons -->
+        <button class="key-btn action" :class="{ 'dark-mode': themeStore.isDark }" @click="copySelection">Copy</button>
+        <button class="key-btn action" :class="{ 'dark-mode': themeStore.isDark }" @click="pasteFromClipboard">Paste</button>
       </div>
     </div>
     
@@ -85,11 +96,11 @@
         <a-space size="small">
           <a-button class="status-btn" :class="{ 'light-mode': !themeStore.isDark }" size="small" type="text" @click="reconnect" v-if="connectionStatus === 'Disconnected'">
             <template #icon><ReloadOutlined /></template>
-            Reconnect
+            {{ t('terminal.reconnect') }}
           </a-button>
           <a-button class="status-btn danger" :class="{ 'light-mode': !themeStore.isDark }" size="small" type="text" danger @click="disconnect" v-if="connectionStatus === 'Connected'">
             <template #icon><DisconnectOutlined /></template>
-            Disconnect
+            {{ t('terminal.disconnect') }}
           </a-button>
         </a-space>
         <a-divider type="vertical" class="status-divider" :style="{ background: themeStore.isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.1)' }" />
@@ -99,7 +110,7 @@
           <template #content>
             <div style="width: 280px; padding: 4px;">
               <div style="margin-bottom: 12px">
-                <div style="margin-bottom: 4px; font-size: 12px; color: #888">Font Family</div>
+                <div style="margin-bottom: 4px; font-size: 12px; color: #888">{{ t('terminal.fontFamily') }}</div>
                 <a-select v-model:value="fontSettings.family" style="width: 100%" size="small" @change="updateFont">
                   <a-select-option value="'Alibaba PuHuiTi', monospace">Alibaba PuHuiTi</a-select-option>
                   <a-select-option value="'Courier New', monospace">Courier New</a-select-option>
@@ -111,7 +122,7 @@
                 </a-select>
               </div>
               <div>
-                <div style="margin-bottom: 4px; font-size: 12px; color: #888">Font Size ({{ fontSettings.size }}px)</div>
+                <div style="margin-bottom: 4px; font-size: 12px; color: #888">{{ t('terminal.fontSize') }} ({{ fontSettings.size }}px)</div>
                 <a-row :gutter="8">
                   <a-col :span="16">
                      <a-slider v-model:value="fontSettings.size" :min="10" :max="32" @change="updateFont" />
@@ -125,20 +136,20 @@
           </template>
           <a-button class="status-btn" :class="{ 'light-mode': !themeStore.isDark }" size="small" type="text">
             <template #icon><FontSizeOutlined /></template>
-            Font
+            {{ t('terminal.font') }}
           </a-button>
         </a-popover>
 
         <a-divider type="vertical" class="status-divider" :style="{ background: themeStore.isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.1)' }" />
         <a-button class="status-btn" :class="{ 'light-mode': !themeStore.isDark }" size="small" type="text" @click="showSftp = true" :disabled="connectionStatus !== 'Connected'">
           <template #icon><FolderOpenOutlined /></template>
-          SFTP
+          {{ t('terminal.sftp') }}
         </a-button>
         <a-divider type="vertical" class="status-divider" :style="{ background: themeStore.isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.1)' }" />
         <a-dropdown :disabled="connectionStatus !== 'Connected'" placement="topRight">
           <a-button class="status-btn" :class="{ 'light-mode': !themeStore.isDark }" size="small" type="text">
             <template #icon><ThunderboltOutlined /></template>
-            Commands
+            {{ t('terminal.commands') }}
           </a-button>
           <template #overlay>
             <a-menu @click="handleQuickCommand">
@@ -147,7 +158,7 @@
               </a-menu-item>
               <a-menu-divider v-if="commandTemplates.length > 0" />
               <a-menu-item @click="$router.push({ name: 'CommandManagement' })">
-                Manage Templates
+                {{ t('terminal.manageTemplates') }}
               </a-menu-item>
             </a-menu>
           </template>
@@ -158,7 +169,7 @@
     <!-- SFTP Drawer -->
     <a-drawer
       v-model:open="showSftp"
-      title="File Explorer"
+      :title="t('terminal.fileExplorer')"
       placement="right"
       width="80%"
       :body-style="{ padding: '8px' }"
@@ -183,9 +194,13 @@ import { listCommandTemplates } from '../api/command'
 import { updateHostFingerprint } from '../api/ssh'
 import SftpBrowser from './SftpBrowser.vue'
 import 'xterm/css/xterm.css'
+import { useI18n } from 'vue-i18n'
 
 import { useThemeStore } from '../stores/theme'
 import { terminalThemes } from '../utils/terminalThemes'
+
+const { t } = useI18n()
+const themeStore = useThemeStore()
 
 const props = defineProps({
   hostId: {
@@ -203,7 +218,6 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close'])
-const themeStore = useThemeStore()
 
 const terminalRef = ref(null)
 const terminal = shallowRef(null)
@@ -409,26 +423,26 @@ const connectWebSocket = async () => {
           if (msg.type === 'error') {
             if (msg.code === 'fingerprint_mismatch') {
               Modal.confirm({
-                title: 'Host Identity Changed',
+                title: t('terminal.fingerprintMismatchTitle'),
                 content: h('div', [
-                  h('p', 'The remote host identification has changed!'),
-                  h('p', 'This could mean that someone is eavesdropping on you purely, or that the host key has just changed.'),
-                  h('p', { style: 'font-weight: bold; margin-top: 8px;' }, `New Fingerprint: ${msg.meta.new_fingerprint}`),
-                  h('p', { style: 'margin-top: 8px; color: #faad14;' }, 'Do you want to accept the new fingerprint and connect?')
+                  h('p', t('terminal.fingerprintMismatchWarning1')),
+                  h('p', t('terminal.fingerprintMismatchWarning2')),
+                  h('p', { style: 'font-weight: bold; margin-top: 8px;' }, `${t('terminal.fingerprintNew')}: ${msg.meta.new_fingerprint}`),
+                  h('p', { style: 'margin-top: 8px; color: #faad14;' }, t('terminal.fingerprintAcceptPrompt'))
                 ]),
-                okText: 'Accept & Connect',
-                cancelText: 'Cancel',
+                okText: t('terminal.fingerprintAccept'),
+                cancelText: t('common.cancel'),
                 onOk: async () => {
                   try {
                     await updateHostFingerprint(props.hostId, msg.meta.new_fingerprint)
-                    message.success('Fingerprint updated')
+                    message.success(t('terminal.fingerprintUpdated'))
                     reconnect()
                   } catch (err) {
-                    message.error('Failed to update fingerprint: ' + err.message)
+                    message.error(t('terminal.fingerprintUpdateFailed') + ': ' + err.message)
                   }
                 },
                 onCancel: () => {
-                  terminal.value.writeln('\r\n\x1b[31mConnection cancelled by user.\x1b[0m\r\n')
+                  terminal.value.writeln('\r\n\x1b[31m' + t('terminal.fingerprintRejected') + '\x1b[0m\r\n')
                 }
               })
               connectionStatus.value = 'Error'
@@ -629,6 +643,43 @@ const sendChar = (char) => {
     terminal.value.focus()
   }
 }
+
+// Copy selected text to clipboard (for mobile)
+const copySelection = async () => {
+  if (!terminal.value) return
+  
+  const selection = terminal.value.getSelection()
+  if (!selection) {
+    message.warning('No text selected')
+    return
+  }
+  
+  try {
+    await navigator.clipboard.writeText(selection)
+    message.success('Copied to clipboard')
+  } catch (err) {
+    console.error('Failed to copy:', err)
+    message.error('Failed to copy')
+  }
+}
+
+// Paste from clipboard to terminal (for mobile)
+const pasteFromClipboard = async () => {
+  if (!ws.value || ws.value.readyState !== WebSocket.OPEN) return
+  
+  try {
+    const text = await navigator.clipboard.readText()
+    if (text) {
+      ws.value.send(JSON.stringify({ type: 'input', data: text }))
+      if (terminal.value) {
+        terminal.value.focus()
+      }
+    }
+  } catch (err) {
+    console.error('Failed to paste:', err)
+    message.error('Failed to read from clipboard')
+  }
+}
 </script>
 
 <style scoped>
@@ -777,6 +828,28 @@ const sendChar = (char) => {
   background: #1890ff !important;
   border-color: #1890ff !important;
   color: #fff !important;
+}
+
+.key-btn.action {
+  background: #52c41a;
+  color: #fff;
+  border-color: #52c41a;
+  font-weight: 500;
+}
+
+.key-btn.action:active {
+  background: #389e0d;
+  border-color: #389e0d;
+}
+
+.key-btn.action.dark-mode {
+  background: #237804;
+  border-color: #237804;
+}
+
+.key-btn.action.dark-mode:active {
+  background: #135200;
+  border-color: #135200;
 }
 
 .key-btn.arrow {
