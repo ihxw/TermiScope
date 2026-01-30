@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/kardianos/service"
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/disk"
 	"github.com/shirou/gopsutil/v3/host"
@@ -53,6 +54,7 @@ var (
 	serverURL string
 	secret    string
 	hostID    uint64
+	insecure  bool
 
 	// Version is set during build via ldflags (-X main.Version=x.x.x)
 	Version = "dev"
@@ -62,25 +64,34 @@ var (
 	cachedCpuModel string
 	cachedCpuCount int
 	cachedCpuMhz   float64
+
+	logger service.Logger
 )
 
-func main() {
-	flag.StringVar(&serverURL, "server", "", "Server URL (e.g. http://localhost:8080)")
-	flag.StringVar(&secret, "secret", "", "Monitor Secret")
-	flag.Uint64Var(&hostID, "id", 0, "Host ID")
-	insecure := flag.Bool("insecure", false, "Skip SSL verification")
-	flag.Parse()
+// Program structures
+type program struct {
+	exit chan struct{}
+}
 
-	if serverURL == "" || secret == "" || hostID == 0 {
-		log.Fatal("Usage: agent -server <url> -secret <secret> -id <host_id>")
-	}
+func (p *program) Start(s service.Service) error {
+	// Start should not block. Do the actual work async.
+	p.exit = make(chan struct{})
+	go p.run()
+	return nil
+}
 
+func (p *program) run() {
+	// Initialize system info
 	initSystemInfo()
 
-	log.Printf("TermiScope Agent v%s started for Host %d. Target: %s. OS: %s", Version, hostID, serverURL, cachedOS)
+	if logger != nil {
+		logger.Infof("TermiScope Agent v%s started for Host %d. Target: %s. OS: %s", Version, hostID, serverURL, cachedOS)
+	} else {
+		log.Printf("TermiScope Agent v%s started for Host %d. Target: %s. OS: %s", Version, hostID, serverURL, cachedOS)
+	}
 
 	transport := &http.Transport{}
-	if *insecure {
+	if insecure {
 		transport.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 
@@ -96,15 +107,109 @@ func main() {
 	// Initial system metrics collection
 	metrics := collectMetrics()
 	if err := sendMetrics(client, metrics); err != nil {
-		log.Printf("Failed to report metrics: %v", err)
+		logError("Failed to report metrics: %v", err)
 	}
 
+	ticker := time.NewTicker(2 * time.Second)
 	for {
-		metrics := collectMetrics()
-		if err := sendMetrics(client, metrics); err != nil {
-			log.Printf("Failed to report metrics: %v", err)
+		select {
+		case <-ticker.C:
+			metrics := collectMetrics()
+			if err := sendMetrics(client, metrics); err != nil {
+				logError("Failed to report metrics: %v", err)
+			}
+		case <-p.exit:
+			ticker.Stop()
+			return
 		}
-		time.Sleep(2 * time.Second)
+	}
+}
+
+func (p *program) Stop(s service.Service) error {
+	// Stop should not block. Return with a few seconds.
+	close(p.exit)
+	if logger != nil {
+		logger.Info("TermiScope Agent stopping")
+	}
+	return nil
+}
+
+func logError(format string, v ...interface{}) {
+	if logger != nil {
+		logger.Errorf(format, v...)
+	} else {
+		log.Printf(format, v...)
+	}
+}
+
+func main() {
+	flag.StringVar(&serverURL, "server", "", "Server URL (e.g. http://localhost:8080)")
+	flag.StringVar(&secret, "secret", "", "Monitor Secret")
+	flag.Uint64Var(&hostID, "id", 0, "Host ID")
+	flag.BoolVar(&insecure, "insecure", false, "Skip SSL verification")
+
+	// Service control flags
+	svcFlag := flag.String("service", "", "Control the system service.")
+	flag.Parse()
+
+	svcConfig := &service.Config{
+		Name:        "TermiScopeAgent",
+		DisplayName: "TermiScope Monitor Agent",
+		Description: "TermiScope monitoring agent service.",
+		Arguments:   []string{"-server", serverURL, "-secret", secret, "-id", fmt.Sprintf("%d", hostID)},
+	}
+
+	// Propagate insecure flag if set
+	if insecure {
+		svcConfig.Arguments = append(svcConfig.Arguments, "-insecure")
+	}
+
+	prg := &program{}
+	s, err := service.New(prg, svcConfig)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	logger, err = s.Logger(nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if len(*svcFlag) != 0 {
+		err := service.Control(s, *svcFlag)
+		if err != nil {
+			log.Printf("Valid actions: %q\n", service.ControlAction)
+			log.Fatal(err)
+		}
+		return
+	}
+
+	// Run validation only if not controlling service (and not running as service)
+	// When running as service, flags might not be parsed from command line but from arguments
+	// But s.Run() parses arguments too? No, service arguments are passed to executable.
+	// Logic: If plain run, check args. If service run, logic inside run() will likely use global vars.
+	// However, flags are parsed above.
+
+	// When running as a service, the arguments are passed to the binary.
+	// flag.Parse() handles them.
+
+	if serverURL == "" || secret == "" || hostID == 0 {
+		// Only fatal if we are NOT installing/uninstalling/status checking
+		// If we are actually trying to run (interactive or service)
+		if len(*svcFlag) == 0 {
+			// Check if we are being run by service manager?
+			// service.Interactive() returns true if running in terminal.
+			if service.Interactive() {
+				log.Fatal("Usage: agent -server <url> -secret <secret> -id <host_id> [-service install|uninstall|start|stop]")
+			}
+			// If not interactive, we might be running as service but missing args?
+			// We'll let it proceed and fail in run() or just log error.
+		}
+	}
+
+	err = s.Run()
+	if err != nil {
+		logger.Error(err)
 	}
 }
 
@@ -121,8 +226,16 @@ func initSystemInfo() {
 	// Cache CPU Info
 	if cpuInfo, err := cpu.Info(); err == nil && len(cpuInfo) > 0 {
 		cachedCpuModel = cpuInfo[0].ModelName
-		cachedCpuCount = len(cpuInfo) // Logical cores
 		cachedCpuMhz = cpuInfo[0].Mhz
+	}
+	// Use Counts for accurate logical core count
+	if count, err := cpu.Counts(true); err == nil {
+		cachedCpuCount = int(count)
+	} else if len(cachedCpuModel) > 0 {
+		// Fallback if Counts fails but Info succeeded (unlikely)
+		// We might need to call Info again or just check length if we kept the slice
+		// But simplest is to just re-call or trust Counts.
+		// Let's stick to Counts(true). If it fails, we default to 0.
 	}
 }
 

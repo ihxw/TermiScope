@@ -391,7 +391,6 @@ const isAgentOutdated = (host) => {
   if (!host.agent_version || !serverAgentVersion.value) {
     return false
   }
-  console.log(host.agent_version,serverAgentVersion.value)
   return cleanVersion(host.agent_version) !== cleanVersion(serverAgentVersion.value)
 }
 

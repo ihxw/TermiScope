@@ -165,15 +165,26 @@ foreach ($Target in $Targets) {
     # Copy LICENSE
     Copy-Item -Path (Join-Path $PSScriptRoot "LICENSE") -Destination $OutputDir
 
-    # Linux-specific: Copy Install Scripts
+    # Copy Agent Install Templates (Required for Server to serve them)
+    $ScriptDir = Join-Path $PSScriptRoot "scripts"
+    $ScriptDest = Join-Path $OutputDir "scripts"
+    if (-not (Test-Path $ScriptDest)) { New-Item -ItemType Directory -Path $ScriptDest | Out-Null }
+    
+    if (Test-Path $ScriptDir) {
+        $Templates = Get-ChildItem -Path $ScriptDir -Filter "*.tmpl"
+        foreach ($Tmpl in $Templates) {
+             Copy-Item -Path $Tmpl.FullName -Destination $ScriptDest
+        }
+    }
+
+    # Linux-specific: Copy Server Install Scripts
     if ($OS -eq "linux") {
-        $ScriptDir = Join-Path $PSScriptRoot "scripts"
         if (Test-Path $ScriptDir) {
             $Scripts = @("install.sh", "uninstall.sh")
             foreach ($Script in $Scripts) {
                 $Src = Join-Path $ScriptDir $Script
                 if (Test-Path $Src) {
-                    $Dest = Join-Path $OutputDir $Script
+                    $Dest = Join-Path $ScriptDest $Script
                     # Read content and replace CRLF with LF to ensure Linux compatibility
                     $Content = Get-Content $Src -Raw
                     $Content = $Content -replace "`r`n", "`n"

@@ -130,37 +130,19 @@
                 </a-button>
                 <template #overlay>
                   <a-menu>
-                    <!-- Deploy/Stop Monitor -->
-                    <template v-if="!record.monitor_enabled">
-                      <a-menu-item 
-                        key="auto-deploy" 
-                        @click="openDeployModal(record)" 
-                        :disabled="record.host_type === 'monitor_only'"
-                      >
-                        <CloudUploadOutlined /> {{ t('monitor.autoDeploy') }}
-                      </a-menu-item>
-                      <a-menu-item key="manual-install" @click="openInstallCommandModal(record)">
-                        <CopyOutlined /> {{ t('monitor.manualInstall') }}
-                      </a-menu-item>
-                    </template>
-                    <template v-else>
-                      <a-menu-item 
-                        v-if="record.host_type === 'monitor_only'"
-                        key="uninstall" 
-                        @click="openUninstallCommandModal(record)"
-                        style="color: #ff4d4f"
-                      >
-                        <DeleteOutlined /> {{ t('monitor.manualUninstall') }}
-                      </a-menu-item>
-                      <a-menu-item 
-                        v-else
-                        key="stop" 
-                        @click="handleStopMonitor(record)"
-                        style="color: #ff4d4f"
-                      >
-                        <StopOutlined /> {{ t('monitor.stop') }}
-                      </a-menu-item>
-                    </template>
+                    <!-- Monitor Actions -->
+                    <a-menu-item key="auto" @click="openDeployModal(record)" :disabled="record.host_type === 'monitor_only'">
+                       <CloudUploadOutlined /> {{ t('monitor.autoDeploy') }}
+                    </a-menu-item>
+                    <a-menu-item key="manual" @click="openInstallCommandModal(record)">
+                       <CopyOutlined /> {{ t('monitor.manualInstall') }}
+                    </a-menu-item>
+                    <a-menu-item key="stop" @click="confirmStopMonitor(record)" :disabled="record.host_type === 'monitor_only'" style="color: #ff4d4f">
+                       <StopOutlined /> {{ t('monitor.stop') }}
+                    </a-menu-item>
+                    <a-menu-item key="uninstall" @click="openUninstallCommandModal(record)" style="color: #ff4d4f">
+                       <DeleteOutlined /> {{ t('monitor.manualUninstall') }}
+                    </a-menu-item>
                     <a-menu-divider />
                     <!-- Connect -->
                     <a-menu-item 
@@ -186,54 +168,44 @@
             
             <!-- Desktop: Show all buttons -->
             <a-space v-else>
-              <!-- 监控部署下拉菜单 -->
-              <a-dropdown v-if="!record.monitor_enabled" :trigger="['hover']">
-                <a-button size="small" :loading="monitorLoading[record.id]">
-                  <DashboardOutlined />
-                  {{ t('monitor.deployAgent') }}
-                  <DownOutlined style="font-size: 10px; margin-left: 4px" />
-                </a-button>
-                <template #overlay>
-                  <a-menu>
-                    <a-menu-item key="auto" @click="openDeployModal(record)" :disabled="record.host_type === 'monitor_only'">
-                      <CloudUploadOutlined />
-                      {{ t('monitor.autoDeploy') }}
-                    </a-menu-item>
-                    <a-menu-item key="manual" @click="openInstallCommandModal(record)">
-                      <CopyOutlined />
-                      {{ t('monitor.manualInstall') }}
-                    </a-menu-item>
-                    <a-menu-item key="uninstall" @click="openUninstallCommandModal(record)">
-                      <DeleteOutlined />
-                      {{ t('monitor.manualUninstall') }}
-                    </a-menu-item>
-                  </a-menu>
-                </template>
+              
+              <!-- 监控管理下拉菜单 -->
+              <a-dropdown :trigger="['click']">
+                 <a-button size="small" :loading="monitorLoading[record.id]">
+                   <DashboardOutlined />
+                   {{ t('host.monitor') }}
+                   <DownOutlined style="font-size: 10px; margin-left: 4px" />
+                 </a-button>
+                 <template #overlay>
+                   <a-menu>
+                     <!-- Auto Deploy -->
+                     <a-menu-item key="auto" @click="openDeployModal(record)" :disabled="record.host_type === 'monitor_only'">
+                       <CloudUploadOutlined />
+                       {{ t('monitor.autoDeploy') }}
+                     </a-menu-item>
+                     
+                     <!-- Manual Install -->
+                     <a-menu-item key="manual" @click="openInstallCommandModal(record)">
+                        <CopyOutlined />
+                        {{ t('monitor.manualInstall') }}
+                     </a-menu-item>
+                     
+                     <a-menu-divider />
+                     
+                     <!-- Stop Monitor -->
+                     <a-menu-item key="stop" @click="confirmStopMonitor(record)" :disabled="record.host_type === 'monitor_only'" style="color: #ff4d4f">
+                        <StopOutlined />
+                        {{ t('monitor.stop') }}
+                     </a-menu-item>
+                     
+                     <!-- Manual Uninstall -->
+                      <a-menu-item key="uninstall" @click="openUninstallCommandModal(record)" style="color: #ff4d4f">
+                        <DeleteOutlined />
+                        {{ t('monitor.manualUninstall') }}
+                     </a-menu-item>
+                   </a-menu>
+                 </template>
               </a-dropdown>
-              <template v-else>
-                <!-- 仅监控主机：显示手动卸载按钮 -->
-                <a-button 
-                  v-if="record.host_type === 'monitor_only'"
-                  size="small" 
-                  danger 
-                  @click="openUninstallCommandModal(record)"
-                >
-                  <DeleteOutlined />
-                  {{ t('monitor.manualUninstall') }}
-                </a-button>
-
-                <!-- 控制+监控主机：显示远程停止按钮 -->
-                <a-popconfirm
-                  v-else
-                  :title="t('monitor.disableConfirm')"
-                  @confirm="handleStopMonitor(record)"
-                >
-                   <a-button size="small" danger :loading="monitorLoading[record.id]">
-                     <StopOutlined />
-                     {{ t('monitor.stop') }}
-                   </a-button>
-                </a-popconfirm>
-              </template>
               
               <!-- 连接按钮 -->
               <a-tooltip :title="record.host_type === 'monitor_only' ? t('host.monitorOnlyNoConnect') : ''">
@@ -806,6 +778,16 @@ const handleStopMonitor = async (host) => {
   }
 }
 
+const confirmStopMonitor = (host) => {
+  Modal.confirm({
+    title: t('monitor.stop'),
+    content: t('monitor.disableConfirm'),
+    okText: t('common.confirm'),
+    cancelText: t('common.cancel'),
+    onOk: () => handleStopMonitor(host)
+  })
+}
+
 const hostStatuses = ref({})
 const checkingStatus = ref(false)
 
@@ -1161,8 +1143,8 @@ const getInstallCommand = () => {
   
   if (installPlatform.value === 'windows') {
     // Windows PowerShell command
-    return `# Run this command in PowerShell as Administrator
-$url = "${serverUrl}/api/monitor/install?host_id=${hostId}&secret=${secret}"
+    return `# Run this command in PowerShell as Administrator (v5.1 or later)
+$url = "${serverUrl}/api/monitor/install?host_id=${hostId}&secret=${secret}&os=windows"
 Invoke-WebRequest -Uri $url -UseBasicParsing | Select-Object -ExpandProperty Content | Invoke-Expression`
   } else {
     // Linux bash command

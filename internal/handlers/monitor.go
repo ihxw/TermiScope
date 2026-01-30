@@ -1540,22 +1540,35 @@ func (h *MonitorHandler) stopMonitorOnHost(host *models.SSHHost) error {
 func (h *MonitorHandler) GetInstallScript(c *gin.Context) {
 	hostID := c.Query("host_id")
 	secret := c.Query("secret")
+	osType := c.Query("os") // "windows" or empty (linux)
 
 	if hostID == "" || secret == "" {
-		c.String(http.StatusBadRequest, "#!/bin/bash\necho 'Error: host_id and secret parameters are required'\nexit 1")
+		if osType == "windows" {
+			c.String(http.StatusBadRequest, "Write-Error 'host_id and secret parameters are required'")
+		} else {
+			c.String(http.StatusBadRequest, "#!/bin/bash\necho 'Error: host_id and secret parameters are required'\nexit 1")
+		}
 		return
 	}
 
 	// 获取主机信息并验证 secret
 	var host models.SSHHost
 	if err := h.DB.First(&host, hostID).Error; err != nil {
-		c.String(http.StatusNotFound, "#!/bin/bash\necho 'Error: Host not found'\nexit 1")
+		if osType == "windows" {
+			c.String(http.StatusNotFound, "Write-Error 'Host not found'")
+		} else {
+			c.String(http.StatusNotFound, "#!/bin/bash\necho 'Error: Host not found'\nexit 1")
+		}
 		return
 	}
 
 	// 验证 secret
 	if host.MonitorSecret != secret {
-		c.String(http.StatusForbidden, "#!/bin/bash\necho 'Error: Invalid secret'\nexit 1")
+		if osType == "windows" {
+			c.String(http.StatusForbidden, "Write-Error 'Invalid secret'")
+		} else {
+			c.String(http.StatusForbidden, "#!/bin/bash\necho 'Error: Invalid secret'\nexit 1")
+		}
 		return
 	}
 
@@ -1577,11 +1590,22 @@ func (h *MonitorHandler) GetInstallScript(c *gin.Context) {
 	serverURL := fmt.Sprintf("%s://%s", scheme, c.Request.Host)
 
 	// 生成安装脚本
+	var tmplFile string
+	if osType == "windows" {
+		tmplFile = "scripts/install_agent.ps1.tmpl"
+	} else {
+		tmplFile = "scripts/install_agent.sh.tmpl"
+	}
+
 	// 读取模板文件
-	tmplContent, err := ioutil.ReadFile("scripts/install_agent.sh.tmpl")
+	tmplContent, err := ioutil.ReadFile(tmplFile)
 	if err != nil {
 		log.Printf("Failed to read install script template: %v", err)
-		c.String(http.StatusInternalServerError, "#!/bin/bash\necho 'Error: Failed to read installation template'\nexit 1")
+		if osType == "windows" {
+			c.String(http.StatusInternalServerError, "Write-Error 'Failed to read installation template'")
+		} else {
+			c.String(http.StatusInternalServerError, "#!/bin/bash\necho 'Error: Failed to read installation template'\nexit 1")
+		}
 		return
 	}
 
@@ -1592,7 +1616,10 @@ func (h *MonitorHandler) GetInstallScript(c *gin.Context) {
 	script = strings.ReplaceAll(script, "{{SECRET}}", secret)
 
 	// 强制转换 CRLF 为 LF，解决 Windows/Linux 换行符兼容性问题
-	script = strings.ReplaceAll(script, "\r\n", "\n")
+	// For Windows PowerShell, CRLF is fine, but LF is also fine.
+	if osType != "windows" {
+		script = strings.ReplaceAll(script, "\r\n", "\n")
+	}
 
 	c.Header("Content-Type", "text/plain; charset=utf-8")
 	c.String(http.StatusOK, script)
