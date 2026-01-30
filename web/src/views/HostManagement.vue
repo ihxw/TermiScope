@@ -331,6 +331,13 @@
                 <a-select-option value="annually">{{ t('host.billingAnnually') }}</a-select-option>
                 <a-select-option value="biennial">{{ t('host.billingBiennial') }}</a-select-option>
                 <a-select-option value="triennial">{{ t('host.billingTriennial') }}</a-select-option>
+                <a-select-option value="4year">{{ t('host.billing4Year') }}</a-select-option>
+                <a-select-option value="5year">{{ t('host.billing5Year') }}</a-select-option>
+                <a-select-option value="6year">{{ t('host.billing6Year') }}</a-select-option>
+                <a-select-option value="7year">{{ t('host.billing7Year') }}</a-select-option>
+                <a-select-option value="8year">{{ t('host.billing8Year') }}</a-select-option>
+                <a-select-option value="9year">{{ t('host.billing9Year') }}</a-select-option>
+                <a-select-option value="10year">{{ t('host.billing10Year') }}</a-select-option>
               </a-select>
             </a-form-item>
           </a-col>
@@ -721,7 +728,14 @@ const calculateRemainingValue = (expirationDate, billingPeriod, billingAmount, c
     'semiannually': 180,
     'annually': 365,
     'biennial': 730,
-    'triennial': 1095
+    'triennial': 1095,
+    '4year': 1460,
+    '5year': 1825,
+    '6year': 2190,
+    '7year': 2555,
+    '8year': 2920,
+    '9year': 3285,
+    '10year': 3650
   }
   
   // Currency symbols
