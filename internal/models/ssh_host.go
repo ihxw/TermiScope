@@ -54,6 +54,12 @@ type SSHHost struct {
 	NotifyChannels         string `json:"notify_channels" gorm:"default:'email,telegram'"` // comma-separated
 	TrafficAlerted         bool   `json:"traffic_alerted" gorm:"default:false"`
 
+	// Financial Management
+	ExpirationDate *time.Time `json:"expiration_date"`                       // Server expiration date (nullable)
+	BillingPeriod  string     `json:"billing_period" gorm:"size:20"`         // monthly, quarterly, semiannually, annually
+	BillingAmount  float64    `json:"billing_amount" gorm:"default:0"`       // Cost per billing period
+	Currency       string     `json:"currency" gorm:"size:10;default:'CNY'"` // CNY, USD, GBP, EUR, JPY
+
 	CreatedAt  time.Time      `json:"created_at"`
 	UpdatedAt  time.Time      `json:"updated_at"`
 	LastScanAt time.Time      `json:"last_scan_at"`

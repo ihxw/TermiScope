@@ -4,6 +4,14 @@
        <a-space>
          <a-button 
             size="small" 
+            @click="fetchChartData"
+            :loading="loading"
+         >
+            <template #icon><ReloadOutlined /></template>
+            {{ t('common.refresh') }}
+         </a-button>
+         <a-button 
+            size="small" 
             :type="isSmooth ? 'primary' : 'default'"
             @click="toggleSmooth"
          >
@@ -30,7 +38,7 @@ import { message } from 'ant-design-vue'
 import * as echarts from 'echarts'
 import { useI18n } from 'vue-i18n'
 import { getNetworkTasks, getTaskStats } from '../api/networkMonitor'
-import { LineChartOutlined } from '@ant-design/icons-vue'
+import { LineChartOutlined, ReloadOutlined } from '@ant-design/icons-vue'
 
 const props = defineProps({
   hostId: {
@@ -45,7 +53,6 @@ const loading = ref(false)
 const timeRange = ref('24h')
 const chartRef = ref(null)
 let chartInstance = null
-let refreshInterval = null // Store interval ID
 
 // Store raw aligned data for recalculation on toggle
 const rawSeriesData = ref([])
@@ -53,17 +60,11 @@ const rawSeriesData = ref([])
 onMounted(() => {
    fetchTasks()
    window.addEventListener('resize', handleResize)
-   
-   // Auto refresh chart every minute
-   refreshInterval = setInterval(() => {
-       if (tasks.value.length > 0) fetchChartData()
-   }, 60000)
 })
 
 onUnmounted(() => {
    window.removeEventListener('resize', handleResize)
    if (chartInstance) chartInstance.dispose()
-   if (refreshInterval) clearInterval(refreshInterval) // Clean up interval
 })
 
 const isSmooth = ref(true)
@@ -236,9 +237,32 @@ const updateChart = () => {
       grid: {
          left: '3%',
          right: '4%',
-         bottom: '10%',
+         bottom: '15%',
+         top: '8%',
          containLabel: true
       },
+      // Add dataZoom for mouse wheel zooming
+      dataZoom: [
+         {
+            type: 'inside',
+            start: 0,
+            end: 100,
+            zoomOnMouseWheel: true,
+            moveOnMouseMove: true,
+            moveOnMouseWheel: false
+         },
+         {
+            type: 'slider',
+            start: 0,
+            end: 100,
+            height: 20,
+            bottom: 25,
+            handleSize: '80%',
+            textStyle: {
+               fontSize: 10
+            }
+         }
+      ],
       xAxis: {
          type: 'time',
          boundaryGap: false

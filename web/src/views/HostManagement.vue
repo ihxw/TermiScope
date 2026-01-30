@@ -103,6 +103,24 @@
               {{ t('host.controlAndMonitor') }}
             </a-tag>
           </template>
+          <template v-if="column.key === 'expiration_date'">
+            <span v-if="record.expiration_date" :style="{ color: getDaysUntilExpiration(record.expiration_date) < 0 ? '#f5222d' : (getDaysUntilExpiration(record.expiration_date) <= 7 ? '#faad14' : undefined) }">
+              {{ dayjs(record.expiration_date).format('YYYY-MM-DD') }}
+            </span>
+            <span v-else style="color: #999">-</span>
+          </template>
+          <template v-if="column.key === 'billing_period'">
+            <a-tag v-if="record.billing_period" size="small">
+              {{ t(`host.billing${record.billing_period.charAt(0).toUpperCase() + record.billing_period.slice(1)}`) }}
+            </a-tag>
+            <span v-else style="color: #999">-</span>
+          </template>
+          <template v-if="column.key === 'remaining_value'">
+            <span v-if="record.expiration_date && record.billing_period && record.billing_amount">
+              {{ calculateRemainingValue(record.expiration_date, record.billing_period, record.billing_amount, record.currency) }}
+            </span>
+            <span v-else style="color: #999">-</span>
+          </template>
           <template v-if="column.key === 'action'">
             <!-- Mobile: Use dropdown menu for all actions -->
             <template v-if="isMobile">
@@ -316,6 +334,55 @@
         <a-form-item :label="t('host.description')">
           <a-textarea v-model:value="hostForm.description" :rows="3" />
         </a-form-item>
+
+        <!-- Financial Management Section -->
+        <a-divider style="margin: 12px 0">{{ t('host.financialManagement') }}</a-divider>
+        
+        <a-form-item :label="t('host.expirationDate')">
+          <a-date-picker 
+            v-model:value="hostForm.expiration_date" 
+            style="width: 100%" 
+            :placeholder="t('host.placeholderExpirationDate')"
+            format="YYYY-MM-DD"
+            :locale="locale"
+          />
+        </a-form-item>
+
+        <a-row :gutter="16">
+          <a-col :span="12">
+            <a-form-item :label="t('host.billingPeriod')">
+              <a-select v-model:value="hostForm.billing_period" :placeholder="t('host.placeholderBillingPeriod')">
+                <a-select-option value="">{{ t('host.billingNone') }}</a-select-option>
+                <a-select-option value="monthly">{{ t('host.billingMonthly') }}</a-select-option>
+                <a-select-option value="quarterly">{{ t('host.billingQuarterly') }}</a-select-option>
+                <a-select-option value="semiannually">{{ t('host.billingSemiannually') }}</a-select-option>
+                <a-select-option value="annually">{{ t('host.billingAnnually') }}</a-select-option>
+                <a-select-option value="biennial">{{ t('host.billingBiennial') }}</a-select-option>
+                <a-select-option value="triennial">{{ t('host.billingTriennial') }}</a-select-option>
+              </a-select>
+            </a-form-item>
+          </a-col>
+          <a-col :span="12">
+            <a-form-item :label="t('host.billingAmount')">
+              <a-input-group compact>
+                <a-select v-model:value="hostForm.currency" style="width: 30%">
+                  <a-select-option value="CNY">¥ CNY</a-select-option>
+                  <a-select-option value="USD">$ USD</a-select-option>
+                  <a-select-option value="EUR">€ EUR</a-select-option>
+                  <a-select-option value="GBP">£ GBP</a-select-option>
+                  <a-select-option value="JPY">¥ JPY</a-select-option>
+                </a-select>
+                <a-input-number 
+                  v-model:value="hostForm.billing_amount" 
+                  :min="0" 
+                  :precision="2"
+                  style="width: 70%" 
+                  :placeholder="t('host.placeholderBillingAmount')"
+                />
+              </a-input-group>
+            </a-form-item>
+          </a-col>
+        </a-row>
       </a-form>
     </a-modal>
 
@@ -451,12 +518,29 @@
           {{ t('host.host') }}: {{ installCommandHost.name }}
         </p>
         
+        <!-- Platform selector -->
+        <a-radio-group v-model:value="installPlatform" style="margin-bottom: 12px">
+          <a-radio-button value="linux">Linux</a-radio-button>
+          <a-radio-button value="windows">Windows</a-radio-button>
+        </a-radio-group>
+        
         <p style="margin-bottom: 8px; color: #666; font-size: 13px">
-          {{ t('monitor.installSupport') }}
+          {{ installPlatform === 'linux' ? t('monitor.installSupport') : t('monitor.windowsInstallSupport') }}
         </p>
         
         <div style="position: relative; margin-bottom: 16px">
-          <pre style="background: #f5f5f5; padding: 16px; padding-right: 90px; border-radius: 4px; font-size: 13px; overflow: auto; word-break: break-all; white-space: pre-wrap">{{ getInstallCommand() }}</pre>
+          <pre :style="{
+            background: themeStore.isDark ? '#1f1f1f' : '#f5f5f5',
+            color: themeStore.isDark ? '#d4d4d4' : '#24292e',
+            padding: '16px',
+            paddingRight: '90px',
+            borderRadius: '4px',
+            fontSize: '13px',
+            overflow: 'auto',
+            wordBreak: 'break-all',
+            whiteSpace: 'pre-wrap',
+            border: themeStore.isDark ? '1px solid #3f3f3f' : 'none'
+          }">{{ getInstallCommand() }}</pre>
           <a-button
             type="primary"
             size="small"
@@ -533,13 +617,29 @@ import {
   HolderOutlined
 } from '@ant-design/icons-vue'
 import { useSSHStore } from '../stores/ssh'
+import { useThemeStore } from '../stores/theme'
 import { useI18n } from 'vue-i18n'
 import { deployMonitor, stopMonitor, batchDeployMonitor, batchStopMonitor } from '../api/ssh'
 import Sortable from 'sortablejs'
+import dayjs from 'dayjs'
+import 'dayjs/locale/zh-cn'
+import zhCN from 'ant-design-vue/es/locale/zh_CN'
+import enUS from 'ant-design-vue/es/locale/en_US'
 
 const router = useRouter()
 const sshStore = useSSHStore()
-const { t } = useI18n()
+const themeStore = useThemeStore()
+const { t, locale: i18nLocale } = useI18n()
+
+// Configure dayjs locale based on current language
+watch(i18nLocale, (newLocale) => {
+  dayjs.locale(newLocale === 'zh-CN' ? 'zh-cn' : 'en')
+}, { immediate: true })
+
+// DatePicker locale based on current language
+const locale = computed(() => {
+  return i18nLocale.value === 'zh-CN' ? zhCN : enUS
+})
 
 const loading = ref(false)
 const searchText = ref('')
@@ -564,6 +664,7 @@ const stopStatus = ref({})
 
 const installCommandVisible = ref(false)
 const installCommandHost = ref(null)
+const installPlatform = ref('linux')
 
 const hostForm = ref({
   name: '',
@@ -575,7 +676,11 @@ const hostForm = ref({
   private_key: '',
   group_name: '',
   description: '',
-  host_type: 'control_monitor'
+  host_type: 'control_monitor',
+  expiration_date: null,
+  billing_period: '',
+  billing_amount: 0,
+  currency: 'CNY'
 })
 
 // Mobile detection
@@ -601,10 +706,13 @@ const columns = computed(() => {
       { title: t('host.username'), dataIndex: 'username', key: 'username', width: 100 },
       { title: t('host.group'), dataIndex: 'group_name', key: 'group_name', width: 100 },
       { title: t('host.description'), key: 'description', width: 150, ellipsis: true },
+      { title: t('host.expirationDate'), key: 'expiration_date', width: 110 },
+      { title: t('host.billingPeriod'), key: 'billing_period', width: 90 },
+      { title: t('host.remainingValue'), key: 'remaining_value', width: 100 },
     )
   }
   
-  baseColumns.push({ title: t('common.edit'), key: 'action', width: isMobile.value ? 60 : 320, fixed: 'right' })
+  baseColumns.push({ title: t('common.edit'), key: 'action', width: isMobile.value ? 60 : 360, fixed: 'right' })
   
   return baseColumns
 })
@@ -621,6 +729,45 @@ const rowSelection = {
 const selectedHosts = computed(() => {
   return sshStore.hosts.filter(h => selectedRowKeys.value.includes(h.id))
 })
+
+// Financial calculation helpers
+const getDaysUntilExpiration = (expirationDate) => {
+  if (!expirationDate) return 0
+  const now = dayjs()
+  const expDate = dayjs(expirationDate)
+  return expDate.diff(now, 'day')
+}
+
+const calculateRemainingValue = (expirationDate, billingPeriod, billingAmount, currency = 'CNY') => {
+  const daysRemaining = getDaysUntilExpiration(expirationDate)
+  if (daysRemaining < 0) return t('host.expired')
+  
+  // Days per billing period
+  const periodDays = {
+    'monthly': 30,
+    'quarterly': 90,
+    'semiannually': 180,
+    'annually': 365,
+    'biennial': 730,
+    'triennial': 1095
+  }
+  
+  // Currency symbols
+  const currencySymbols = {
+    'CNY': '¥',
+    'USD': '$',
+    'EUR': '€',
+    'GBP': '£',
+    'JPY': '¥'
+  }
+  
+  const days = periodDays[billingPeriod] || 30
+  const dailyRate = billingAmount / days
+  const remaining = (dailyRate * daysRemaining).toFixed(2)
+  const symbol = currencySymbols[currency] || '¥'
+  
+  return `${symbol}${remaining} (${daysRemaining}${t('host.daysRemaining')})`
+}
 
 const openDeployModal = (host) => {
     deployHost.value = host
@@ -774,7 +921,11 @@ const handleAdd = () => {
     private_key: '',
     group_name: '',
     description: '',
-    host_type: 'control_monitor'
+    host_type: 'control_monitor',
+    expiration_date: null,
+    billing_period: '',
+    billing_amount: 0,
+    currency: 'CNY'
   }
 }
 
@@ -805,7 +956,11 @@ const handleEdit = async (host) => {
       private_key: '',
       group_name: fullHost.group_name || '',
       description: fullHost.description || '',
-      host_type: fullHost.host_type || 'control_monitor'
+      host_type: fullHost.host_type || 'control_monitor',
+      expiration_date: fullHost.expiration_date ? dayjs(fullHost.expiration_date) : null,
+      billing_period: fullHost.billing_period || '',
+      billing_amount: fullHost.billing_amount || 0,
+      currency: fullHost.currency || 'CNY'
     }
   } catch (error) {
     message.error(t('host.failLoad'))
@@ -845,10 +1000,22 @@ const handleSave = async () => {
       if (!updateData.password) delete updateData.password
       if (!updateData.private_key) delete updateData.private_key
       
+      // Convert dayjs date to ISO string for backend
+      if (updateData.expiration_date) {
+        updateData.expiration_date = updateData.expiration_date.format('YYYY-MM-DD')
+      }
+      
       await sshStore.modifyHost(editingHost.value.id, updateData)
       message.success(t('host.successUpdate'))
     } else {
-      await sshStore.addHost(hostForm.value)
+      const addData = { ...hostForm.value }
+      
+      // Convert dayjs date to ISO string for backend
+      if (addData.expiration_date) {
+        addData.expiration_date = addData.expiration_date.format('YYYY-MM-DD')
+      }
+      
+      await sshStore.addHost(addData)
       message.success(t('host.successAdd'))
     }
     showModal.value = false
@@ -887,8 +1054,27 @@ const openBatchDeployModal = () => {
 const handleBatchDeploy = async () => {
   batchDeploying.value = true
   
-  // 初始化状态
-  selectedRowKeys.value.forEach(id => {
+  // Filter out monitor_only hosts
+  const validHostIds = selectedRowKeys.value.filter(id => {
+    const host = sshStore.hosts.find(h => h.id === id)
+    return host && host.host_type !== 'monitor_only'
+  })
+  
+  // Check if all selected hosts are monitor_only
+  if (validHostIds.length === 0) {
+    message.warning(t('monitor.noValidHostsForDeploy'))
+    batchDeploying.value = false
+    return
+  }
+  
+  // Show info if some hosts were skipped
+  if (validHostIds.length < selectedRowKeys.value.length) {
+    const skippedCount = selectedRowKeys.value.length - validHostIds.length
+    message.info(t('monitor.skippedMonitorOnly', { count: skippedCount }))
+  }
+  
+  // 初始化状态 (只为有效主机)
+  validHostIds.forEach(id => {
     deployStatus.value[id] = { status: 'waiting', message: t('monitor.deploying') }
   })
   
@@ -896,7 +1082,7 @@ const handleBatchDeploy = async () => {
   let failCount = 0
   
   try {
-    await batchDeployMonitor(selectedRowKeys.value, batchDeployInsecure.value, (result) => {
+    await batchDeployMonitor(validHostIds, batchDeployInsecure.value, (result) => {
         // Real-time update
         deployStatus.value[result.host_id] = {
             status: result.success ? 'success' : 'error',
@@ -920,7 +1106,7 @@ const handleBatchDeploy = async () => {
     console.error('批量部署错误:', error)
     
     // Mark remaining waiting hosts as error
-    selectedRowKeys.value.forEach(id => {
+    validHostIds.forEach(id => {
       if (deployStatus.value[id].status === 'waiting') {
           deployStatus.value[id] = {
             status: 'error',
@@ -942,6 +1128,7 @@ const openBatchStopModal = () => {
 
 const openInstallCommandModal = (host) => {
   installCommandHost.value = host
+  installPlatform.value = 'linux' // Reset to Linux by default
   installCommandVisible.value = true
 }
 
@@ -952,7 +1139,15 @@ const getInstallCommand = () => {
   const hostId = installCommandHost.value.id
   const secret = installCommandHost.value.monitor_secret || ''
   
-  return `curl -fsSL "${serverUrl}/api/monitor/install?host_id=${hostId}&secret=${secret}" | bash`
+  if (installPlatform.value === 'windows') {
+    // Windows PowerShell command
+    return `# Run this command in PowerShell as Administrator
+$url = "${serverUrl}/api/monitor/install?host_id=${hostId}&secret=${secret}"
+Invoke-WebRequest -Uri $url -UseBasicParsing | Select-Object -ExpandProperty Content | Invoke-Expression`
+  } else {
+    // Linux bash command
+    return `curl -fsSL "${serverUrl}/api/monitor/install?host_id=${hostId}&secret=${secret}" | bash`
+  }
 }
 
 const copyInstallCommand = async () => {

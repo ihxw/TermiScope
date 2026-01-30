@@ -1,12 +1,29 @@
 package database
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 	"log"
 
 	"github.com/ihxw/termiscope/internal/models"
 	"gorm.io/gorm"
 )
+
+// generateRandomPassword generates a cryptographically secure random password
+func generateRandomPassword(length int) (string, error) {
+	bytes := make([]byte, length)
+	if _, err := rand.Read(bytes); err != nil {
+		return "", err
+	}
+	// Use base64 URL encoding for a mix of letters, numbers, and symbols
+	password := base64.URLEncoding.EncodeToString(bytes)
+	// Trim to desired length
+	if len(password) > length {
+		password = password[:length]
+	}
+	return password, nil
+}
 
 // RunMigrations runs all database migrations
 func RunMigrations(db *gorm.DB) error {
@@ -41,6 +58,13 @@ func RunMigrations(db *gorm.DB) error {
 	db.Model(&models.User{}).Count(&count)
 	if count == 0 {
 		log.Println("Creating default admin user...")
+
+		// Generate random password
+		randomPassword, err := generateRandomPassword(16)
+		if err != nil {
+			return fmt.Errorf("failed to generate random password: %w", err)
+		}
+
 		adminUser := &models.User{
 			Username:    "admin",
 			Email:       "admin@localhost",
@@ -48,14 +72,26 @@ func RunMigrations(db *gorm.DB) error {
 			Role:        "admin",
 			Status:      "active",
 		}
-		// Set password to "admin123" - should be changed on first login
-		if err := adminUser.SetPassword("admin123"); err != nil {
+
+		// Set random password
+		if err := adminUser.SetPassword(randomPassword); err != nil {
 			return fmt.Errorf("failed to set admin password: %w", err)
 		}
+
 		if err := db.Create(adminUser).Error; err != nil {
 			return fmt.Errorf("failed to create admin user: %w", err)
 		}
-		log.Println("Default admin user created (username: admin, password: admin123)")
+
+		// Display password in terminal with prominent formatting
+		log.Println("========================================")
+		log.Println("    DEFAULT ADMIN USER CREATED")
+		log.Println("========================================")
+		log.Printf("Username: admin")
+		log.Printf("Password: %s", randomPassword)
+		log.Println("========================================")
+		log.Println("IMPORTANT: Please save this password!")
+		log.Println("Change it after first login for security.")
+		log.Println("========================================")
 	}
 
 	log.Println("Database migrations completed successfully")

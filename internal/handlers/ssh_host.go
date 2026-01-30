@@ -41,6 +41,11 @@ type CreateSSHHostRequest struct {
 	Tags        string `json:"tags"`
 	Description string `json:"description"`
 	HostType    string `json:"host_type" binding:"required,oneof=control_monitor monitor_only"`
+	// Financial Management
+	ExpirationDate *string `json:"expiration_date"`
+	BillingPeriod  string  `json:"billing_period"`
+	BillingAmount  float64 `json:"billing_amount"`
+	Currency       string  `json:"currency"`
 }
 
 type UpdateSSHHostRequest struct {
@@ -68,6 +73,11 @@ type UpdateSSHHostRequest struct {
 	NotifyOfflineThreshold int    `json:"notify_offline_threshold"`
 	NotifyTrafficThreshold int    `json:"notify_traffic_threshold"`
 	NotifyChannels         string `json:"notify_channels"`
+	// Financial Management
+	ExpirationDate *string `json:"expiration_date"`
+	BillingPeriod  string  `json:"billing_period"`
+	BillingAmount  float64 `json:"billing_amount"`
+	Currency       string  `json:"currency"`
 
 	// Actions
 	ResetTraffic bool `json:"reset_traffic"`
@@ -189,6 +199,17 @@ func (h *SSHHostHandler) Create(c *gin.Context) {
 		NotifyOfflineThreshold: 1,
 		NotifyTrafficThreshold: 90,
 		NotifyChannels:         "email,telegram",
+		// Financial Management
+		BillingPeriod: req.BillingPeriod,
+		BillingAmount: req.BillingAmount,
+		Currency:      req.Currency,
+	}
+
+	// Parse expiration date if provided
+	if req.ExpirationDate != nil && *req.ExpirationDate != "" {
+		if expDate, err := time.Parse("2006-01-02", *req.ExpirationDate); err == nil {
+			host.ExpirationDate = &expDate
+		}
 	}
 
 	// 自动生成 MonitorSecret（32位永久token）
@@ -266,6 +287,21 @@ func (h *SSHHostHandler) Update(c *gin.Context) {
 	}
 	if req.HostType != "" {
 		host.HostType = req.HostType
+	}
+	// Financial Management
+	if req.ExpirationDate != nil {
+		if *req.ExpirationDate == "" {
+			host.ExpirationDate = nil
+		} else {
+			if expDate, err := time.Parse("2006-01-02", *req.ExpirationDate); err == nil {
+				host.ExpirationDate = &expDate
+			}
+		}
+	}
+	if req.BillingPeriod != "" || req.BillingAmount > 0 || req.Currency != "" {
+		host.BillingPeriod = req.BillingPeriod
+		host.BillingAmount = req.BillingAmount
+		host.Currency = req.Currency
 	}
 	// Network Config
 	if req.NetInterface != "" {
@@ -427,6 +463,7 @@ func (h *SSHHostHandler) Update(c *gin.Context) {
 		"NetInterface", "NetResetDay",
 		"NetTrafficLimit", "NetTrafficUsedAdjustment", "NetTrafficCounterMode",
 		"NotifyOfflineEnabled", "NotifyTrafficEnabled", "NotifyOfflineThreshold", "NotifyTrafficThreshold", "NotifyChannels",
+		"ExpirationDate", "BillingPeriod", "BillingAmount", "Currency",
 	}
 
 	if req.ResetTraffic {
