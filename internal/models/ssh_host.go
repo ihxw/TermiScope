@@ -63,7 +63,7 @@ type SSHHost struct {
 	CreatedAt  time.Time      `json:"created_at"`
 	UpdatedAt  time.Time      `json:"updated_at"`
 	LastScanAt time.Time      `json:"last_scan_at"`
-	DeletedAt  gorm.DeletedAt `gorm:"index" json:"-"`
+	DeletedAt  gorm.DeletedAt `gorm:"index" json:"deleted_at"`
 
 	// Transient fields (not stored in database)
 	Password   string `gorm:"-" json:"password,omitempty"`

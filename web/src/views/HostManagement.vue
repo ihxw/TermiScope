@@ -10,6 +10,36 @@
             size="small"
             @search="handleSearch"
           />
+          
+          <!-- Show/Hide Deleted Button -->
+          <a-tooltip :title="showDeleted ? t('host.hideDeleted') : t('host.showDeleted')">
+            <a-button 
+              size="small"
+              :type="showDeleted ? 'primary' : 'default'"
+              @click="toggleShowDeleted"
+              class="action-btn"
+            >
+              <DeleteOutlined />
+              <span v-if="!isMobile" class="btn-text">{{ showDeleted ? t('host.hideDeleted') : t('host.showDeleted') }}</span>
+            </a-button>
+          </a-tooltip>
+          
+          <!-- Quick Filter Buttons -->
+          <a-radio-group 
+            v-model:value="quickFilter" 
+            button-style="solid" 
+            size="small"
+            @change="handleQuickFilterChange"
+            class="quick-filter-group"
+          >
+            <a-radio-button value="all">{{ t('host.filterAll') }}</a-radio-button>
+            <a-radio-button value="online">{{ t('host.filterOnline') }}</a-radio-button>
+            <a-radio-button value="offline">{{ t('host.filterOffline') }}</a-radio-button>
+            <a-radio-button value="expiring">{{ t('host.filterExpiring') }}</a-radio-button>
+            <a-radio-button value="expired">{{ t('host.filterExpired') }}</a-radio-button>
+            <a-radio-button value="deleted">{{ t('host.filterDeleted') }}</a-radio-button>
+          </a-radio-group>
+          
           <a-button 
             v-if="hasSelected"
             type="primary"
@@ -87,11 +117,13 @@
         <a-table
           :row-selection="rowSelection"
           :columns="columns"
-          :data-source="sshStore.hosts"
+          :data-source="filteredHosts"
           :loading="loading"
           row-key="id"
           :pagination="false"
           :scroll="{ x: isMobile ? 600 : undefined, y: 'calc(100vh - 280px)' }"
+          :row-class-name="(record) => record.deleted_at ? 'deleted-row' : ''"
+          @change="handleTableChange"
         >
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'drag'">
@@ -101,7 +133,12 @@
           </template>
           <template v-if="column.key === 'status'">
             <div style="display: flex; align-items: center">
-              <a-tooltip :title="hostStatuses[record.id]?.status === 'online' ? t('monitor.online') : (hostStatuses[record.id]?.error || t('monitor.checking'))">
+              <!-- Show "Deleted" tag for deleted hosts -->
+              <a-tag v-if="record.deleted_at" color="default">
+                {{ t('host.deleted') }}
+              </a-tag>
+              <!-- Show connection status for active hosts -->
+              <a-tooltip v-else :title="hostStatuses[record.id]?.status === 'online' ? t('monitor.online') : (hostStatuses[record.id]?.error || t('monitor.checking'))">
                 <a-tag v-if="hostStatuses[record.id]?.status === 'online'" color="success">
                   {{ hostStatuses[record.id]?.latency }}ms
                 </a-tag>
@@ -196,8 +233,21 @@
                     </a-menu-item>
                     <a-menu-divider />
                     <!-- Delete -->
-                    <a-menu-item key="delete" @click="confirmDelete(record.id)" style="color: #ff4d4f">
+                    <a-menu-item 
+                      v-if="!record.deleted_at"
+                      key="delete" 
+                      @click="confirmDelete(record.id)" 
+                      style="color: #ff4d4f"
+                    >
                       <DeleteOutlined /> {{ t('common.delete') }}
+                    </a-menu-item>
+                    <a-menu-item 
+                      v-else
+                      key="permanent-delete" 
+                      @click="handlePermanentDelete(record.id)"
+                      style="color: #ff4d4f"
+                    >
+                      <DeleteOutlined /> {{ t('host.permanentDelete') }}
                     </a-menu-item>
                   </a-menu>
                 </template>
@@ -261,13 +311,28 @@
                 <EditOutlined />
                 {{ t('common.edit') }}
               </a-button>
+              
+              <!-- Delete button for active hosts -->
               <a-popconfirm
+                v-if="!record.deleted_at"
                 :title="t('host.deleteConfirm')"
                 @confirm="handleDelete(record.id)"
               >
                 <a-button size="small" danger>
                   <DeleteOutlined />
                   {{ t('common.delete') }}
+                </a-button>
+              </a-popconfirm>
+              
+              <!-- Permanent delete for deleted hosts -->
+              <a-popconfirm
+                v-else
+                :title="t('host.permanentDeleteConfirm')"
+                @confirm="handlePermanentDelete(record.id)"
+              >
+                <a-button size="small" danger>
+                  <DeleteOutlined />
+                  {{ t('host.permanentDelete') }}
                 </a-button>
               </a-popconfirm>
             </a-space>
@@ -663,6 +728,10 @@ const locale = computed(() => {
 
 const loading = ref(false)
 const searchText = ref('')
+const showDeleted = ref(false) // Show deleted hosts toggle
+const quickFilter = ref('all') // Quick filter: all, online, offline, expiring, expired
+const sortedInfo = ref({})
+const filteredInfo = ref({})
 const showModal = ref(false)
 const saving = ref(false)
 const editingHost = ref(null)
@@ -707,27 +776,125 @@ const hostForm = ref({
 // Mobile detection
 const isMobile = ref(false)
 const checkMobile = () => {
-  isMobile.value = window.innerWidth <= 768
+  isMobile.value = window.innerWidth < 768
 }
+
+// Dynamic filter options
+const uniqueGroups = computed(() => {
+  const groups = [...new Set(sshStore.hosts.map(h => h.group_name).filter(Boolean))]
+  return groups.map(g => ({ text: g, value: g }))
+})
+
+const uniqueBillingPeriods = computed(() => {
+  const periods = [...new Set(sshStore.hosts.map(h => h.billing_period).filter(Boolean))]
+  return periods.map(p => ({ text: t(`host.billing${p.charAt(0).toUpperCase() + p.slice(1)}`), value: p }))
+})
+
+const hostTypeFilters = computed(() => [
+  { text: t('host.controlAndMonitor'), value: 'control_monitor' },
+  { text: t('host.monitorOnly'), value: 'monitor_only' }
+])
+
+const monitorStatusFilters = computed(() => [
+  { text: t('host.monitoringEnabled'), value: true },
+  { text: t('host.monitoringDisabled'), value: false }
+])
 
 const columns = computed(() => {
   const baseColumns = [
     { title: '', key: 'drag', width: 30, align: 'center', fixed: isMobile.value ? undefined : undefined },
-    { title: t('host.name'), dataIndex: 'name', key: 'name', width: 120, ellipsis: true },
-    { title: t('host.host'), dataIndex: 'host', key: 'host', width: 120, ellipsis: true },
+    { 
+      title: t('host.name'), 
+      dataIndex: 'name', 
+      key: 'name', 
+      width: 120, 
+      ellipsis: true,
+      sorter: (a, b) => a.name.localeCompare(b.name),
+      sortDirections: ['ascend', 'descend'],
+      sortOrder: sortedInfo.value.columnKey === 'name' ? sortedInfo.value.order : null
+    },
+    { 
+      title: t('host.host'), 
+      dataIndex: 'host', 
+      key: 'host', 
+      width: 120, 
+      ellipsis: true,
+      sorter: (a, b) => a.host.localeCompare(b.host),
+      sortDirections: ['ascend', 'descend'],
+      sortOrder: sortedInfo.value.columnKey === 'host' ? sortedInfo.value.order : null
+    },
     { title: t('monitor.status'), key: 'status', width: 80 },
-    { title: t('monitor.monitoring'), key: 'monitor', width: 80 },
-    { title: t('host.type'), key: 'type', width: 100 },
+    { 
+      title: t('monitor.monitoring'), 
+      key: 'monitor', 
+      width: 80,
+      filters: monitorStatusFilters.value,
+      filteredValue: filteredInfo.value.monitor || null,
+      onFilter: (value, record) => record.monitor_enabled === value
+    },
+    { 
+      title: t('host.type'), 
+      key: 'type', 
+      width: 100,
+      filters: hostTypeFilters.value,
+      filteredValue: filteredInfo.value.type || null,
+      onFilter: (value, record) => record.host_type === value
+    },
   ]
   
   // Only show these columns on desktop
   if (!isMobile.value) {
     baseColumns.push(
-      { title: t('host.port'), dataIndex: 'port', key: 'port', width: 60 },
-      { title: t('host.username'), dataIndex: 'username', key: 'username', width: 100 },
-      { title: t('host.group'), dataIndex: 'group_name', key: 'group_name', width: 100 },
-      { title: t('host.expirationDate'), key: 'expiration_date', width: 110 },
-      { title: t('host.billingPeriod'), key: 'billing_period', width: 90 },
+      { 
+        title: t('host.port'), 
+        dataIndex: 'port', 
+        key: 'port', 
+        width: 60,
+        sorter: (a, b) => a.port - b.port,
+        sortDirections: ['ascend', 'descend'],
+        sortOrder: sortedInfo.value.columnKey === 'port' ? sortedInfo.value.order : null
+      },
+      { 
+        title: t('host.username'), 
+        dataIndex: 'username', 
+        key: 'username', 
+        width: 100,
+        sorter: (a, b) => a.username.localeCompare(b.username),
+        sortDirections: ['ascend', 'descend'],
+        sortOrder: sortedInfo.value.columnKey === 'username' ? sortedInfo.value.order : null
+      },
+      { 
+        title: t('host.group'), 
+        dataIndex: 'group_name', 
+        key: 'group_name', 
+        width: 100,
+        filters: uniqueGroups.value,
+        filteredValue: filteredInfo.value.group_name || null,
+        onFilter: (value, record) => record.group_name === value,
+        sorter: (a, b) => (a.group_name || '').localeCompare(b.group_name || ''),
+        sortDirections: ['ascend', 'descend'],
+        sortOrder: sortedInfo.value.columnKey === 'group_name' ? sortedInfo.value.order : null
+      },
+      { 
+        title: t('host.expirationDate'), 
+        key: 'expiration_date', 
+        width: 110,
+        sorter: (a, b) => {
+          const dateA = a.expiration_date ? new Date(a.expiration_date).getTime() : 0
+          const dateB = b.expiration_date ? new Date(b.expiration_date).getTime() : 0
+          return dateA - dateB
+        },
+        sortDirections: ['ascend', 'descend'],
+        sortOrder: sortedInfo.value.columnKey === 'expiration_date' ? sortedInfo.value.order : null
+      },
+      { 
+        title: t('host.billingPeriod'), 
+        key: 'billing_period', 
+        width: 90,
+        filters: uniqueBillingPeriods.value,
+        filteredValue: filteredInfo.value.billing_period || null,
+        onFilter: (value, record) => record.billing_period === value
+      },
       { title: t('host.remainingValue'), key: 'remaining_value', width: 100 },
       { title: t('host.description'), key: 'description', width: 150, ellipsis: true },
     )
@@ -749,6 +916,36 @@ const rowSelection = {
 
 const selectedHosts = computed(() => {
   return sshStore.hosts.filter(h => selectedRowKeys.value.includes(h.id))
+})
+
+// Quick filter logic
+const filteredHosts = computed(() => {
+  let hosts = sshStore.hosts
+  
+  if (quickFilter.value === 'online') {
+    hosts = hosts.filter(h => hostStatuses.value[h.id]?.status === 'online')
+  } else if (quickFilter.value === 'offline') {
+    hosts = hosts.filter(h => hostStatuses.value[h.id]?.status === 'offline' || !hostStatuses.value[h.id])
+  } else if (quickFilter.value === 'expiring') {
+    // Hosts expiring in 7 days
+    hosts = hosts.filter(h => {
+      if (!h.expiration_date) return false
+      const days = getDaysUntilExpiration(h.expiration_date)
+      return days > 0 && days <= 7
+    })
+  } else if (quickFilter.value === 'expired') {
+    // Hosts that have expired
+    hosts = hosts.filter(h => {
+      if (!h.expiration_date) return false
+      const days = getDaysUntilExpiration(h.expiration_date)
+      return days < 0
+    })
+  } else if (quickFilter.value === 'deleted') {
+    // Only show deleted hosts
+    hosts = hosts.filter(h => h.deleted_at)
+  }
+  
+  return hosts
 })
 
 // Financial calculation helpers
@@ -915,8 +1112,11 @@ const checkAllStatuses = async () => {
   if (checkingStatus.value || sshStore.hosts.length === 0) return
   
   checkingStatus.value = true
-  // Check in batches or parallel? Parallel is fine for small numbers.
-  const checks = sshStore.hosts.map(async (host) => {
+  
+  // Filter out deleted hosts from status check
+  const activeHosts = sshStore.hosts.filter(host => !host.deleted_at)
+  
+  const checks = activeHosts.map(async (host) => {
     hostStatuses.value[host.id] = { status: 'loading' }
     try {
       const result = await sshStore.testHostConnection(host.id)
@@ -933,7 +1133,14 @@ const checkAllStatuses = async () => {
 const loadHosts = async () => {
   loading.value = true
   try {
-    await sshStore.fetchHosts()
+    const filters = {}
+    if (showDeleted.value) {
+      filters.include_deleted = 'true'
+    }
+    if (searchText.value) {
+      filters.search = searchText.value
+    }
+    await sshStore.fetchHosts(filters)
     checkAllStatuses()
   } catch (error) {
     message.error(t('host.failLoad'))
@@ -944,6 +1151,21 @@ const loadHosts = async () => {
 
 const handleSearch = () => {
   loadHosts()
+}
+
+const toggleShowDeleted = async () => {
+  showDeleted.value = !showDeleted.value
+  await loadHosts()
+}
+
+const handleTableChange = (pagination, filters, sorter) => {
+  sortedInfo.value = sorter
+  filteredInfo.value = filters
+}
+
+const handleQuickFilterChange = async () => {
+  // Quick filter will be applied in computed filtered hosts
+  // No need to reload, just let Vue reactivity handle it
 }
 
 const handleAdd = () => {
@@ -1101,6 +1323,15 @@ const handleDelete = async (id) => {
     message.success(t('host.hostDeleted'))
   } catch (error) {
     message.error(t('common.error'))
+  }
+}
+
+const handlePermanentDelete = async (id) => {
+  try {
+    await sshStore.permanentDeleteHost(id)
+    message.success(t('host.permanentDeleteSuccess'))
+  } catch (error) {
+    message.error(t('host.permanentDeleteFailed'))
   }
 }
 
@@ -1429,7 +1660,24 @@ onUnmounted(() => {
     width: 100%;
     height: 32px; /* 强制高度 */
   }
-  
+
+  .quick-filter-group {
+    margin-left: 4px;
+  }
+
+  .quick-filter-group :deep(.ant-radio-button-wrapper) {
+    font-size: 12px;
+    padding: 0 8px;
+    height: 32px;
+    line-height: 30px;
+  }
+
+  @media (max-width: 768px) {
+    .quick-filter-group {
+      display: none; /* Hide on mobile */
+    }
+  }
+
   .search-input {
     width: auto;
     flex: 1;
@@ -1514,10 +1762,24 @@ onUnmounted(() => {
   }
   
   .host-card :deep(.ant-tag) {
-    font-size: 10px;
+    font-size: 11px;
     padding: 0 4px;
-    margin: 0;
   }
+}
+
+/* Deleted host row styling */
+:deep(.deleted-row) {
+  opacity: 0.6;
+  background-color: #fafafa;
+}
+
+:deep(.deleted-row td) {
+  text-decoration: line-through;
+  color: #999 !important;
+}
+
+:deep(html.dark .deleted-row) {
+  background-color: #1f1f1f;
 }
 
 @media (max-width: 480px) {

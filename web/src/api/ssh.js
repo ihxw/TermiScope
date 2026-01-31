@@ -21,6 +21,10 @@ export const deleteHost = async (id) => {
     return await api.delete(`/ssh-hosts/${id}`)
 }
 
+export const permanentDeleteHost = async (id) => {
+    return await api.delete(`/ssh-hosts/${id}/permanent`)
+}
+
 export const testConnection = async (id) => {
     return await api.post(`/ssh-hosts/${id}/test`)
 }

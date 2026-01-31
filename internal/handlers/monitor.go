@@ -174,7 +174,30 @@ func (h *MonitorHandler) Pulse(c *gin.Context) {
 	// Verify Host and Secret
 	var host models.SSHHost
 	if err := h.DB.Select("*").First(&host, data.HostID).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Host not found"})
+		// Enhanced error logging with diagnostic information
+		clientIP := c.ClientIP()
+		secretPrefix := ""
+		if len(secret) > 8 {
+			secretPrefix = secret[:8] + "..."
+		} else {
+			secretPrefix = secret
+		}
+
+		if err == gorm.ErrRecordNotFound {
+			log.Printf("Monitor Pulse: Host ID %d not found (possibly deleted). Request from IP: %s, Secret: %s",
+				data.HostID, clientIP, secretPrefix)
+			c.JSON(http.StatusNotFound, gin.H{
+				"error":   "Host not found or has been deleted",
+				"hint":    "The agent may be using an outdated configuration. Please check the service configuration on the remote host or redeploy the agent.",
+				"host_id": data.HostID,
+			})
+		} else {
+			log.Printf("Monitor Pulse: Database error when looking up host ID %d from IP %s: %v",
+				data.HostID, clientIP, err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "Database error",
+			})
+		}
 		return
 	}
 

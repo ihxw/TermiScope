@@ -128,6 +128,7 @@ func main() {
 		protected.POST("/ssh-hosts/:id/test", sshHostHandler.TestConnection)
 		protected.PUT("/ssh-hosts/:id/fingerprint", sshHostHandler.UpdateFingerprint)
 		protected.PUT("/ssh-hosts/reorder", sshHostHandler.Reorder)
+		protected.DELETE("/ssh-hosts/:id/permanent", sshHostHandler.PermanentDelete)
 
 		// Monitor Management
 		protected.GET("/monitor/stream", monitorHandler.Stream)

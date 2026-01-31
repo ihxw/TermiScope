@@ -471,7 +471,7 @@ const syncHostsFromStore = () => {
         net_tx: 0,
         net_monthly_rx: 0,
         net_monthly_tx: 0,
-        last_updated: 0,
+        last_updated: Math.floor(Date.now() / 1000), // Use current timestamp to avoid showing as offline initially
         // Financial logic
         expiration_date: sh.expiration_date,
         billing_period: sh.billing_period,

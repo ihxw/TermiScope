@@ -78,6 +78,17 @@ export const useSSHStore = defineStore('ssh', {
             }
         },
 
+        async permanentDeleteHost(id) {
+            try {
+                const { permanentDeleteHost: apiPermanentDelete } = await import('../api/ssh')
+                await apiPermanentDelete(id)
+                this.hosts = this.hosts.filter(h => h.id !== id)
+            } catch (error) {
+                console.error('Failed to permanently delete host:', error)
+                throw error
+            }
+        },
+
         async reorderHosts(ids) {
             try {
                 await apiReorderHosts(ids)

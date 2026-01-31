@@ -89,8 +89,16 @@ func (h *SSHHostHandler) List(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	group := c.Query("group")
 	search := c.Query("search")
+	includeDeleted := c.Query("include_deleted") == "true"
 
-	query := h.db.Model(&models.SSHHost{}).Where("user_id = ?", userID).Order("sort_order asc")
+	query := h.db.Model(&models.SSHHost{}).Where("user_id = ?", userID)
+
+	// Include soft-deleted records if requested
+	if includeDeleted {
+		query = query.Unscoped()
+	}
+
+	query = query.Order("sort_order asc")
 
 	// Group filter
 	if group != "" {
@@ -509,6 +517,36 @@ func (h *SSHHostHandler) Delete(c *gin.Context) {
 
 	utils.SuccessResponse(c, http.StatusOK, gin.H{
 		"message": "host deleted successfully",
+	})
+}
+
+// PermanentDelete permanently deletes an SSH host from the database
+func (h *SSHHostHandler) PermanentDelete(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	idStr := c.Param("id")
+
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		utils.ErrorResponse(c, http.StatusBadRequest, "invalid host id")
+		return
+	}
+
+	// Use Unscoped to permanently delete (bypass soft delete)
+	result := h.db.Unscoped().Where("id = ? AND user_id = ?", id, userID).Delete(&models.SSHHost{})
+	if result.Error != nil {
+		utils.ErrorResponse(c, http.StatusInternalServerError, "failed to permanently delete host")
+		return
+	}
+	if result.RowsAffected == 0 {
+		utils.ErrorResponse(c, http.StatusNotFound, "host not found")
+		return
+	}
+
+	// Remove from Monitor Hub immediately
+	monitor.GlobalHub.RemoveHost(uint(id))
+
+	utils.SuccessResponse(c, http.StatusOK, gin.H{
+		"message": "host permanently deleted",
 	})
 }
 
