@@ -27,6 +27,13 @@ func AuthMiddleware(jwtSecret string) gin.HandlerFunc {
 			token = c.Query("token")
 		}
 
+		// If still no token, check for access_token cookie (for Media Streaming)
+		if token == "" {
+			if cookie, err := c.Cookie("access_token"); err == nil {
+				token = cookie
+			}
+		}
+
 		if token == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{
 				"success": false,

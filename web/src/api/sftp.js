@@ -5,9 +5,8 @@ export const listFiles = async (hostId, path = '.') => {
 }
 
 export const downloadFile = async (hostId, path, onProgress) => {
-    const token = localStorage.getItem('token')
     return await api.get(`/sftp/download/${hostId}`, {
-        params: { path, token },
+        params: { path },
         responseType: 'blob',
         timeout: 0,
         onDownloadProgress: (progressEvent) => {
@@ -55,4 +54,8 @@ export const createDirectory = async (hostId, path) => {
 
 export const createFile = async (hostId, path) => {
     return await api.post(`/sftp/create/${hostId}`, { path })
+}
+
+export const getDirSize = async (hostId, path) => {
+    return await api.get(`/sftp/size/${hostId}`, { params: { path } })
 }

@@ -85,14 +85,6 @@
       borderTop: themeStore.isDark ? '1px solid #303030' : '1px solid #d9d9d9' 
     }">
       <div style="display: flex; align-items: center">
-        <a-tag :color="statusColor" size="small" style="font-size: 10px; line-height: 14px; height: 16px; margin-right: 8px">{{ connectionStatus }}</a-tag>
-        <span :style="{ color: themeStore.isDark ? '#bbb' : '#666', fontSize: '11px', marginRight: '8px' }">{{ terminalSize }}</span>
-        <div v-if="record" :style="{borderLeft: themeStore.isDark ? '1px solid #444' : '1px solid #ccc'}" style="display: flex; align-items: center; gap: 4px; padding-left: 8px; margin-left: 0">
-          <span class="recording-dot"></span>
-          <span style="color: #ff4d4f; font-size: 11px; font-weight: bold; letter-spacing: 0.5px">RECORDING</span>
-        </div>
-      </div>
-      <div style="display: flex; align-items: center">
         <a-space size="small">
           <a-button class="status-btn" :class="{ 'light-mode': !themeStore.isDark }" size="small" type="text" @click="reconnect" v-if="connectionStatus === 'Disconnected'">
             <template #icon><ReloadOutlined /></template>
@@ -163,6 +155,14 @@
             </a-menu>
           </template>
         </a-dropdown>
+      </div>
+      <div style="display: flex; align-items: center">
+        <a-tag :color="statusColor" size="small" style="font-size: 10px; line-height: 14px; height: 16px; margin-right: 8px">{{ connectionStatus }}</a-tag>
+        <span :style="{ color: themeStore.isDark ? '#bbb' : '#666', fontSize: '11px', marginRight: '8px' }">{{ terminalSize }}</span>
+        <div v-if="record" :style="{borderLeft: themeStore.isDark ? '1px solid #444' : '1px solid #ccc'}" style="display: flex; align-items: center; gap: 4px; padding-left: 8px; margin-left: 0">
+          <span class="recording-dot"></span>
+          <span style="color: #ff4d4f; font-size: 11px; font-weight: bold; letter-spacing: 0.5px">RECORDING</span>
+        </div>
       </div>
     </div>
 

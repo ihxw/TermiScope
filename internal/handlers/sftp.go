@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"archive/zip"
 	"fmt"
 	"io"
 	"net/http"
@@ -178,6 +179,75 @@ func (h *SftpHandler) Download(c *gin.Context) {
 	defer sftpClient.Close()
 	defer sshClient.Close()
 
+	stat, err := sftpClient.Stat(targetPath)
+	if err != nil {
+		utils.ErrorResponse(c, http.StatusInternalServerError, "failed to stat file: "+err.Error())
+		return
+	}
+
+	if stat.IsDir() {
+		// Directory Download: Stream Zip
+		c.Header("Content-Disposition", "attachment; filename="+path.Base(targetPath)+".zip")
+		c.Header("Content-Type", "application/zip")
+		// Disable buffering/chunking middleware interference if any, though Gin handles it well.
+
+		zw := zip.NewWriter(c.Writer)
+		defer zw.Close()
+
+		walker := sftpClient.Walk(targetPath)
+		for walker.Step() {
+			if err := walker.Err(); err != nil {
+				// Log error but continue?
+				continue
+			}
+
+			fileInfo := walker.Stat()
+			filePath := walker.Path()
+
+			// Skip the root dir itself to avoid empty entry with dot name
+			if filePath == targetPath {
+				continue
+			}
+
+			// Calculate relative path for zip structure
+			relPath, err := filepath.Rel(targetPath, filePath)
+			if err != nil {
+				continue
+			}
+			relPath = filepath.ToSlash(relPath) // Zip uses forward slashes
+
+			// Create zip header
+			header, err := zip.FileInfoHeader(fileInfo)
+			if err != nil {
+				continue
+			}
+			header.Name = relPath
+
+			if fileInfo.IsDir() {
+				header.Name += "/"
+				header.Method = zip.Store
+			} else {
+				header.Method = zip.Deflate
+			}
+
+			writer, err := zw.CreateHeader(header)
+			if err != nil {
+				continue
+			}
+
+			if !fileInfo.IsDir() {
+				f, err := sftpClient.Open(filePath)
+				if err != nil {
+					continue
+				}
+				io.Copy(writer, f)
+				f.Close()
+			}
+		}
+		return
+	}
+
+	// File Download
 	file, err := sftpClient.Open(targetPath)
 	if err != nil {
 		utils.ErrorResponse(c, http.StatusInternalServerError, "failed to open file: "+err.Error())
@@ -185,22 +255,14 @@ func (h *SftpHandler) Download(c *gin.Context) {
 	}
 	defer file.Close()
 
-	stat, err := file.Stat()
-	if err != nil {
-		utils.ErrorResponse(c, http.StatusInternalServerError, "failed to stat file: "+err.Error())
-		return
-	}
-
-	if stat.IsDir() {
-		utils.ErrorResponse(c, http.StatusBadRequest, "cannot download a directory")
-		return
-	}
-
+	// Use ServeContent to handle Range requests and streaming
 	c.Header("Content-Disposition", "attachment; filename="+path.Base(targetPath))
-	c.Header("Content-Type", "application/octet-stream")
-	c.Header("Content-Length", fmt.Sprintf("%d", stat.Size()))
+	// Content-Type will be sniffed by ServeContent or we can set it if we knew it.
+	// But usually ServeContent handles it.
+	// We can let ServeContent guess or set generic.
+	// Actually ServeContent sniffs from filename extension or content.
 
-	io.Copy(c.Writer, file)
+	http.ServeContent(c.Writer, c.Request, path.Base(targetPath), stat.ModTime(), file)
 }
 
 // Upload handles POST /api/sftp/upload/:hostId
@@ -496,4 +558,64 @@ func (h *SftpHandler) CreateFile(c *gin.Context) {
 	file.Close()
 
 	utils.SuccessResponse(c, http.StatusOK, gin.H{"message": "file created successfully"})
+}
+
+// GetDirSize handles GET /api/sftp/size/:hostId?path=...
+func (h *SftpHandler) GetDirSize(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	hostID := c.Param("hostId")
+	targetPath := c.Query("path")
+
+	if targetPath == "" {
+		utils.ErrorResponse(c, http.StatusBadRequest, "path is required")
+		return
+	}
+
+	sftpClient, sshClient, err := h.getSftpClient(userID, hostID)
+	if err != nil {
+		utils.ErrorResponse(c, http.StatusInternalServerError, err.Error())
+		return
+	}
+	defer sftpClient.Close()
+	defer sshClient.Close()
+
+	// Try du -s via SSH first (faster)
+	session, err := sshClient.GetRawClient().NewSession()
+	if err == nil {
+		defer session.Close()
+		// Attempt to get size in kilobytes.
+		// Note: -k is widely supported (POSIX). -b is GNU specific.
+		output, err := session.Output(fmt.Sprintf("du -sk '%s'", targetPath))
+		if err == nil {
+			// Output format: "12345   /path/to/dir"
+			fields := strings.Fields(string(output))
+			if len(fields) > 0 {
+				var sizeKB int64
+				if _, err := fmt.Sscanf(fields[0], "%d", &sizeKB); err == nil {
+					utils.SuccessResponse(c, http.StatusOK, gin.H{
+						"size":   sizeKB * 1024,
+						"method": "du",
+					})
+					return
+				}
+			}
+		}
+	}
+
+	// Fallback: SFTP Walk (Slower but reliable if shell access restricted)
+	var size int64
+	walker := sftpClient.Walk(targetPath)
+	for walker.Step() {
+		if err := walker.Err(); err != nil {
+			continue
+		}
+		if !walker.Stat().IsDir() {
+			size += walker.Stat().Size()
+		}
+	}
+
+	utils.SuccessResponse(c, http.StatusOK, gin.H{
+		"size":   size,
+		"method": "scan",
+	})
 }

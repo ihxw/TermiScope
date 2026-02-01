@@ -471,6 +471,7 @@ export default {
         newFile: 'New File',
         upload: 'Upload',
         paste: 'Paste',
+        edit: 'Edit',
         rename: 'Rename',
         cut: 'Cut',
         copy: 'Copy',

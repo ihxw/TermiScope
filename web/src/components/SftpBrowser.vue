@@ -36,7 +36,7 @@
           </a-button>
         </a-upload>
       </div>
-      <a-breadcrumb size="small" style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+      <a-breadcrumb separator=">" size="small" style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
         <a-breadcrumb-item v-for="(part, index) in pathParts" :key="index">
           <a @click="navigateTo(index)">{{ part || '/' }}</a>
         </a-breadcrumb-item>
@@ -58,23 +58,36 @@
               <FolderFilled style="color: #faad14; margin-right: 8px" />
               {{ record.name }}
             </a>
-            <span v-else>
+            <a v-else @click="openFile(record)">
               <FileOutlined style="color: #8c8c8c; margin-right: 8px" />
               {{ record.name }}
-            </span>
+            </a>
           </template>
           <template v-else-if="column.key === 'size'">
-            {{ record.is_dir ? '-' : formatSize(record.size) }}
+            <a-spin v-if="record.is_dir && record.size === null" size="small" />
+            <span v-else>{{ formatSize(record.size) }}</span>
           </template>
           <template v-else-if="column.key === 'action'">
             <a-space size="small">
               <!-- 文件夹显示打开按钮,文件显示下载按钮 -->
+              <a-button size="small" type="text" v-if="record.is_dir" @click="download(record.name)">
+                <template #icon><CloudDownloadOutlined /></template>
+              </a-button>
               <a-button size="small" type="text" v-if="record.is_dir" @click="enterDir(record.name)">
                 <template #icon><FolderOpenOutlined /></template>
               </a-button>
               <a-button size="small" type="text" v-else @click="download(record.name)">
                 <template #icon><DownloadOutlined /></template>
               </a-button>
+              
+              <!-- Media Preview or Edit -->
+              <a-button size="small" type="text" v-if="!record.is_dir && isMedia(record.name)" @click="handlePreview(record)">
+                <template #icon><EyeOutlined /></template>
+              </a-button>
+              <a-button size="small" type="text" v-if="!record.is_dir && !isMedia(record.name)" @click="openEditor(record)">
+                <template #icon><EditOutlined /></template>
+              </a-button>
+
               <a-popconfirm
                 :title="t('sftp.deleteConfirm')"
                 @confirm="remove(record.name)"
@@ -123,6 +136,45 @@
     >
       <a-input v-model:value="createName" :placeholder="createType === 'folder' ? t('sftp.folderName') : t('sftp.fileName')" />
     </a-modal>
+
+    <!-- Video Preview Modal -->
+    <a-modal
+      v-model:open="previewVisible"
+      :title="previewName"
+      :footer="null"
+      width="800px"
+      @cancel="closePreview"
+      centered
+    >
+      <div v-if="previewLoading" style="text-align: center; padding: 40px">
+        <a-spin tip="Loading media..." />
+      </div>
+      <div v-else style="display: flex; justify-content: center; align-items: center; background: #000; min-height: 300px; border-radius: 4px; overflow: hidden;">
+        <video v-if="previewType === 'video'" :src="previewSrc" controls style="max-width: 100%; max-height: 70vh;" autoplay></video>
+      </div>
+    </a-modal>
+
+    <!-- Hidden Image for Ant Design Preview (Supports Rotate, Zoom, etc.) -->
+    <div style="display: none;">
+        <a-image
+            :src="previewSrc"
+            :preview="{
+                visible: imagePreviewVisible,
+                onVisibleChange: (vis) => {
+                    imagePreviewVisible = vis;
+                    if (!vis) closePreview();
+                }
+            }"
+        />
+    </div>
+
+    <FileEditor
+        v-model:open="editorVisible"
+        :host-id="hostId"
+        :file-path="editingFile.path"
+        :file-name="editingFile.name"
+        @saved="onEditorSaved"
+    />
   </div>
 </template>
 
@@ -144,13 +196,15 @@ import {
   PlusOutlined,
   FolderAddOutlined,
   FileAddOutlined,
-  FolderOpenOutlined
+  FolderOpenOutlined,
+  CloudDownloadOutlined,
+  EyeOutlined
 } from '@ant-design/icons-vue'
-import { listFiles, uploadFile, downloadFile, deleteFile, renameFile, pasteFile, createDirectory, createFile } from '../api/sftp'
+import { listFiles, uploadFile, downloadFile, deleteFile, renameFile, pasteFile, createDirectory, createFile, getDirSize } from '../api/sftp'
 import { useI18n } from 'vue-i18n'
+import FileEditor from './FileEditor.vue'
 
 const { t } = useI18n()
-
 const props = defineProps({
   hostId: {
     type: [String, Number],
@@ -176,6 +230,110 @@ const renamingFile = ref(null)
 const createVisible = ref(false)
 const createType = ref('folder') // 'folder' or 'file'
 const createName = ref('')
+
+const editorVisible = ref(false)
+const editingFile = ref({
+    path: '',
+    name: ''
+})
+
+// Preview State
+const previewVisible = ref(false) // For Videos
+const imagePreviewVisible = ref(false) // For Images
+const previewLoading = ref(false)
+const previewType = ref('image') // 'image' | 'video'
+const previewSrc = ref('')
+const previewName = ref('')
+
+const isMedia = (filename) => {
+    const ext = filename.split('.').pop().toLowerCase()
+    const images = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico']
+    const videos = ['mp4', 'webm', 'ogg', 'mov', 'avi', 'mkv']
+    return images.includes(ext) || videos.includes(ext)
+}
+
+const getMediaType = (filename) => {
+    const ext = filename.split('.').pop().toLowerCase()
+    const videos = ['mp4', 'webm', 'ogg', 'mov', 'avi', 'mkv']
+    return videos.includes(ext) ? 'video' : 'image'
+}
+
+const openFile = (record) => {
+    if (isMedia(record.name)) {
+        handlePreview(record)
+    } else {
+        openEditor(record)
+    }
+}
+
+const handlePreview = async (record) => {
+    const name = record.name
+    const fullPath = currentPath.value === '.' ? name : `${currentPath.value}/${name}`
+    
+    previewName.value = name
+    const type = getMediaType(name)
+    previewType.value = type
+    
+    // Start loading state
+    previewLoading.value = true
+    
+    // Reset src just in case
+    if (previewSrc.value) {
+        if (previewSrc.value.startsWith('blob:')) {
+            window.URL.revokeObjectURL(previewSrc.value)
+        }
+        previewSrc.value = ''
+    }
+
+    try {
+        // Use JWT Token from localStorage for streaming
+        // To avoid exposing token in URL (security risk), we use a temporary Cookie.
+        // The backend AuthMiddleware checks for 'access_token' cookie.
+        const token = localStorage.getItem('token')
+        
+        if (!token) {
+            throw new Error("No authentication token found")
+        }
+        
+        // Set temporary cookie (valid for 5 minutes)
+        document.cookie = `access_token=${token}; path=/api/sftp/download; max-age=300; SameSite=Strict`
+        
+        const encodedPath = encodeURIComponent(fullPath)
+        // Clean URL without token
+        const streamingUrl = `/api/sftp/download/${props.hostId}?path=${encodedPath}`
+        
+        previewSrc.value = streamingUrl
+        
+        if (type === 'image') {
+            imagePreviewVisible.value = true
+        } else {
+            previewVisible.value = true
+        }
+    } catch (e) {
+        message.error(t('sftp.downloadFailed') + ': ' + e.message)
+        previewVisible.value = false
+        imagePreviewVisible.value = false
+    } finally {
+        previewLoading.value = false
+    }
+}
+
+const closePreview = () => {
+    previewVisible.value = false
+    imagePreviewVisible.value = false
+    
+    // Clear access_token cookie
+    document.cookie = `access_token=; path=/api/sftp/download; max-age=0`
+    
+    // Delay revoke to avoid blink or error if image is closing
+    setTimeout(() => {
+        // Only revoke if neither is open (though logic implies one at a time)
+       if (!previewVisible.value && !imagePreviewVisible.value && previewSrc.value) {
+           window.URL.revokeObjectURL(previewSrc.value)
+           previewSrc.value = ''
+       }
+    }, 300)
+}
 
 const pathParts = computed(() => {
   if (currentPath.value === '.') return ['']
@@ -204,16 +362,29 @@ const loadFiles = async () => {
     const data = await listFiles(props.hostId, currentPath.value)
     // Handle new response format { files: [], cwd: '/...' }
     if (data && data.files) {
-        files.value = data.files
+        files.value = data.files.map(f => ({ ...f, size: f.is_dir ? null : f.size })) // Init dir size as null/loading
         if (data.cwd) {
             currentPath.value = data.cwd
         }
     } else if (Array.isArray(data)) {
-        // Fallback for old API response (if cached or something)
-        files.value = data
+        files.value = data.map(f => ({ ...f, size: f.is_dir ? null : f.size }))
     } else {
         files.value = []
     }
+    
+    // Asynchronously fetch folder sizes
+    files.value.forEach(async (file, index) => {
+        if (file.is_dir) {
+            try {
+                const res = await getDirSize(props.hostId, currentPath.value === '.' ? file.name : `${currentPath.value}/${file.name}`)
+                if (res && res.size !== undefined) {
+                    files.value[index].size = res.size
+                }
+            } catch (err) {
+                console.error(`Failed to get size for ${file.name}`, err)
+            }
+        }
+    })
   } catch (error) {
     console.error('Failed to list files:', error)
   } finally {
@@ -379,7 +550,7 @@ const download = async (name) => {
     })
 
     // Create blobs and trigger downloads
-    const url = window.URL.createObjectURL(new Blob([response.data]))
+    const url = window.URL.createObjectURL(response)
     const link = document.createElement('a')
     link.href = url
     link.setAttribute('download', name)
@@ -490,6 +661,19 @@ const handleCreate = async () => {
     } catch (error) {
         message.error(t('sftp.failedToCreate', { type: createType.value }) + ': ' + (error.response?.data?.error || error.message))
     }
+}
+
+const openEditor = (record) => {
+    const fullPath = currentPath.value === '.' ? record.name : `${currentPath.value}/${record.name}`
+    editingFile.value = {
+        path: fullPath,
+        name: record.name
+    }
+    editorVisible.value = true
+}
+
+const onEditorSaved = () => {
+    loadFiles()
 }
 
 const formatSize = (bytes) => {

@@ -506,6 +506,7 @@ export default {
         newFile: '新建文件',
         upload: '上传',
         paste: '粘贴',
+        edit: '编辑',
         rename: '重命名',
         cut: '剪切',
         copy: '复制',

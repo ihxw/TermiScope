@@ -270,7 +270,6 @@ import { message, Modal } from 'ant-design-vue'
 import { DownloadOutlined, UploadOutlined } from '@ant-design/icons-vue'
 import { useThemeStore } from '../stores/theme'
 import api from '../api'
-import { getWSTicket } from '../api/auth'
 
 const { t } = useI18n()
 const themeStore = useThemeStore()
@@ -353,33 +352,38 @@ const executeBackup = async () => {
   backupPasswordModalVisible.value = false
   backupLoading.value = true
   try {
-    const res = await getWSTicket()
-    const ticket = res.ticket
-    let downloadUrl = `/api/system/backup?token=${ticket}`
+    const params = {}
     if (backupPassword.value) {
-      downloadUrl += `&password=${encodeURIComponent(backupPassword.value)}`
+      params.password = backupPassword.value
     }
+
+    const response = await api.get('/system/backup', {
+        params,
+        responseType: 'blob',
+        timeout: 0 // large backups might take time
+    })
     
-    // Check if browser supports direct download via anchor
-    // If we want to check for errors first, we might need fetch/blob approach, 
-    // but for large files streaming via direct link is better.
-    // If backend errors, it returns JSON which browser might try to download.
-    // A better approach for error handling is doing a HEAD or simple check first,
-    // but here we stick to simple anchor click.
+    // Extract filename from header if possible, or default
+    // Axios response.headers is an object. Keys might be lower cased.
+    // content-disposition: attachment; filename=backup-2023...
     
+    let filename = 'termiscope-backup.db' 
+    const disposition = response.headers['content-disposition']
+    if (disposition && disposition.indexOf('filename=') !== -1) {
+        const matches = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/.exec(disposition)
+        if (matches != null && matches[1]) { 
+            filename = matches[1].replace(/['"]/g, '')
+        }
+    }
+
+    const url = window.URL.createObjectURL(new Blob([response.data]))
     const link = document.createElement('a')
-    link.href = downloadUrl
-    // Don't set a static filename here if we want the server-provided one (from Content-Disposition)
-    // But 'download' attribute is useful. We can try to guess or leave it empty to respect header.
-    // However, if we set 'download', it forces download.
-    // If we want to support dynamic naming from server, we should omit the filename in 'download' attribute 
-    // or set it after checking headers (which requires fetch).
-    // For now, let's just let it download.
-    // link.setAttribute('download', '') 
-    
+    link.href = url
+    link.setAttribute('download', filename)
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
     
     message.success(t('system.backupSuccess'))
   } catch (err) {
