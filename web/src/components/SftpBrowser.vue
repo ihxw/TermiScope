@@ -189,7 +189,7 @@ const pathParts = computed(() => {
 const columns = computed(() => [
   { title: t('sftp.name'), key: 'name', sorter: (a, b) => a.name.localeCompare(b.name) },
   { title: t('sftp.size'), key: 'size', align: 'right', sorter: (a, b) => a.size - b.size },
-  { title: t('sftp.action'), key: 'action', width: 80, align: 'center' }
+  { title: t('sftp.action'), key: 'action', width: 150, align: 'center' }
 ])
 
 const loadFiles = async () => {
