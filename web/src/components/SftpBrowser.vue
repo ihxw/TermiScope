@@ -68,7 +68,11 @@
           </template>
           <template v-else-if="column.key === 'action'">
             <a-space size="small">
-              <a-button size="small" type="text" v-if="!record.is_dir" @click="download(record.name)">
+              <!-- 文件夹显示打开按钮,文件显示下载按钮 -->
+              <a-button size="small" type="text" v-if="record.is_dir" @click="enterDir(record.name)">
+                <template #icon><FolderOpenOutlined /></template>
+              </a-button>
+              <a-button size="small" type="text" v-else @click="download(record.name)">
                 <template #icon><DownloadOutlined /></template>
               </a-button>
               <a-popconfirm
@@ -139,7 +143,8 @@ import {
   MoreOutlined,
   PlusOutlined,
   FolderAddOutlined,
-  FileAddOutlined
+  FileAddOutlined,
+  FolderOpenOutlined
 } from '@ant-design/icons-vue'
 import { listFiles, uploadFile, downloadFile, deleteFile, renameFile, pasteFile, createDirectory, createFile } from '../api/sftp'
 import { useI18n } from 'vue-i18n'
@@ -187,9 +192,9 @@ const pathParts = computed(() => {
 })
 
 const columns = computed(() => [
+  { title: t('sftp.action'), key: 'action', width: 150, align: 'center' },
   { title: t('sftp.name'), key: 'name', sorter: (a, b) => a.name.localeCompare(b.name) },
-  { title: t('sftp.size'), key: 'size', align: 'right', sorter: (a, b) => a.size - b.size },
-  { title: t('sftp.action'), key: 'action', width: 150, align: 'center' }
+  { title: t('sftp.size'), key: 'size', align: 'right', sorter: (a, b) => a.size - b.size }
 ])
 
 const loadFiles = async () => {
