@@ -5,11 +5,13 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/ihxw/termiscope/internal/models"
 	"github.com/ihxw/termiscope/internal/utils"
+	"gorm.io/gorm"
 )
 
 // AuthMiddleware validates JWT token and sets user context
-func AuthMiddleware(jwtSecret string) gin.HandlerFunc {
+func AuthMiddleware(jwtSecret string, db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var token string
 		authHeader := c.GetHeader("Authorization")
@@ -46,6 +48,7 @@ func AuthMiddleware(jwtSecret string) gin.HandlerFunc {
 		claims, err := utils.ValidateToken(token, jwtSecret)
 		if err != nil {
 			// Try as a one-time ticket (for WebSockets)
+			// ... (existing logic)
 			if ticketData, ok := utils.ValidateTicket(token); ok {
 				c.Set("user_id", ticketData.UserID)
 				c.Set("username", ticketData.Username)
@@ -62,25 +65,30 @@ func AuthMiddleware(jwtSecret string) gin.HandlerFunc {
 			return
 		}
 
-		// Ensure it's an access token (unless it's a 2FA temp token which is used for intermediate steps, but here we usually expect access for protected routes)
-		// Actually 2FA temp tokens shouldn't be used for general API access.
-		if claims.TokenType != "access" && claims.TokenType != "2fa_temp" {
-			// Allow 2fa_temp for now if it was used that way, but ideally strict.
-			// Given previous code, ValidateToken was generic.
-			// Let's restrict to 'access' for general middleware use.
-			// Wait, the new logic uses "2fa_temp" for the intermediate step?
-			// The intermediate step usually doesn't hit AuthMiddleware protected routes?
-			// Actually 2FA verification hits /auth/verify-2fa which is usually public or protected by temp token?
-			// In `router.go` (not seen but typically) `verify-2fa` is public (accepts user_id + code).
-			// So middleware should strictly enforce "access".
-			if claims.TokenType != "access" {
+		// Check if token is revoked
+		if claims.ID != "" {
+			var count int64
+			db.Model(&models.RevokedToken{}).Where("jti = ?", claims.ID).Count(&count)
+			if count > 0 {
 				c.JSON(http.StatusUnauthorized, gin.H{
 					"success": false,
-					"error":   "invalid token type",
+					"error":   "token revoked",
 				})
 				c.Abort()
 				return
 			}
+		}
+
+		// Ensure it's an access token (unless it's a 2FA temp token which is used for intermediate steps, but here we usually expect access for protected routes)
+		// Actually 2FA temp tokens shouldn't be used for general API access.
+		// Ensure it's an access token
+		if claims.TokenType != "access" {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"success": false,
+				"error":   "invalid token type",
+			})
+			c.Abort()
+			return
 		}
 
 		// Set user context

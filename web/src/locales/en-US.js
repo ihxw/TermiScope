@@ -212,7 +212,20 @@ export default {
         duration: 'Duration',
         status: 'Status',
         active: 'Active',
-        disconnected: 'Disconnected'
+        disconnected: 'Disconnected',
+        sshTitle: 'SSH Connection History',
+        webTitle: 'Web Login History',
+        loginTime: 'Login Time',
+        ipAddress: 'IP Address',
+        deviceInfo: 'Device Info',
+        action: 'Action',
+        currentSession: 'Current Session',
+        forceLogout: 'Force Logout',
+        forceLogoutConfirm: 'Are you sure you want to force logout this session?',
+        revokeSuccess: 'Session revoked successfully',
+        revokeFailed: 'Failed to revoke session',
+        loadSshFailed: 'Failed to load SSH logs',
+        loadWebFailed: 'Failed to load Web login logs'
     },
     command: {
         title: 'Command Management',

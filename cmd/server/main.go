@@ -132,13 +132,15 @@ func main() {
 
 	// Protected routes
 	protected := router.Group("/api")
-	protected.Use(middleware.AuthMiddleware(cfg.Security.JWTSecret))
+	protected.Use(middleware.AuthMiddleware(cfg.Security.JWTSecret, db))
 	{
 		// Auth routes
 		protected.GET("/auth/me", authHandler.GetCurrentUser)
 		protected.GET("/auth/token-info", authHandler.GetTokenInfo) // Diagnostic endpoint
 		protected.POST("/auth/ws-ticket", authHandler.GetWSTicket)
 		protected.POST("/auth/change-password", authHandler.ChangePassword)
+		protected.GET("/auth/login-history", authHandler.GetLoginHistory)
+		protected.POST("/auth/sessions/revoke", authHandler.RevokeSession)
 
 		// SSH host routes
 		sshHostHandler := handlers.NewSSHHostHandler(db, cfg)
@@ -258,7 +260,7 @@ func main() {
 
 	// Swagger UI (Protected)
 	swaggerGroup := router.Group("/swagger")
-	swaggerGroup.Use(middleware.AuthMiddleware(cfg.Security.JWTSecret))
+	swaggerGroup.Use(middleware.AuthMiddleware(cfg.Security.JWTSecret, db))
 	swaggerGroup.GET("/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	router.NoRoute(func(c *gin.Context) {

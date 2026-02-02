@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -145,7 +146,39 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	h.db.Save(&user)
 
 	// Auto-add origin if not already present (run in background)
-	go h.autoAddOrigin(c)
+	// Security Risk: Disable TOFU (Trust on First Use) for CORS to prevent phishing attacks adding malicious origins
+	// go h.autoAddOrigin(c)
+
+	// Record Login History
+	// We need to parse the token to get JTI, but GenerateToken returns string.
+	// To avoid re-parsing, we might need to refactor GenerateToken or just parse it here.
+	// Actually, for simplicity and since we just generated it, we can parse it back or update GenerateToken to return JTI.
+	// But `utils.GenerateToken` is used elsewhere. Let's just parse it back quickly or extract JTI if we change GenerateToken.
+	// A better way: The previous step modified `GenerateToken` to put JTI in claims.
+	// Let's parse it to get JTI.
+	var jti string
+	var refreshJti string
+
+	claimsParsed, _ := utils.ValidateToken(accessToken, h.config.Security.JWTSecret)
+	if claimsParsed != nil {
+		jti = claimsParsed.ID
+	}
+
+	refreshClaimsParsed, _ := utils.ValidateToken(refreshToken, h.config.Security.JWTSecret)
+	if refreshClaimsParsed != nil {
+		refreshJti = refreshClaimsParsed.ID
+	}
+
+	loginHistory := models.LoginHistory{
+		UserID:          user.ID,
+		Username:        user.Username,
+		IPAddress:       c.ClientIP(),
+		UserAgent:       c.Request.UserAgent(),
+		JTI:             jti,
+		RefreshTokenJTI: refreshJti,
+		LoginAt:         time.Now(),
+	}
+	h.db.Create(&loginHistory)
 
 	// Set access_token cookie for browser-based access (e.g. Swagger UI, Media Stream)
 	// Path: "/" so it works for all routes
@@ -206,6 +239,17 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 		return
 	}
 
+	// Check if Refresh Token is revoked
+	if claims.ID != "" {
+		var count int64
+		h.db.Model(&models.RevokedToken{}).Where("jti = ?", claims.ID).Count(&count)
+		if count > 0 {
+			utils.LogError("Revoked refresh token used: %s | User ID: %d", claims.ID, claims.UserID)
+			utils.ErrorResponse(c, http.StatusUnauthorized, "token revoked")
+			return
+		}
+	}
+
 	// Check if user still exists and is active
 	var user models.User
 	if err := h.db.First(&user, claims.UserID).Error; err != nil {
@@ -235,6 +279,9 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 		return
 	}
 
+	// Note: We are NOT rotating the Refresh token here (it stays valid until expiration or revocation).
+	// If we wanted to rotate, we would declare the old one revoked and issue a new one.
+
 	log.Printf("Token refreshed successfully for user %d (%s) | IP: %s | New expiration: %s",
 		user.ID, user.Username, c.ClientIP(), time.Now().Add(accessExp).Format(time.RFC3339))
 
@@ -254,12 +301,204 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 // @Success 200 {object} map[string]string "Success message"
 // @Router /auth/logout [post]
 func (h *AuthHandler) Logout(c *gin.Context) {
+	// Extract token to revoke it
+	authHeader := c.GetHeader("Authorization")
+	if authHeader != "" {
+		parts := strings.Split(authHeader, " ")
+		if len(parts) == 2 && parts[0] == "Bearer" {
+			tokenString := parts[1]
+			claims, err := utils.ValidateToken(tokenString, h.config.Security.JWTSecret)
+			if err == nil && claims.ID != "" {
+				// Save to revoked tokens
+				revoked := models.RevokedToken{
+					JTI:       claims.ID,
+					UserID:    claims.UserID,
+					ExpiresAt: claims.ExpiresAt.Time,
+				}
+				h.db.Create(&revoked)
+
+				// Also try to revoke the associated refresh token if we can find it in LoginHistory
+				// Note: accessing DB here might be slight overhead but ensures cleanliness
+				var history models.LoginHistory
+				if err := h.db.Where("jti = ?", claims.ID).First(&history).Error; err == nil && history.RefreshTokenJTI != "" {
+					revokedRefresh := models.RevokedToken{
+						JTI:       history.RefreshTokenJTI,
+						UserID:    claims.UserID,
+						ExpiresAt: time.Now().Add(7 * 24 * time.Hour), // Assume 7 days
+					}
+					h.db.Create(&revokedRefresh)
+				}
+			}
+		}
+	}
+
 	// Clear cookie
 	c.SetCookie("access_token", "", -1, "/", "", false, true)
 
-	// In a stateless JWT system, logout is handled client-side
 	utils.SuccessResponse(c, http.StatusOK, gin.H{
 		"message": "logged out successfully",
+	})
+}
+
+// GetLoginHistory retrieves the login history for the current user
+// @Summary Get login history
+// @Description Get list of login sessions
+// @Tags Auth
+// @Security BearerAuth
+// @Param page query int false "Page number"
+// @Param page_size query int false "Page size"
+// @Success 200 {object} map[string]interface{} "Login history"
+// @Router /auth/login-history [get]
+func (h *AuthHandler) GetLoginHistory(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
+	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
+
+	// Check user role for admin access? Usually users see their own.
+	// If admin wants to see others, that's a different endpoint usually.
+	// Requirement: "Web login history... separate tab". Usually implies own history or admin view of self?
+	// Given "force logout already logged in devices", it implies managing OWN sessions.
+
+	var logs []models.LoginHistory
+	var total int64
+
+	offset := (page - 1) * pageSize
+
+	query := h.db.Model(&models.LoginHistory{}).Where("user_id = ?", userID)
+	query.Count(&total)
+
+	query.Order("login_at desc").Offset(offset).Limit(pageSize).Find(&logs)
+
+	// Check status of each log (Active/Revoked/Expired)
+	// This is a bit expensive if we check DB for each, but we can check RevokedToken table for JTI.
+	// Or we can allow the frontend to check active/revoked if we return JTI status.
+	// Let's do a left join or just iterate if page size is small.
+
+	// Fetch revoked JTIs for these logs
+	var jtis []string
+	for _, log := range logs {
+		if log.JTI != "" {
+			jtis = append(jtis, log.JTI)
+		}
+	}
+
+	revokedMap := make(map[string]bool)
+	if len(jtis) > 0 {
+		var revokedTokens []models.RevokedToken
+		h.db.Where("jti IN ?", jtis).Find(&revokedTokens)
+		for _, t := range revokedTokens {
+			revokedMap[t.JTI] = true
+		}
+	}
+
+	// Prepare response with detailed status
+	var result []map[string]interface{}
+	for _, l := range logs {
+		status := "Active"
+		if revokedMap[l.JTI] {
+			status = "Revoked"
+		} else {
+			// Check expiry? We don't store expiry in LoginHistory yet, but JWT has 24h usually.
+			// Ideally we assume active unless revoked, or check if very old.
+			// Let's just return "Revoked" or "Active".
+			// Use 24h as rough estimate for now or just rely on backend rejection.
+			// If we want precise expiry status we need to decode JTI or store expiry in LoginHistory.
+			// For now, "Active" / "Revoked" is good enough.
+		}
+
+		// Check if it's CURRENT session
+		currentJTI := ""
+		// Extract JTI from current context token?
+		// We can get token from header again
+		authHeader := c.GetHeader("Authorization")
+		if authHeader != "" {
+			parts := strings.Split(authHeader, " ")
+			if len(parts) == 2 {
+				// We don't want to parse fully again, but we could if needed.
+				// Middleware could set JTI in context.
+				// For now let's just leave "Current" logic to frontend or verify token here.
+				// Since we need to match JTI.
+				claims, _ := utils.ValidateToken(parts[1], h.config.Security.JWTSecret)
+				if claims != nil {
+					currentJTI = claims.ID
+				}
+			}
+		}
+
+		isCurrent := (l.JTI == currentJTI)
+
+		result = append(result, map[string]interface{}{
+			"id":         l.ID,
+			"ip_address": l.IPAddress,
+			"user_agent": l.UserAgent,
+			"login_at":   l.LoginAt,
+			"status":     status,
+			"is_current": isCurrent,
+			"jti":        l.JTI,
+		})
+	}
+
+	utils.SuccessResponse(c, http.StatusOK, gin.H{
+		"data": result,
+		"pagination": gin.H{
+			"current":  page,
+			"pageSize": pageSize,
+			"total":    total,
+		},
+	})
+}
+
+// RevokeSession revokes a specific session (force logout)
+// @Summary Revoke session
+// @Description Force logout a session by JTI
+// @Tags Auth
+// @Security BearerAuth
+// @Param request body struct{JTI string} true "JTI to revoke"
+// @Success 200 {object} map[string]string "Success message"
+// @Router /auth/sessions/revoke [post]
+func (h *AuthHandler) RevokeSession(c *gin.Context) {
+	var req struct {
+		JTI string `json:"jti" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorResponse(c, http.StatusBadRequest, "Invalid request")
+		return
+	}
+
+	userID := middleware.GetUserID(c)
+
+	// Verify the JTI belongs to the user (security check)
+	var log models.LoginHistory
+	if err := h.db.Where("jti = ? AND user_id = ?", req.JTI, userID).First(&log).Error; err != nil {
+		utils.ErrorResponse(c, http.StatusNotFound, "Session not found or access denied")
+		return
+	}
+
+	// Add to revoked tokens
+	// Expiry? We should set it to somewhat far future or match the token's original expiry.
+	// Since we don't know exact token expiry here easily without parsing content (which we don't have stored fully),
+	// we'll assume standard token duration (e.g., 24h) from LoginAt or just 24h from now to be safe.
+	// Or better: set it to a reasonable max like 7 days.
+	// The middleware checks existence in RevokedTokens.
+	revoked := models.RevokedToken{
+		JTI:       req.JTI,
+		UserID:    userID,
+		ExpiresAt: time.Now().Add(24 * time.Hour), // Default backup expiry for access token
+	}
+	h.db.Create(&revoked)
+
+	// Revoke associated Refresh Token
+	if log.RefreshTokenJTI != "" {
+		revokedRefresh := models.RevokedToken{
+			JTI:       log.RefreshTokenJTI,
+			UserID:    userID,
+			ExpiresAt: time.Now().Add(7 * 24 * time.Hour), // Refresh tokens live longer
+		}
+		h.db.Create(&revokedRefresh)
+	}
+
+	utils.SuccessResponse(c, http.StatusOK, gin.H{
+		"message": "Session revoked successfully",
 	})
 }
 

@@ -43,6 +43,8 @@ func RunMigrations(db *gorm.DB) error {
 		&models.NetworkMonitorTask{},
 		&models.NetworkMonitorResult{},
 		&models.NetworkMonitorTemplate{},
+		&models.RevokedToken{},
+		&models.LoginHistory{},
 	)
 	if err != nil {
 		return fmt.Errorf("failed to run migrations: %w", err)

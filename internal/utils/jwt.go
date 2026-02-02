@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
 type Claims struct {
@@ -17,12 +18,16 @@ type Claims struct {
 
 // GenerateToken generates a JWT token for a user
 func GenerateToken(userID uint, username, role, tokenType string, expiration time.Duration, secret string) (string, error) {
+	// Generate a unique ID for the token (JTI)
+	jti := uuid.New().String()
+
 	claims := &Claims{
 		UserID:    userID,
 		Username:  username,
 		Role:      role,
 		TokenType: tokenType,
 		RegisteredClaims: jwt.RegisteredClaims{
+			ID:        jti,
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(expiration)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			NotBefore: jwt.NewNumericDate(time.Now()),

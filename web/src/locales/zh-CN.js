@@ -221,7 +221,20 @@ export default {
         duration: '持续时间',
         status: '状态',
         active: '活动',
-        disconnected: '已断开'
+        disconnected: '已断开',
+        sshTitle: 'SSH 连接历史',
+        webTitle: 'Web 登录历史',
+        loginTime: '登录时间',
+        ipAddress: 'IP 地址',
+        deviceInfo: '设备信息',
+        action: '操作',
+        currentSession: '当前会话',
+        forceLogout: '强制注销',
+        forceLogoutConfirm: '确定要强制注销此会话吗？',
+        revokeSuccess: '会话已注销',
+        revokeFailed: '注销失败',
+        loadSshFailed: '加载 SSH 记录失败',
+        loadWebFailed: '加载 Web 记录失败'
     },
     command: {
         title: '命令管理',
