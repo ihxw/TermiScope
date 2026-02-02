@@ -75,55 +75,58 @@
 
                 <a-divider orientation="left">{{ t('system.notificationTitle') }}</a-divider>
                 <a-row :gutter="16">
-                  <a-col :span="8">
+                  <a-col :span="3">
                     <a-form-item :label="t('system.smtpServer')" name="smtp_server">
                       <a-input v-model:value="settingsForm.smtp_server" placeholder="smtp.example.com" />
                     </a-form-item>
                   </a-col>
-                  <a-col :span="4">
+                  <a-col :span="2">
                     <a-form-item :label="t('system.smtpPort')" name="smtp_port">
                       <a-input v-model:value="settingsForm.smtp_port" placeholder="587" />
                     </a-form-item>
                   </a-col>
-                  <a-col :span="6">
+                  <a-col :span="3">
                     <a-form-item :label="t('system.smtpUser')" name="smtp_user">
                       <a-input v-model:value="settingsForm.smtp_user" />
                     </a-form-item>
                   </a-col>
-                  <a-col :span="6">
+                  <a-col :span="3">
                     <a-form-item :label="t('system.smtpPassword')" name="smtp_password">
                       <a-input-password v-model:value="settingsForm.smtp_password" />
                     </a-form-item>
                   </a-col>
-                  <a-col :span="8">
+                  <a-col :span="3">
                     <a-form-item :label="t('system.smtpFrom')" name="smtp_from">
                       <a-input v-model:value="settingsForm.smtp_from" placeholder="noreply@example.com" />
                     </a-form-item>
                   </a-col>
-                  <a-col :span="8">
+                  <a-col :span="3">
                     <a-form-item :label="t('system.smtpTo')" name="smtp_to">
                       <a-input v-model:value="settingsForm.smtp_to" placeholder="admin@example.com" />
                     </a-form-item>
                   </a-col>
-                  <a-col :span="24" style="text-align: right; margin-bottom: 16px">
-                     <a-button type="dashed" size="small" :loading="sendingTestEmail" @click="handleTestEmail">{{ t('system.testEmail') }}</a-button>
+                  <a-col :span="2" style="text-align: right;">
+                      <a-form-item label=" ">
+                     <a-button type="dashed" size="small" style="width: 100%" :loading="sendingTestEmail" @click="handleTestEmail">{{ t('system.testEmail') }}</a-button>
+                    </a-form-item>
+                    
                   </a-col>
                 </a-row>
                 <a-row :gutter="16">
-                  <a-col :span="12">
+                  <a-col :span="5">
                     <a-form-item :label="t('system.telegramToken')" name="telegram_bot_token">
                       <a-input-password v-model:value="settingsForm.telegram_bot_token" />
                     </a-form-item>
                   </a-col>
-                  <a-col :span="12">
+                  <a-col :span="5">
                     <a-form-item :label="t('system.telegramChatId')" name="telegram_chat_id">
                       <a-input v-model:value="settingsForm.telegram_chat_id" />
                     </a-form-item>
                   </a-col>
-                </a-row>
-                <a-row>
-                  <a-col :span="24" style="text-align: right; margin-bottom: 16px">
-                     <a-button type="dashed" size="small" :loading="sendingTestTelegram" @click="handleTestTelegram">{{ t('system.testTelegram') }}</a-button>
+                  <a-col :span="2" style="text-align: right;">
+                    <a-form-item label=" ">
+                       <a-button type="dashed" style="width: 100%" :loading="sendingTestTelegram" @click="handleTestTelegram">{{ t('system.testTelegram') }}</a-button>
+                    </a-form-item>
                   </a-col>
                 </a-row>
                 <a-row :gutter="16">
