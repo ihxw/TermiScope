@@ -131,6 +131,19 @@
                <HolderOutlined />
             </div>
           </template>
+          <template v-if="column.key === 'name'">
+            <span style="display: flex; align-items: center;">
+              <span v-if="record.flag" :style="{
+                display: 'inline-block',
+                width: '8px',
+                height: '8px',
+                borderRadius: '50%',
+                backgroundColor: flagColorsMap[record.flag],
+                marginRight: '6px'
+              }"></span>
+              {{ record.name }}
+            </span>
+          </template>
           <template v-if="column.key === 'status'">
             <div style="display: flex; align-items: center">
               <!-- Show "Deleted" tag for deleted hosts -->
@@ -408,6 +421,25 @@
 
         <a-form-item :label="t('host.description')">
           <a-textarea v-model:value="hostForm.description" :rows="3" />
+        </a-form-item>
+
+        <!-- Host Flag Selection -->
+        <a-form-item :label="t('host.flag')">
+          <a-radio-group v-model:value="hostForm.flag">
+            <a-radio-button value="">
+              <span style="color: #666; font-size: 12px">{{ t('host.flagNone') }}</span>
+            </a-radio-button>
+            <a-radio-button v-for="color in flagColors" :key="color.value" :value="color.value">
+              <span :style="{ 
+                display: 'inline-block', 
+                width: '12px', 
+                height: '12px', 
+                borderRadius: '50%', 
+                backgroundColor: color.code,
+                border: '1px solid rgba(0,0,0,0.1)' 
+              }"></span>
+            </a-radio-button>
+          </a-radio-group>
         </a-form-item>
 
         <!-- Financial Management Section -->
@@ -770,8 +802,29 @@ const hostForm = ref({
   expiration_date: null,
   billing_period: '',
   billing_amount: 0,
-  currency: 'CNY'
+  currency: 'CNY',
+  flag: ''
 })
+
+const flagColors = [
+  { value: 'red', code: '#FF3B30', label: 'Red' },
+  { value: 'orange', code: '#FF9500', label: 'Orange' },
+  { value: 'yellow', code: '#FFCC00', label: 'Yellow' },
+  { value: 'green', code: '#4CD964', label: 'Green' },
+  { value: 'blue', code: '#007AFF', label: 'Blue' },
+  { value: 'purple', code: '#5856D6', label: 'Purple' },
+  { value: 'gray', code: '#8E8E93', label: 'Gray' }
+]
+
+const flagColorsMap = {
+  red: '#FF3B30',
+  orange: '#FF9500',
+  yellow: '#FFCC00',
+  green: '#4CD964',
+  blue: '#007AFF',
+  purple: '#5856D6',
+  gray: '#8E8E93'
+}
 
 // Mobile detection
 const isMobile = ref(false)

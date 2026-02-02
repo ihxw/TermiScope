@@ -212,7 +212,16 @@ export default {
         permanentDelete: '彻底删除',
         permanentDeleteConfirm: '确定要彻底删除该主机吗？此操作不可恢复！',
         permanentDeleteSuccess: '已彻底删除主机',
-        permanentDeleteFailed: '彻底删除主机失败'
+        permanentDeleteFailed: '彻底删除主机失败',
+        flag: '旗标',
+        flagNone: '无',
+        flagRed: '红色',
+        flagOrange: '橙色',
+        flagYellow: '黄色',
+        flagGreen: '绿色',
+        flagBlue: '蓝色',
+        flagPurple: '紫色',
+        flagGray: '灰色'
     },
     history: {
         title: '连接历史',

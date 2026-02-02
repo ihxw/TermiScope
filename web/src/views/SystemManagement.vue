@@ -415,42 +415,25 @@ const executeBackup = async () => {
   backupPasswordModalVisible.value = false
   backupLoading.value = true
   try {
-    const params = {}
-    if (backupPassword.value) {
-      params.password = backupPassword.value
-    }
-
-    const response = await api.get('/system/backup', {
-        params,
-        responseType: 'blob',
-        timeout: 0 // large backups might take time
+    const response = await api.post('/system/backup', { 
+        password: backupPassword.value 
     })
     
-    // Extract filename from header if possible, or default
-    // Axios response.headers is an object. Keys might be lower cased.
-    // content-disposition: attachment; filename=backup-2023...
-    
-    let filename = 'termiscope-backup.db' 
-    const disposition = response.headers['content-disposition']
-    if (disposition && disposition.indexOf('filename=') !== -1) {
-        const matches = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/.exec(disposition)
-        if (matches != null && matches[1]) { 
-            filename = matches[1].replace(/['"]/g, '')
-        }
+    if (response && response.filename && response.ticket) {
+        // Construct download URL with one-time ticket
+        const protocol = window.location.protocol
+        const host = window.location.host
+        // use ticket as token
+        const downloadUrl = `${protocol}//${host}/api/system/backup/download?file=${response.filename}&token=${response.ticket}`
+        
+        // Trigger download
+        window.location.href = downloadUrl
+        message.success(t('system.backupSuccess'))
+    } else {
+        throw new Error('No filename or ticket returned')
     }
-
-    const url = window.URL.createObjectURL(new Blob([response.data]))
-    const link = document.createElement('a')
-    link.href = url
-    link.setAttribute('download', filename)
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-    window.URL.revokeObjectURL(url)
-    
-    message.success(t('system.backupSuccess'))
   } catch (err) {
-    message.error(t('system.backupFailed'))
+    message.error(t('system.backupFailed') + ': ' + (err.message || err.response?.data?.error))
   } finally {
     backupLoading.value = false
   }

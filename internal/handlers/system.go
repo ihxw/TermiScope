@@ -44,55 +44,116 @@ func isValidPath(path string) bool {
 	return validPattern.MatchString(path)
 }
 
-// Backup handles database backup download
+// Backup handles database backup generation
 func (h *SystemHandler) Backup(c *gin.Context) {
 	dbPath := h.config.Database.Path
-	password := c.Query("password")
 
-	// Create a temporary backup file to avoid locking the main DB during download
-	tmpBackup := filepath.Join(os.TempDir(), fmt.Sprintf("termiscope_backup_%d.db", time.Now().Unix()))
+	var req struct {
+		Password string `json:"password"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		// Ignore bind error
+	}
+	password := req.Password
 
-	// Validate tmpBackup path (defense in depth - ensure no SQL injection)
-	if !isValidPath(tmpBackup) {
-		utils.ErrorResponse(c, http.StatusInternalServerError, "invalid backup path")
-		return
+	// Clean up old backups (older than 1 hour)
+	tmpDir := os.TempDir()
+	files, _ := filepath.Glob(filepath.Join(tmpDir, "termiscope_backup_*"))
+	for _, f := range files {
+		info, err := os.Stat(f)
+		if err == nil && time.Since(info.ModTime()) > time.Hour {
+			os.Remove(f)
+		}
 	}
 
+	// Create a temporary backup file
+	// Use consistent naming scheme we can validate later
+	timestamp := time.Now().Format("20060102_150405")
+	fileName := fmt.Sprintf("termiscope_backup_%s.db", timestamp)
+	if password != "" {
+		fileName += ".enc"
+	}
+	tmpBackup := filepath.Join(tmpDir, fileName)
+
 	// Use SQLite's VACUUM INTO for a consistent backup
-	// Use parameterized query to prevent SQL injection
-	err := h.db.Exec("VACUUM INTO ?", tmpBackup).Error
-	if err != nil {
-		// Fallback to simple file copy if VACUUM INTO fails (e.g. older SQLite)
-		err = copyFile(dbPath, tmpBackup)
-		if err != nil {
-			utils.ErrorResponse(c, http.StatusInternalServerError, "failed to create backup: "+err.Error())
+	// Note: For encrypted backups, we first vacuum to a temp .db then encrypt.
+	// But to simplify, let's keep the logic close to original but split steps.
+
+	// Intermediate file for vacuum (always .db)
+	vacuumFile := filepath.Join(tmpDir, fmt.Sprintf("termiscope_vacuum_%s.db", timestamp))
+
+	if err := h.db.Exec("VACUUM INTO ?", vacuumFile).Error; err != nil {
+		fmt.Printf("VACUUM INTO failed: %v. Output path: %s\n", err, vacuumFile)
+		// Fallback copy
+		if copyErr := copyFile(dbPath, vacuumFile); copyErr != nil {
+			utils.ErrorResponse(c, http.StatusInternalServerError, fmt.Sprintf("failed to create backup: %v", err))
 			return
 		}
 	}
-	defer os.Remove(tmpBackup)
 
-	finalFile := tmpBackup
-	downloadName := fmt.Sprintf("termiscope_backup_%s.db", time.Now().Format("20060102_150405"))
+	finalPath := tmpBackup
 
-	// If password is provided, encrypt the backup
 	if password != "" {
-		tmpEncBackup := tmpBackup + ".enc"
-		if err := utils.EncryptFile(tmpBackup, tmpEncBackup, password); err != nil {
+		// Encrypt vacuumFile -> tmpBackup (which has .enc)
+		if err := utils.EncryptFile(vacuumFile, tmpBackup, password); err != nil {
+			os.Remove(vacuumFile)
 			utils.ErrorResponse(c, http.StatusInternalServerError, "failed to encrypt backup: "+err.Error())
 			return
 		}
-		defer os.Remove(tmpEncBackup)
-		finalFile = tmpEncBackup
-		// Reflect encryption in filename, though strictly not necessary if we auto-detect on restore
-		// keeping .db extension but maybe adding _enc suffix is clearer
-		downloadName = fmt.Sprintf("termiscope_backup_enc_%s.db", time.Now().Format("20060102_150405"))
+		os.Remove(vacuumFile) // Remove unencrypted intermediate
+	} else {
+		// Just rename vacuumFile to finalPath
+		if err := os.Rename(vacuumFile, finalPath); err != nil {
+			os.Remove(vacuumFile)
+			utils.ErrorResponse(c, http.StatusInternalServerError, "failed to rename backup: "+err.Error())
+			return
+		}
+	}
+
+	// Generate one-time ticket for download
+	userID := middleware.GetUserID(c)
+	username := middleware.GetUsername(c)
+	role := middleware.GetRole(c)
+	ticket := utils.GenerateTicket(userID, username, role)
+
+	// Return the filename and ticket to frontend
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": gin.H{
+			"filename": fileName,
+			"ticket":   ticket,
+		},
+	})
+}
+
+// DownloadBackup serves the backup file
+func (h *SystemHandler) DownloadBackup(c *gin.Context) {
+	filename := c.Query("file")
+	if filename == "" {
+		utils.ErrorResponse(c, http.StatusBadRequest, "filename required")
+		return
+	}
+
+	// Strict validation: basic alphanumeric + dots, must start with termiscope_backup_
+	if matched, _ := regexp.MatchString(`^termiscope_backup_[a-zA-Z0-9_.]+\.(db|enc)$`, filename); !matched {
+		utils.ErrorResponse(c, http.StatusBadRequest, "invalid filename")
+		return
+	}
+
+	tmpDir := os.TempDir()
+	filePath := filepath.Join(tmpDir, filename)
+
+	// Verify existence
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		utils.ErrorResponse(c, http.StatusNotFound, "backup file not found or expired")
+		return
 	}
 
 	c.Header("Content-Description", "File Transfer")
 	c.Header("Content-Transfer-Encoding", "binary")
-	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", downloadName))
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
 	c.Header("Content-Type", "application/octet-stream")
-	c.File(finalFile)
+	c.File(filePath)
 }
 
 // Restore handles database restoration from uploaded file

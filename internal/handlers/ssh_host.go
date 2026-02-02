@@ -47,6 +47,7 @@ type CreateSSHHostRequest struct {
 	BillingPeriod  string  `json:"billing_period"`
 	BillingAmount  float64 `json:"billing_amount"`
 	Currency       string  `json:"currency"`
+	Flag           string  `json:"flag"`
 }
 
 type UpdateSSHHostRequest struct {
@@ -79,12 +80,12 @@ type UpdateSSHHostRequest struct {
 	BillingPeriod  string  `json:"billing_period"`
 	BillingAmount  float64 `json:"billing_amount"`
 	Currency       string  `json:"currency"`
+	Flag           string  `json:"flag"`
 
 	// Actions
 	ResetTraffic bool `json:"reset_traffic"`
 }
 
-// List returns a list of SSH hosts for the current user
 // @Summary List SSH Hosts
 // @Description Get all SSH hosts for the authenticated user
 // @Tags Host
@@ -241,6 +242,7 @@ func (h *SSHHostHandler) Create(c *gin.Context) {
 		BillingPeriod: req.BillingPeriod,
 		BillingAmount: req.BillingAmount,
 		Currency:      req.Currency,
+		Flag:          req.Flag,
 	}
 
 	// Parse expiration date if provided
@@ -351,7 +353,11 @@ func (h *SSHHostHandler) Update(c *gin.Context) {
 	if req.BillingPeriod != "" || req.BillingAmount > 0 || req.Currency != "" {
 		host.BillingPeriod = req.BillingPeriod
 		host.BillingAmount = req.BillingAmount
+		host.BillingAmount = req.BillingAmount
 		host.Currency = req.Currency
+	}
+	if req.Flag != "" {
+		host.Flag = req.Flag
 	}
 	// Network Config
 	if req.NetInterface != "" {
@@ -514,7 +520,7 @@ func (h *SSHHostHandler) Update(c *gin.Context) {
 		"NetInterface", "NetResetDay",
 		"NetTrafficLimit", "NetTrafficUsedAdjustment", "NetTrafficCounterMode",
 		"NotifyOfflineEnabled", "NotifyTrafficEnabled", "NotifyOfflineThreshold", "NotifyTrafficThreshold", "NotifyChannels",
-		"ExpirationDate", "BillingPeriod", "BillingAmount", "Currency",
+		"ExpirationDate", "BillingPeriod", "BillingAmount", "Currency", "Flag",
 	}
 
 	if req.ResetTraffic {

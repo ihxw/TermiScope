@@ -203,7 +203,16 @@ export default {
         permanentDelete: 'Permanently Delete',
         permanentDeleteConfirm: 'Are you sure you want to permanently delete this host? This action cannot be undone!',
         permanentDeleteSuccess: 'Host permanently deleted',
-        permanentDeleteFailed: 'Failed to permanently delete host'
+        permanentDeleteFailed: 'Failed to permanently delete host',
+        flag: 'Flag',
+        flagNone: 'None',
+        flagRed: 'Red',
+        flagOrange: 'Orange',
+        flagYellow: 'Yellow',
+        flagGreen: 'Green',
+        flagBlue: 'Blue',
+        flagPurple: 'Purple',
+        flagGray: 'Gray'
     },
     history: {
         title: 'Connection History',

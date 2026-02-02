@@ -23,6 +23,7 @@ type SSHHost struct {
 	MonitorSecret       string `gorm:"size:64" json:"monitor_secret"`
 	Description         string `gorm:"type:text" json:"description"`
 	HostType            string `gorm:"size:20;default:'control_monitor'" json:"host_type"` // control_monitor or monitor_only
+	Flag                string `gorm:"size:20" json:"flag"`                                // red, orange, yellow, green, blue, purple, gray
 	SortOrder           int    `gorm:"default:0" json:"sort_order"`
 	// Network Config
 	NetInterface string `json:"net_interface" gorm:"default:'auto'"` // Selected interface

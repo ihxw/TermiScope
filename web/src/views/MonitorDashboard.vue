@@ -29,13 +29,15 @@
     <!-- Card View -->
     <a-row :gutter="[5, 5]" v-if="viewMode === 'card'">
       <a-col :xs="24" :sm="12" :md="8" class="col-5" v-for="host in sortedHosts" :key="host.host_id">
-        <a-card hoverable class="monitor-card" :class="{ offline: isOffline(host) }">
+        <a-card hoverable class="monitor-card" :class="{ offline: isOffline(host) }" :style="{ borderLeft: host.flag ? `5px solid ${getFlagColor(host.flag)}` : '' }">
           <template #title>
-            <a-space>
-              <component :is="getOsIcon(host.os)" :style="{ fontSize: '20px' }" />
-              <span>{{ getHostName(host.host_id) }}</span>
-              <span style="color: #8c8c8c; font-size: 12px">({{ host.hostname }})</span>
-            </a-space>
+            <div style="display: flex; align-items: center; overflow: hidden;">
+              <component :is="getOsIcon(host.os)" :style="{ fontSize: '20px', marginRight: '8px', flexShrink: 0 }" />
+              <div style="overflow: hidden; white-space: nowrap; text-overflow: ellipsis; flex: 1;" :title="getHostName(host.host_id) + ' (' + host.hostname + ')'">
+                <span>{{ getHostName(host.host_id) }}</span>
+                <span style="color: #8c8c8c; font-size: 12px; margin-left: 4px;">({{ host.hostname }})</span>
+              </div>
+            </div>
           </template>
           <template #extra>
              <a-tooltip :title="t('network.title')">
@@ -450,7 +452,9 @@ const syncHostsFromStore = () => {
       existing.expiration_date = sh.expiration_date
       existing.billing_period = sh.billing_period
       existing.billing_amount = sh.billing_amount
+      existing.billing_amount = sh.billing_amount
       existing.currency = sh.currency
+      existing.flag = sh.flag
       return existing
     } else {
       // Add new host with default/empty metrics
@@ -476,7 +480,8 @@ const syncHostsFromStore = () => {
         expiration_date: sh.expiration_date,
         billing_period: sh.billing_period,
         billing_amount: sh.billing_amount,
-        currency: sh.currency
+        currency: sh.currency,
+        flag: sh.flag
       }
     }
   })
@@ -760,6 +765,19 @@ const handleHistTableChange = (pag) => {
     loadHistory(pag.current)
 }
     
+const getFlagColor = (flag) => {
+  const colors = {
+    red: '#FF3B30',
+    orange: '#FF9500',
+    yellow: '#FFCC00',
+    green: '#4CD964',
+    blue: '#007AFF',
+    purple: '#5856D6',
+    gray: '#8E8E93'
+  }
+  return colors[flag] || 'transparent'
+}
+
 onUnmounted(() => {
   if (socket.value) socket.value.close()
 })

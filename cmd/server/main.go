@@ -233,7 +233,8 @@ func main() {
 			systemHandler := handlers.NewSystemHandler(db, cfg, config.Version)
 			system := adminGroup.Group("/system")
 			{
-				system.GET("/backup", systemHandler.Backup)
+				system.POST("/backup", systemHandler.Backup)
+				system.GET("/backup/download", systemHandler.DownloadBackup)
 				system.POST("/restore", systemHandler.Restore)
 				system.GET("/settings", systemHandler.GetSettings)
 				system.PUT("/settings", systemHandler.UpdateSettings)
