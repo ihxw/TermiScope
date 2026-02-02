@@ -13,8 +13,18 @@ echo "服务器: {{SERVER_URL}}"
 echo ""
 
 # 检测操作系统和架构
-OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+OS_RAW=$(uname -s)
+OS=$(echo "$OS_RAW" | tr 'A-Z' 'a-z')
 ARCH=$(uname -m)
+
+# 调试信息
+# echo "Debug: uname -s returned '$OS_RAW', normalized to '$OS'"
+IS_OPENWRT=false
+
+# 检测 OpenWrt
+if [ -f "/etc/openwrt_release" ]; then
+    IS_OPENWRT=true
+fi
 
 # 转换架构名称
 case $ARCH in
@@ -40,10 +50,15 @@ USE_SYSTEMD=false
 
 case $OS in
     linux)
-        if command -v systemctl &> /dev/null; then
+        if [ "$IS_OPENWRT" = true ]; then
+            SERVICE_FILE="/etc/init.d/termiscope-agent"
+            # OpenWrt 通常空间较小，安装到 /usr/bin 或保持 /opt
+            INSTALL_DIR="/opt/termiscope/agent"
+        elif command -v systemctl &> /dev/null; then
             USE_SYSTEMD=true
             SERVICE_FILE="/etc/systemd/system/termiscope-agent.service"
         else
+            # 普通 Linux 但没有 systemd (如 Alpine)
             SERVICE_FILE="/etc/init.d/termiscope-agent"
         fi
         ;;
@@ -52,19 +67,39 @@ case $OS in
         SERVICE_FILE="$HOME/Library/LaunchAgents/com.termiscope.agent.plist"
         ;;
     *)
-        echo "错误: 不支持的操作系统 $OS"
-        exit 1
+        # Fallback: check if it contains "linux" (case insensitive logic handled above)
+        if echo "$OS" | grep -q "linux"; then
+            echo "警告: 系统被识别为 $OS，尝试作为 Linux 处理..."
+            OS="linux"
+            # Re-run linux logic setup
+            if [ "$IS_OPENWRT" = true ]; then
+                SERVICE_FILE="/etc/init.d/termiscope-agent"
+                INSTALL_DIR="/opt/termiscope/agent"
+            elif command -v systemctl &> /dev/null; then
+                USE_SYSTEMD=true
+                SERVICE_FILE="/etc/systemd/system/termiscope-agent.service"
+            else
+                SERVICE_FILE="/etc/init.d/termiscope-agent"
+            fi
+        else
+            echo "错误: 不支持的操作系统 $OS (Raw: $OS_RAW)"
+            exit 1
+        fi
         ;;
 esac
 
 echo "检测到系统: $OS ($ARCH)"
+if [ "$IS_OPENWRT" = true ]; then
+    echo "发行版: OpenWrt"
+fi
 echo "安装目录: $INSTALL_DIR"
 echo ""
 
 # 创建安装目录
 echo "[1/6] 创建安装目录..."
 if [ "$OS" = "linux" ]; then
-    sudo mkdir -p $INSTALL_DIR
+    # 尝试 sudo，如果失败（如 OpenWrt root 运行）则直接运行
+    sudo mkdir -p $INSTALL_DIR 2>/dev/null || mkdir -p $INSTALL_DIR
 else
     mkdir -p $INSTALL_DIR
 fi
@@ -72,7 +107,10 @@ cd $INSTALL_DIR
 
 # 停止旧服务（如果存在）
 echo "[2/6] 停止已存在的服务（如果有）..."
-if [ "$USE_SYSTEMD" = true ]; then
+if [ "$IS_OPENWRT" = true ]; then
+    /etc/init.d/termiscope-agent stop 2>/dev/null || true
+    /etc/init.d/termiscope-agent disable 2>/dev/null || true
+elif [ "$USE_SYSTEMD" = true ]; then
     sudo systemctl stop termiscope-agent 2>/dev/null || true
     sudo systemctl disable termiscope-agent 2>/dev/null || true
 elif [ "$OS" = "darwin" ]; then
@@ -85,11 +123,20 @@ DOWNLOAD_URL="{{SERVER_URL}}/api/monitor/agent/$BIN_NAME?secret={{SECRET}}&host_
 echo "下载地址: $DOWNLOAD_URL"
 
 if [ "$OS" = "linux" ]; then
-    sudo curl -f -L -o termiscope-agent "$DOWNLOAD_URL" || {
-        echo "错误: 下载失败，请检查服务器是否可访问"
-        exit 1
-    }
-    sudo chmod +x termiscope-agent
+    # OpenWrt 可能没有 sudo
+    if command -v sudo >/dev/null 2>&1; then
+        sudo curl -f -L -o termiscope-agent "$DOWNLOAD_URL" || {
+            echo "错误: 下载失败，请检查服务器是否可访问"
+            exit 1
+        }
+        sudo chmod +x termiscope-agent
+    else
+        curl -f -L -o termiscope-agent "$DOWNLOAD_URL" || {
+             echo "错误: 下载失败，请检查服务器是否可访问"
+             exit 1
+        }
+        chmod +x termiscope-agent
+    fi
 else
     curl -f -L -o termiscope-agent "$DOWNLOAD_URL" || {
         echo "错误: 下载失败，请检查服务器是否可访问"
@@ -100,7 +147,33 @@ fi
 
 # 创建服务
 echo "[4/6] 创建系统服务..."
-if [ "$USE_SYSTEMD" = true ]; then
+if [ "$IS_OPENWRT" = true ]; then
+    # OpenWrt procdinit script
+    cat > $SERVICE_FILE <<EOF
+#!/bin/sh /etc/rc.common
+
+START=99
+STOP=10
+USE_PROCD=1
+
+PROG=$INSTALL_DIR/termiscope-agent
+
+start_service() {
+    procd_open_instance
+    procd_set_param command "\$PROG"
+    procd_append_param command -server "{{SERVER_URL}}"
+    procd_append_param command -secret "{{SECRET}}"
+    procd_append_param command -id {{HOST_ID}}
+    
+    # 设置工作目录
+    procd_set_param respawn \${respawn_threshold:-3600} \${respawn_timeout:-5} \${respawn_retry:-5}
+    procd_set_param stdout 1 
+    procd_set_param stderr 1 
+    procd_close_instance
+}
+EOF
+    chmod +x $SERVICE_FILE
+elif [ "$USE_SYSTEMD" = true ]; then
     # Linux systemd 服务
     sudo tee $SERVICE_FILE > /dev/null <<EOF
 [Unit]
@@ -116,7 +189,7 @@ WorkingDirectory=$INSTALL_DIR
 [Install]
 WantedBy=multi-user.target
 EOF
-else
+elif [ "$OS" = "darwin" ]; then
     # macOS LaunchAgent
     mkdir -p $(dirname $SERVICE_FILE)
     cat > $SERVICE_FILE <<EOF
@@ -147,11 +220,27 @@ else
 </dict>
 </plist>
 EOF
+else
+   echo "警告: 未知的 init 系统，如果是 Alpine 或其他系统，请手动通过 rc-service 配置"
 fi
 
 # 启动服务
 echo "[5/6] 启动监控服务..."
-if [ "$USE_SYSTEMD" = true ]; then
+if [ "$IS_OPENWRT" = true ]; then
+    /etc/init.d/termiscope-agent enable
+    /etc/init.d/termiscope-agent start
+    
+    echo ""
+    echo "[6/6] 验证服务状态..."
+    sleep 2
+    # 检查进程是否存在
+    if pgrep -f "termiscope-agent" > /dev/null; then
+        echo "✓ 服务运行正常 (PID: $(pgrep -f termiscope-agent))"
+    else
+        echo "✗ 服务启动失败，请检查日志: logread | grep termiscope"
+        exit 1
+    fi
+elif [ "$USE_SYSTEMD" = true ]; then
     sudo systemctl daemon-reload
     sudo systemctl enable termiscope-agent
     sudo systemctl start termiscope-agent
@@ -167,7 +256,7 @@ if [ "$USE_SYSTEMD" = true ]; then
         echo "  sudo journalctl -u termiscope-agent -n 50"
         exit 1
     fi
-else
+elif [ "$OS" = "darwin" ]; then
     launchctl load $SERVICE_FILE
     
     echo ""
@@ -188,7 +277,11 @@ echo " 安装完成！"
 echo "========================================="
 echo ""
 
-if [ "$USE_SYSTEMD" = true ]; then
+if [ "$IS_OPENWRT" = true ]; then
+    echo "查看服务状态: pgrep -a termiscope"
+    echo "查看日志: logread | grep termiscope"
+    echo "停止服务: /etc/init.d/termiscope-agent stop"
+elif [ "$USE_SYSTEMD" = true ]; then
     echo "查看服务状态: sudo systemctl status termiscope-agent"
     echo "查看日志: sudo journalctl -u termiscope-agent -f"
     echo "停止服务: sudo systemctl stop termiscope-agent"
