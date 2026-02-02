@@ -105,6 +105,9 @@
                       <a-input v-model:value="settingsForm.smtp_to" placeholder="admin@example.com" />
                     </a-form-item>
                   </a-col>
+                  <a-col :span="24" style="text-align: right; margin-bottom: 16px">
+                     <a-button type="dashed" size="small" :loading="sendingTestEmail" @click="handleTestEmail">{{ t('system.testEmail') }}</a-button>
+                  </a-col>
                 </a-row>
                 <a-row :gutter="16">
                   <a-col :span="12">
@@ -116,6 +119,11 @@
                     <a-form-item :label="t('system.telegramChatId')" name="telegram_chat_id">
                       <a-input v-model:value="settingsForm.telegram_chat_id" />
                     </a-form-item>
+                  </a-col>
+                </a-row>
+                <a-row>
+                  <a-col :span="24" style="text-align: right; margin-bottom: 16px">
+                     <a-button type="dashed" size="small" :loading="sendingTestTelegram" @click="handleTestTelegram">{{ t('system.testTelegram') }}</a-button>
                   </a-col>
                 </a-row>
                 <a-row :gutter="16">
@@ -303,6 +311,58 @@ const settingsForm = reactive({
   telegram_chat_id: '',
   notification_template: ''
 })
+
+const sendingTestEmail = ref(false)
+const sendingTestTelegram = ref(false)
+
+const handleTestEmail = async () => {
+  sendingTestEmail.value = true
+  try {
+    await api.post('/system/settings/test-email', {
+        smtp_server: settingsForm.smtp_server,
+        smtp_port: settingsForm.smtp_port,
+        smtp_user: settingsForm.smtp_user,
+        smtp_password: settingsForm.smtp_password,
+        smtp_from: settingsForm.smtp_from,
+        smtp_to: settingsForm.smtp_to,
+        // The backend expects smtp_tls_skip_verify as a boolean if using JSON binding
+        // But settingsForm loads strings from DB usually?
+        // Wait, DB stores strings. 
+        // Backend `TestEmail` binds JSON to struct with `bool`.
+        // Frontend need to ensure it sends boolean or backend handles string.
+        // Let's check `View File` of `system.go` again...
+        // ... `SMTPSkipVerify bool ...`
+        // So frontend must send boolean. 
+        // We don't have a checkbox for this in the UI form yet?
+        // Let's check the UI form...
+        // ... I don't see a checkbox for skip verify in the form I read earlier.
+        // If it's missing from UI, maybe we just default false or ignored?
+        // The original code in `notification.go` reads `config["smtp_tls_skip_verify"] == "true"`.
+        // So if I send nothing, it is false.
+        smtp_tls_skip_verify: false // Default to false as UI doesn't have it yet
+    })
+    message.success(t('system.testEmailSuccess'))
+  } catch (err) {
+    message.error(t('system.testEmailFailed') + ': ' + (err.response?.data?.error || err.message))
+  } finally {
+    sendingTestEmail.value = false
+  }
+}
+
+const handleTestTelegram = async () => {
+  sendingTestTelegram.value = true
+  try {
+    await api.post('/system/settings/test-telegram', {
+        telegram_bot_token: settingsForm.telegram_bot_token,
+        telegram_chat_id: settingsForm.telegram_chat_id
+    })
+    message.success(t('system.testTelegramSuccess'))
+  } catch (err) {
+    message.error(t('system.testTelegramFailed') + ': ' + (err.response?.data?.error || err.message))
+  } finally {
+    sendingTestTelegram.value = false
+  }
+}
 
 const DefaultNotificationTemplate = `{{emoji}}{{emoji}}{{emoji}}
 Event: {{event}}

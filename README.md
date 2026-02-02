@@ -125,3 +125,13 @@ To monitor a server, you need to install the TermiScope Agent.
 ## 📝 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+
+
+
+
+# 访问文档
+在浏览器中访问： http://localhost:8080/swagger/index.html
+常用命令
+如果将来修改了 API，需要重新生成文档：
+swag init -g cmd/server/main.go --parseDependency

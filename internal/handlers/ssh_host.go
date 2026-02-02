@@ -85,6 +85,16 @@ type UpdateSSHHostRequest struct {
 }
 
 // List returns a list of SSH hosts for the current user
+// @Summary List SSH Hosts
+// @Description Get all SSH hosts for the authenticated user
+// @Tags Host
+// @Security BearerAuth
+// @Produce json
+// @Param group query string false "Group Name"
+// @Param search query string false "Search Term (Name, Host, Description)"
+// @Param include_deleted query boolean false "Include deleted hosts"
+// @Success 200 {array} models.SSHHost
+// @Router /ssh-hosts [get]
 func (h *SSHHostHandler) List(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	group := c.Query("group")
@@ -121,6 +131,15 @@ func (h *SSHHostHandler) List(c *gin.Context) {
 }
 
 // Get returns a single SSH host
+// @Summary Get SSH Host
+// @Description Get details of a specific host
+// @Tags Host
+// @Security BearerAuth
+// @Produce json
+// @Param id path int true "Host ID"
+// @Success 200 {object} models.SSHHost
+// @Failure 404 {object} map[string]string "Host not found"
+// @Router /ssh-hosts/{id} [get]
 func (h *SSHHostHandler) Get(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	id := c.Param("id")
@@ -149,6 +168,16 @@ func (h *SSHHostHandler) Get(c *gin.Context) {
 }
 
 // Create creates a new SSH host
+// @Summary Create SSH Host
+// @Description Add a new SSH host
+// @Tags Host
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param request body CreateSSHHostRequest true "Host Details"
+// @Success 201 {object} models.SSHHost
+// @Failure 400 {object} map[string]string "Invalid request"
+// @Router /ssh-hosts [post]
 func (h *SSHHostHandler) Create(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 
@@ -253,6 +282,18 @@ func (h *SSHHostHandler) Create(c *gin.Context) {
 }
 
 // Update updates an SSH host
+// @Summary Update SSH Host
+// @Description Update details of an existing host
+// @Tags Host
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param id path int true "Host ID"
+// @Param request body UpdateSSHHostRequest true "Update Details"
+// @Success 200 {object} models.SSHHost
+// @Failure 400 {object} map[string]string "Invalid request"
+// @Failure 404 {object} map[string]string "Host not found"
+// @Router /ssh-hosts/{id} [put]
 func (h *SSHHostHandler) Update(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	id := c.Param("id")
@@ -492,6 +533,14 @@ func (h *SSHHostHandler) Update(c *gin.Context) {
 }
 
 // Delete deletes an SSH host
+// @Summary Delete SSH Host
+// @Description Soft delete a host
+// @Tags Host
+// @Security BearerAuth
+// @Param id path int true "Host ID"
+// @Success 200 {object} map[string]string "Success message"
+// @Failure 404 {object} map[string]string "Host not found"
+// @Router /ssh-hosts/{id} [delete]
 func (h *SSHHostHandler) Delete(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	idStr := c.Param("id")
@@ -521,6 +570,13 @@ func (h *SSHHostHandler) Delete(c *gin.Context) {
 }
 
 // PermanentDelete permanently deletes an SSH host from the database
+// @Summary Permanently Delete SSH Host
+// @Description Hard delete a host and its relations
+// @Tags Host
+// @Security BearerAuth
+// @Param id path int true "Host ID"
+// @Success 200 {object} map[string]string "Success message"
+// @Router /ssh-hosts/{id}/permanent [delete]
 func (h *SSHHostHandler) PermanentDelete(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	idStr := c.Param("id")
@@ -551,6 +607,13 @@ func (h *SSHHostHandler) PermanentDelete(c *gin.Context) {
 }
 
 // TestConnection tests the connectivity to the SSH host
+// @Summary Test Connectivity
+// @Description Ping or Connect to the host to check status
+// @Tags Host
+// @Security BearerAuth
+// @Param id path int true "Host ID"
+// @Success 200 {object} map[string]interface{} "Status and Latency"
+// @Router /ssh-hosts/{id}/test [post]
 func (h *SSHHostHandler) TestConnection(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	id := c.Param("id")
@@ -621,6 +684,13 @@ type ReorderRequest struct {
 }
 
 // Reorder updates the sort order of hosts
+// @Summary Reorder Hosts
+// @Description Batch update sort order for hosts
+// @Tags Host
+// @Security BearerAuth
+// @Param request body ReorderRequest true "Device IDs in order"
+// @Success 200 {object} map[string]string "Success message"
+// @Router /ssh-hosts/reorder [put]
 func (h *SSHHostHandler) Reorder(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 

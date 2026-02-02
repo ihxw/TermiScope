@@ -376,3 +376,75 @@ func (h *SystemHandler) PerformUpdate(c *gin.Context) {
 		"message": "Update initiated. Server will restart shortly.",
 	})
 }
+
+// TestEmail handles test email sending
+func (h *SystemHandler) TestEmail(c *gin.Context) {
+	var req struct {
+		SMTPServer     string `json:"smtp_server"`
+		SMTPPort       string `json:"smtp_port"`
+		SMTPUser       string `json:"smtp_user"`
+		SMTPPassword   string `json:"smtp_password"`
+		SMTPFrom       string `json:"smtp_from"`
+		SMTPTo         string `json:"smtp_to"`
+		SMTPSkipVerify bool   `json:"smtp_tls_skip_verify"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorResponse(c, http.StatusBadRequest, "invalid request: "+err.Error())
+		return
+	}
+
+	configMap := map[string]string{
+		"smtp_server":          req.SMTPServer,
+		"smtp_port":            req.SMTPPort,
+		"smtp_user":            req.SMTPUser,
+		"smtp_password":        req.SMTPPassword,
+		"smtp_from":            req.SMTPFrom,
+		"smtp_to":              req.SMTPTo,
+		"smtp_tls_skip_verify": fmt.Sprintf("%v", req.SMTPSkipVerify),
+	}
+
+	// Use existing config if specific fields are missing (optional convenience)
+	// But usually, testing uses the form data. Let's stick to using what is sent,
+	// or fallback to DB if empty?
+	// The requirement implies testing the *current* settings in the UI form.
+	// So we should rely on the request body.
+
+	err := utils.SendEmail(configMap, "TermiScope Test Email", "This is a test email from TermiScope.")
+	if err != nil {
+		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to send email: "+err.Error())
+		return
+	}
+
+	utils.SuccessResponse(c, http.StatusOK, gin.H{
+		"message": "Test email sent successfully",
+	})
+}
+
+// TestTelegram handles test telegram message sending
+func (h *SystemHandler) TestTelegram(c *gin.Context) {
+	var req struct {
+		TelegramBotToken string `json:"telegram_bot_token"`
+		TelegramChatID   string `json:"telegram_chat_id"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorResponse(c, http.StatusBadRequest, "invalid request: "+err.Error())
+		return
+	}
+
+	configMap := map[string]string{
+		"telegram_bot_token": req.TelegramBotToken,
+		"telegram_chat_id":   req.TelegramChatID,
+	}
+
+	err := utils.SendTelegram(configMap, "This is a test message from *TermiScope*.")
+	if err != nil {
+		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to send telegram: "+err.Error())
+		return
+	}
+
+	utils.SuccessResponse(c, http.StatusOK, gin.H{
+		"message": "Test telegram sent successfully",
+	})
+}

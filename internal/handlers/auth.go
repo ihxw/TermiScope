@@ -77,6 +77,16 @@ func (h *AuthHandler) generateTokens(user *models.User) (string, string, error) 
 }
 
 // Login handles user login
+// @Summary User Login
+// @Description Authenticates a user and returns access/refresh tokens.
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param request body LoginRequest true "Login Credentials"
+// @Success 200 {object} LoginResponse
+// @Failure 400 {object} map[string]string "Invalid request"
+// @Failure 401 {object} map[string]string "Invalid credentials"
+// @Router /auth/login [post]
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -137,6 +147,17 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	// Auto-add origin if not already present (run in background)
 	go h.autoAddOrigin(c)
 
+	// Set access_token cookie for browser-based access (e.g. Swagger UI, Media Stream)
+	// Path: "/" so it works for all routes
+	// HttpOnly: true so JS cannot read it (XSS protection)
+	// Secure: false (for now, ideally true if TLS enabled)
+	// MaxAge: match access expiration
+	accessDuration, _ := time.ParseDuration(h.config.Security.AccessExpiration)
+	if accessDuration == 0 {
+		accessDuration = 60 * time.Minute
+	}
+	c.SetCookie("access_token", accessToken, int(accessDuration.Seconds()), "/", "", false, true)
+
 	utils.SuccessResponse(c, http.StatusOK, LoginResponse{
 		Token:        accessToken,
 		RefreshToken: refreshToken,
@@ -145,6 +166,16 @@ func (h *AuthHandler) Login(c *gin.Context) {
 }
 
 // RefreshToken handles token refresh
+// @Summary Refresh Token
+// @Description Refreshes the access token using a valid refresh token.
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param request body RefreshTokenRequest true "Refresh Token"
+// @Success 200 {object} map[string]string "New Access Token"
+// @Failure 400 {object} map[string]string "Invalid request"
+// @Failure 401 {object} map[string]string "Invalid token"
+// @Router /auth/refresh [post]
 func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	var req RefreshTokenRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -207,13 +238,25 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 	log.Printf("Token refreshed successfully for user %d (%s) | IP: %s | New expiration: %s",
 		user.ID, user.Username, c.ClientIP(), time.Now().Add(accessExp).Format(time.RFC3339))
 
+	// Update cookie
+	c.SetCookie("access_token", accessToken, int(accessExp.Seconds()), "/", "", false, true)
+
 	utils.SuccessResponse(c, http.StatusOK, gin.H{
 		"token": accessToken,
 	})
 }
 
 // Logout handles user logout
+// @Summary Logout
+// @Description Logs out the user (client-side action for JWT, clears cookie).
+// @Tags Auth
+// @Security BearerAuth
+// @Success 200 {object} map[string]string "Success message"
+// @Router /auth/logout [post]
 func (h *AuthHandler) Logout(c *gin.Context) {
+	// Clear cookie
+	c.SetCookie("access_token", "", -1, "/", "", false, true)
+
 	// In a stateless JWT system, logout is handled client-side
 	utils.SuccessResponse(c, http.StatusOK, gin.H{
 		"message": "logged out successfully",
@@ -221,6 +264,14 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 }
 
 // GetCurrentUser returns the current authenticated user
+// @Summary Get Current User
+// @Description Returns the profile of the currently logged-in user.
+// @Tags Auth
+// @Security BearerAuth
+// @Produce json
+// @Success 200 {object} models.User
+// @Failure 404 {object} map[string]string "User not found"
+// @Router /auth/me [get]
 func (h *AuthHandler) GetCurrentUser(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 
@@ -380,6 +431,13 @@ func (h *AuthHandler) Verify2FALogin(c *gin.Context) {
 	user.LastLoginAt = &now
 	h.db.Save(&user)
 
+	// Set cookie
+	accessDuration, _ := time.ParseDuration(h.config.Security.AccessExpiration)
+	if accessDuration == 0 {
+		accessDuration = 60 * time.Minute
+	}
+	c.SetCookie("access_token", accessToken, int(accessDuration.Seconds()), "/", "", false, true)
+
 	// Return response
 	utils.SuccessResponse(c, http.StatusOK, LoginResponse{
 		Token:        accessToken,
@@ -462,6 +520,12 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 }
 
 // GetSystemInfo returns system information including version
+// @Summary Get System Info
+// @Description Returns system version information.
+// @Tags System
+// @Produce json
+// @Success 200 {object} map[string]string "System Info"
+// @Router /system/info [get]
 func (h *AuthHandler) GetSystemInfo(c *gin.Context) {
 	utils.SuccessResponse(c, http.StatusOK, gin.H{
 		"version": config.Version,

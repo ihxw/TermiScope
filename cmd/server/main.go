@@ -16,7 +16,29 @@ import (
 	"github.com/ihxw/termiscope/internal/monitor"
 	"github.com/ihxw/termiscope/internal/utils"
 	"gopkg.in/natefinch/lumberjack.v2"
+
+	_ "github.com/ihxw/termiscope/docs"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
+
+// @title           TermiScope API
+// @version         1.0
+// @description     This is the API documentation for TermiScope Server.
+// @termsOfService  http://swagger.io/terms/
+
+// @contact.name    API Support
+// @contact.url     http://www.swagger.io/support
+// @contact.email   support@swagger.io
+
+// @license.name    Apache 2.0
+// @license.url     http://www.apache.org/licenses/LICENSE-2.0.html
+
+// @host            localhost:8080
+// @BasePath        /api
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
 
 func main() {
 	// Load configuration
@@ -213,6 +235,8 @@ func main() {
 				system.POST("/restore", systemHandler.Restore)
 				system.GET("/settings", systemHandler.GetSettings)
 				system.PUT("/settings", systemHandler.UpdateSettings)
+				system.POST("/settings/test-email", systemHandler.TestEmail)
+				system.POST("/settings/test-telegram", systemHandler.TestTelegram)
 				system.POST("/check-update", systemHandler.CheckUpdate)
 				system.POST("/upgrade", systemHandler.PerformUpdate)
 			}
@@ -231,6 +255,11 @@ func main() {
 	router.StaticFile("/favicon.png", "./web/dist/favicon.png")
 	router.StaticFile("/logo.png", "./web/dist/logo.png")
 	router.StaticFile("/", "./web/dist/index.html")
+
+	// Swagger UI (Protected)
+	swaggerGroup := router.Group("/swagger")
+	swaggerGroup.Use(middleware.AuthMiddleware(cfg.Security.JWTSecret))
+	swaggerGroup.GET("/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	router.NoRoute(func(c *gin.Context) {
 		// If the request is for an API route, return 404

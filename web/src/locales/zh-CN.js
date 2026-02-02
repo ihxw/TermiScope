@@ -367,7 +367,13 @@ export default {
         updating: '正在更新中...',
         updateSuccess: '更新成功',
         restartDesc: '更新已完成，系统将自动重启以应用更改。',
-        updateFailed: '更新失败'
+        updateFailed: '更新失败',
+        testEmail: '发送测试邮件',
+        testTelegram: '发送测试消息',
+        testEmailSuccess: '测试邮件发送成功',
+        testTelegramSuccess: '测试消息发送成功',
+        testEmailFailed: '测试邮件发送失败',
+        testTelegramFailed: '测试消息发送失败'
     },
     network: {
         title: '网络详情',

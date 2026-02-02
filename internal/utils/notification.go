@@ -62,15 +62,16 @@ func SendNotification(db *gorm.DB, host models.SSHHost, subject, message string)
 	finalMsg = strings.ReplaceAll(finalMsg, "{{time}}", time.Now().Format("2006-01-02 15:04:05"))
 
 	if strings.Contains(channels, "email") {
-		go sendEmail(configMap, subject, finalMsg)
+		go SendEmail(configMap, subject, finalMsg)
 	}
 
 	if strings.Contains(channels, "telegram") {
-		go sendTelegram(configMap, finalMsg)
+		go SendTelegram(configMap, finalMsg)
 	}
 }
 
-func sendEmail(config map[string]string, subject, body string) {
+// SendEmail sends an email using the provided configuration
+func SendEmail(config map[string]string, subject, body string) error {
 	server := config["smtp_server"]
 	port := config["smtp_port"]
 	user := config["smtp_user"]
@@ -80,8 +81,7 @@ func sendEmail(config map[string]string, subject, body string) {
 	skipVerify := config["smtp_tls_skip_verify"] == "true"
 
 	if server == "" || port == "" || from == "" || to == "" {
-		log.Println("Notification: Email skipped, missing configuration")
-		return
+		return fmt.Errorf("missing configuration")
 	}
 
 	addr := net.JoinHostPort(server, port)
@@ -110,31 +110,27 @@ func sendEmail(config map[string]string, subject, body string) {
 	}
 
 	if err != nil {
-		log.Printf("Notification: SMTP Connection failed: %v", err)
-		return
+		return fmt.Errorf("SMTP Connection failed: %v", err)
 	}
 	defer conn.Close()
 
 	// Client
 	c, err := smtp.NewClient(conn, server)
 	if err != nil {
-		log.Printf("Notification: Failed to create SMTP client: %v", err)
-		return
+		return fmt.Errorf("failed to create SMTP client: %v", err)
 	}
 	defer c.Quit()
 
 	// Hello
 	if err = c.Hello("localhost"); err != nil {
-		log.Printf("Notification: SMTP Hello failed: %v", err)
-		return
+		return fmt.Errorf("SMTP Hello failed: %v", err)
 	}
 
 	// StartTLS if needed (port 587 or 25 usually)
 	if port != "465" {
 		if ok, _ := c.Extension("STARTTLS"); ok {
 			if err = c.StartTLS(tlsConfig); err != nil {
-				log.Printf("Notification: STARTTLS failed: %v", err)
-				return
+				return fmt.Errorf("STARTTLS failed: %v", err)
 			}
 		}
 	}
@@ -143,25 +139,21 @@ func sendEmail(config map[string]string, subject, body string) {
 	if user != "" && password != "" {
 		auth := smtp.PlainAuth("", user, password, server)
 		if err = c.Auth(auth); err != nil {
-			log.Printf("Notification: SMTP Auth failed: %v", err)
-			return
+			return fmt.Errorf("SMTP Auth failed: %v", err)
 		}
 	}
 
 	// Send
 	if err = c.Mail(from); err != nil {
-		log.Printf("Notification: SMTP Mail cmd failed: %v", err)
-		return
+		return fmt.Errorf("SMTP Mail cmd failed: %v", err)
 	}
 	if err = c.Rcpt(to); err != nil {
-		log.Printf("Notification: SMTP Rcpt cmd failed: %v", err)
-		return
+		return fmt.Errorf("SMTP Rcpt cmd failed: %v", err)
 	}
 
 	w, err := c.Data()
 	if err != nil {
-		log.Printf("Notification: SMTP Data cmd failed: %v", err)
-		return
+		return fmt.Errorf("SMTP Data cmd failed: %v", err)
 	}
 
 	msg := []byte("To: " + to + "\r\n" +
@@ -172,24 +164,23 @@ func sendEmail(config map[string]string, subject, body string) {
 		body + "\r\n")
 
 	if _, err = w.Write(msg); err != nil {
-		log.Printf("Notification: SMTP Write failed: %v", err)
-		return
+		return fmt.Errorf("SMTP Write failed: %v", err)
 	}
 	if err = w.Close(); err != nil {
-		log.Printf("Notification: SMTP Close failed: %v", err)
-		return
+		return fmt.Errorf("SMTP Close failed: %v", err)
 	}
 
 	log.Printf("Notification: Email sent to %s", to)
+	return nil
 }
 
-func sendTelegram(config map[string]string, message string) {
+// SendTelegram sends a telegram message using the provided configuration
+func SendTelegram(config map[string]string, message string) error {
 	token := config["telegram_bot_token"]
 	chatID := config["telegram_chat_id"]
 
 	if token == "" || chatID == "" {
-		log.Println("Notification: Telegram skipped, missing token or chat_id")
-		return
+		return fmt.Errorf("missing token or chat_id")
 	}
 
 	url := fmt.Sprintf("https://api.telegram.org/bot%s/sendMessage", token)
@@ -202,14 +193,14 @@ func sendTelegram(config map[string]string, message string) {
 
 	resp, err := http.Post(url, "application/json", bytes.NewBuffer(reqBody))
 	if err != nil {
-		log.Printf("Notification: Failed to send telegram: %v", err)
-		return
+		return fmt.Errorf("failed to send telegram: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		log.Printf("Notification: Telegram API error: %s", resp.Status)
-	} else {
-		log.Printf("Notification: Telegram message sent")
+		return fmt.Errorf("Telegram API error: %s", resp.Status)
 	}
+
+	log.Printf("Notification: Telegram message sent")
+	return nil
 }

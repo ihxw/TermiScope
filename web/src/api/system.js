@@ -11,3 +11,11 @@ export const checkUpdate = () => {
 export const performUpdate = (downloadUrl) => {
     return api.post('/system/upgrade', { download_url: downloadUrl })
 }
+
+export const sendTestEmail = (data) => {
+    return api.post('/system/settings/test-email', data)
+}
+
+export const sendTestTelegram = (data) => {
+    return api.post('/system/settings/test-telegram', data)
+}
