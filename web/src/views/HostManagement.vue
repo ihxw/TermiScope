@@ -529,12 +529,24 @@
         <a-list size="small" :data-source="selectedHosts">
           <template #renderItem="{ item }">
             <a-list-item>
-              <div style="width: 100%">
+              <div style="width: 100%" :style="{ opacity: item.host_type === 'monitor_only' ? 0.5 : 1, filter: item.host_type === 'monitor_only' ? 'grayscale(100%)' : 'none' }">
                 <a-space style="justify-content: space-between; width: 100%">
                   <span>{{ item.name }} ({{ item.host }})</span>
-                  <a-tag v-if="item.monitor_enabled" color="blue">
-                    {{ t('monitor.willRedeploy') }}
-                  </a-tag>
+                  <!-- Dynamic Status Tags -->
+                  <template v-if="deployStatus[item.id]?.status === 'success'">
+                     <a-tag color="green">{{ t('monitor.deployed') }}</a-tag>
+                  </template>
+                  <template v-else-if="deployStatus[item.id]?.status === 'error'">
+                     <a-tag color="red">{{ t('monitor.redeploy') }}</a-tag>
+                  </template>
+                  <template v-else>
+                      <a-tag v-if="item.host_type === 'monitor_only'" color="blue">
+                        {{ t('host.monitorOnly') }}
+                      </a-tag>
+                      <a-tag v-else-if="item.monitor_enabled" color="blue">
+                        {{ t('monitor.willRedeploy') }}
+                      </a-tag>
+                  </template>
                 </a-space>
                 <div v-if="deployStatus[item.id]" style="margin-top: 8px">
                   <a-progress

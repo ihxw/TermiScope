@@ -105,10 +105,45 @@ while true; do
   if [ -z "$disk_used" ]; then disk_used=0; fi
 
   # Network (Bytes)
+  # Calculate Total (Fallback)
   net_rx=$(cat /proc/net/dev 2>/dev/null | grep -v lo | awk '{sum+=$2} END {printf "%.0f", sum}')
   net_tx=$(cat /proc/net/dev 2>/dev/null | grep -v lo | awk '{sum+=$10} END {printf "%.0f", sum}')
   if [ -z "$net_rx" ]; then net_rx=0; fi
   if [ -z "$net_tx" ]; then net_tx=0; fi
+  
+  # Collect Per-Interface Data
+  # Construct JSON array: [{"name":"eth0","rx":123,"tx":345},...]
+  ifaces_json="["
+  first_iface=1
+  # Read /proc/net/dev line by line
+  while read -r line; do
+    # Skip header lines (contain |)
+    if [[ "$line" == *"|"* ]]; then continue; fi
+    
+    # Process line using awk to extract fields (handles variable whitespace)
+    # Fields: name: rx ... tx ... 
+    # $1 is "name:" or "name", $2 is rx
+    # awk handles the colon if attached or separate?
+    # Typical: "  eth0: 123 ..." -> $1="eth0:", $2="123"
+    # Or: "  eth0:123 ..." (rare)
+    # Let's normalize with sed first to replace colon with space
+    clean_line=$(echo "$line" | sed 's/:/ /g')
+    name=$(echo "$clean_line" | awk '{print $1}')
+    rx=$(echo "$clean_line" | awk '{print $2}')
+    tx=$(echo "$clean_line" | awk '{print $10}')
+    
+    if [ -z "$name" ]; then continue; fi
+    if [ -z "$rx" ]; then rx=0; fi
+    if [ -z "$tx" ]; then tx=0; fi
+    
+    if [ "$first_iface" -eq 1 ]; then
+      first_iface=0
+    else
+      ifaces_json="${ifaces_json},"
+    fi
+    ifaces_json="${ifaces_json}{\"name\":\"$name\",\"rx\":$rx,\"tx\":$tx}"
+  done < /proc/net/dev
+  ifaces_json="${ifaces_json}]"
   
   if [ -z "$uptime" ]; then uptime=0; fi
   if [ -z "$cpu_usage" ]; then cpu_usage=0; fi
@@ -140,6 +175,7 @@ while true; do
   "disk_total": $disk_total,
   "net_rx": $net_rx,
   "net_tx": $net_tx,
+  "interfaces": $ifaces_json,
   "os": "$os",
   "hostname": "$hostname"
 }
@@ -224,6 +260,7 @@ func (h *MonitorHandler) Pulse(c *gin.Context) {
 		// If other things update DB, this field gets saved.
 		// If nothing else updates DB (e.g. idle), we might lose this TS update on crash, but that just means we might re-process on restart.
 		// Re-processing an IDEMPOTENT idle state is fine.
+		// Re-processing an IDEMPOTENT idle state is fine.
 		// Re-processing a COUNTER increment is bad. Counter increment always sets dbUpdated=true.
 		// So we are safe.
 	}
@@ -246,7 +283,7 @@ func (h *MonitorHandler) Pulse(c *gin.Context) {
 		for _, target := range targetInterfaces {
 			target = strings.TrimSpace(target)
 			for _, iface := range data.Interfaces {
-				if iface.Name == target {
+				if strings.EqualFold(iface.Name, target) {
 					currentRx += iface.Rx
 					currentTx += iface.Tx
 					foundAny = true
@@ -262,66 +299,150 @@ func (h *MonitorHandler) Pulse(c *gin.Context) {
 			currentTx = data.NetTx
 		}
 	} else {
-		// Auto: Use Total
-		currentRx = data.NetRx
-		currentTx = data.NetTx
+		// Auto: Smart Auto
+		// Filter out virtual interfaces: lo, docker*, veth*, br-*, tun*, cni*
+		// Only sum "Physical" interfaces (eth*, ens*, enp*, wlan*, etc)
+
+		if len(data.Interfaces) > 0 {
+			var autoRx, autoTx uint64
+			for _, iface := range data.Interfaces {
+				name := strings.ToLower(iface.Name)
+				// Skip filters
+				if name == "lo" ||
+					strings.HasPrefix(name, "docker") ||
+					strings.HasPrefix(name, "veth") ||
+					strings.HasPrefix(name, "br-") ||
+					strings.HasPrefix(name, "tun") ||
+					strings.HasPrefix(name, "cni") ||
+					strings.HasPrefix(name, "flannel") ||
+					strings.HasPrefix(name, "calico") ||
+					strings.HasPrefix(name, "kube-ipvs") {
+					continue
+				}
+				autoRx += iface.Rx
+				autoTx += iface.Tx
+			}
+			currentRx = autoRx
+			currentTx = autoTx
+		} else {
+			// Fallback for old agents
+			currentRx = data.NetRx
+			currentTx = data.NetTx
+		}
 	}
 
 	// 2. Check for Reset Day logic
 	now := time.Now()
-	todayStr := now.Format("2006-01-02")
+	// Calculate the start of the current cycle
+	var currentCycleStart time.Time
 
+	resetDay := host.NetResetDay
+	if resetDay == 0 {
+		resetDay = 1 // Default to 1st of month
+	}
+
+	// Logic to find "Current Cycle Start Date"
+	// If Today >= ResetDay, then Cycle Start is [ThisMonth]-[ResetDay]
+	// If Today < ResetDay, then Cycle Start is [LastMonth]-[ResetDay]
+	// Note: Handle short months (e.g. ResetDay=31, Feb has 28).
+
+	year, month, day := now.Date()
+
+	// Helper to get valid date in a month
+	getValidDate := func(y int, m time.Month, d int) time.Time {
+		// Normalize day: if d > daysInMonth, clamp to last day
+		// time.Date simply rolls over (Mars 32 -> April 1), which is NOT what we want usually for billing cycles?
+		// Usually "Last Day" billing means "Last Day".
+		// But here we just want a reference point.
+		// Let's use time.Date(y, m+1, 0, ...) to get last day of month.
+		lastDayOfMonth := time.Date(y, m+1, 0, 0, 0, 0, 0, time.Local).Day()
+		if d > lastDayOfMonth {
+			d = lastDayOfMonth
+		}
+		return time.Date(y, m, d, 0, 0, 0, 0, time.Local)
+	}
+
+	if day >= resetDay {
+		currentCycleStart = getValidDate(year, month, resetDay)
+	} else {
+		// Last month
+		if month == 1 {
+			currentCycleStart = getValidDate(year-1, 12, resetDay)
+		} else {
+			currentCycleStart = getValidDate(year, month-1, resetDay)
+		}
+	}
+
+	currentCycleStartStr := currentCycleStart.Format("2006-01-02")
 	dbUpdated := false
 
-	// Reset Day Check: If today is reset day and we haven't reset yet today
-	if now.Day() == host.NetResetDay && host.NetLastResetDate != todayStr {
+	// If the LastResetDate recorded in DB is BEFORE the CurrentCycleStart,
+	// It means we have crossed into a new cycle and haven't reset yet.
+	// OR if LastResetDate is empty.
+	shouldReset := false
+	if host.NetLastResetDate == "" {
+		shouldReset = true
+	} else {
+		lastReset, err := time.Parse("2006-01-02", host.NetLastResetDate)
+		if err == nil {
+			// Check if lastReset is strictly before currentCycleStart
+			// Truncate to day just in case
+			lastReset = lastReset.Truncate(24 * time.Hour)
+			cycleStartTrunc := currentCycleStart.Truncate(24 * time.Hour)
+			if lastReset.Before(cycleStartTrunc) {
+				shouldReset = true
+			}
+		} else {
+			// Invalid string, reset to be safe/correct
+			shouldReset = true
+		}
+	}
+
+	if shouldReset {
 		host.NetMonthlyRx = 0
 		host.NetMonthlyTx = 0
-		host.NetLastResetDate = todayStr
+		host.NetLastResetDate = currentCycleStartStr
 		host.TrafficAlerted = false // Reset alert flag
 		dbUpdated = true
+		log.Printf("Traffic Reset Triggered for Host %d: New Cycle Start %s", host.ID, currentCycleStartStr)
 	}
 
 	// 3. Delta Calculation (Accumulation)
 	var deltaRx, deltaTx uint64
 
-	// If LastRaw is 0 (first run or just reset?), we can't calculate delta reliably if agent is already running high numbers.
-	// But usually we set LastRaw = Current on first run.
-	// To handle initialization: if LastRaw == 0, assume Delta = 0 (or just skip accumulation for this first tick to be safe against huge spike).
-	// But if agent is fresh (0), Delta is 0.
-	// If agent is long running, Current is huge. Delta = Current - 0 = Huge.
-	// We don't want to add huge "Baseline" to Monthly.
-	// So: If NetLastRaw == 0, we just sync LastRaw = Current, and Delta = 0.
-	// UNLESS NetMonthly is ALSO 0 (Fresh start), then maybe we want to start from 0?
-	// Safest: On first pulse (LastRaw=0), don't accumulate delta, just sync.
+	// Logic:
+	// We assume strict monotonicity of Timestamp handled above prevents replaying OLD packets.
+	// So `current` is always the "latest state" reported by agent.
+	// If current >= lastRaw: standard increment.
+	// If current < lastRaw: REBOOT or Counter Rollover.
+	//   - In both cases, the agent's counter started from 0 (or lower value).
+	//   - So we assume the entire `current` value is new traffic since the reset.
+	//   - Delta = Current.
+	// Exception: First run (LastRaw == 0).
+	//   - If LastRaw is 0, we don't know if this is a fresh install or just DB missing state.
+	//   - To be safe and avoid adding huge initial counter (e.g. 100GB) to monthly,
+	//     on First Run (LastRaw==0), we set Delta = 0.
 
+	// Rx
 	if host.NetLastRawRx > 0 {
 		if currentRx >= host.NetLastRawRx {
 			deltaRx = currentRx - host.NetLastRawRx
 		} else {
-			// Current < Last: Could be reboot OR out-of-order packet
-			// Heuristic: If current is significantly smaller (e.g. < 50%), assume reboot.
-			// Otherwise, assume it's a stale packet and ignore it.
-			if currentRx < host.NetLastRawRx/2 {
-				// Reboot detected (reset to near 0)
-				deltaRx = currentRx
-			} else {
-				// Stale packet (slightly smaller than last known), ignore
-				deltaRx = 0
-			}
+			// Detect Reboot / Reset
+			// Old Logic: if currentRx < host.NetLastRawRx/2 ...
+			// New Logic: Any drop means reset.
+			log.Printf("Counter Reset Detected for Host %d Rx: %d -> %d", host.ID, host.NetLastRawRx, currentRx)
+			deltaRx = currentRx
 		}
 	}
-	// If LastRawRx == 0, we treat deltaRx as 0 (skip first tick) to avoid adding existing total counters.
-
+	// Tx
 	if host.NetLastRawTx > 0 {
 		if currentTx >= host.NetLastRawTx {
 			deltaTx = currentTx - host.NetLastRawTx
 		} else {
-			if currentTx < host.NetLastRawTx/2 {
-				deltaTx = currentTx
-			} else {
-				deltaTx = 0
-			}
+			// Detect Reboot / Reset
+			log.Printf("Counter Reset Detected for Host %d Tx: %d -> %d", host.ID, host.NetLastRawTx, currentTx)
+			deltaTx = currentTx
 		}
 	}
 
@@ -524,7 +645,20 @@ func (h *MonitorHandler) Deploy(c *gin.Context) {
 	if c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https" {
 		scheme = "https"
 	}
-	serverURL := fmt.Sprintf("%s://%s", scheme, c.Request.Host)
+
+	// FIX: Handle IPv6 in Server URL
+	hostHeader := c.Request.Host
+	// If it contains colons but no brackets, and it's not just a port (which shouldn't happen for Host header),
+	// wrap it. simpler: if it looks like a raw IPv6, wrap it.
+	// But c.Request.Host usually includes port.
+	// If [::1]:8080 -> OK.
+	// If ::1 -> needs brackets.
+	// If 127.0.0.1:8080 -> OK.
+	// Safe bet: if it has colons and no brackets, checking if it is a valid IP might be overkill but safe.
+	// Let's just fix the SSH dial first, which is the most likely failure point.
+	// For ServerURL, let's just ensure we don't break existing ones.
+	// Actually, if the user visits via IPv6, the browser sends Host: [::1]:8080.
+	serverURL := fmt.Sprintf("%s://%s", scheme, hostHeader)
 
 	// Connect SSH
 	password, _ := utils.DecryptAES(host.PasswordEncrypted, h.Config.Security.EncryptionKey)
@@ -548,7 +682,15 @@ func (h *MonitorHandler) Deploy(c *gin.Context) {
 		Timeout:         10 * time.Second,
 	}
 
-	client, err := ssh.Dial("tcp", net.JoinHostPort(host.Host, strconv.Itoa(host.Port)), sshConfig)
+	// FIX: Handle IPv6 Host for SSH Dial
+	// Valid formats for net.JoinHostPort:
+	// - "1.2.3.4", 22 -> "1.2.3.4:22"
+	// - "::1", 22 -> "[::1]:22"
+	// IF host.Host is "[::1]", net.JoinHostPort gives "[[::1]]:22" which breaks.
+	// So we must strip brackets if present.
+	cleanHost := strings.Trim(host.Host, "[]")
+
+	client, err := ssh.Dial("tcp", net.JoinHostPort(cleanHost, strconv.Itoa(host.Port)), sshConfig)
 	if err != nil {
 		log.Printf("Monitor Deploy: SSH Dial failed: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("SSH Connection failed: %v", err)})
@@ -1262,7 +1404,12 @@ func (h *MonitorHandler) deployToHost(host *models.SSHHost, insecure bool, reque
 		Timeout:         10 * time.Second,
 	}
 
-	client, err := ssh.Dial("tcp", fmt.Sprintf("%s:%d", host.Host, host.Port), sshConfig)
+	// FIX: Handle IPv6 Host for SSH Dial
+	// Ensure we strip brackets if present, then let JoinHostPort re-add them if needed.
+	cleanHost := strings.Trim(host.Host, "[]")
+	target := net.JoinHostPort(cleanHost, strconv.Itoa(host.Port))
+
+	client, err := ssh.Dial("tcp", target, sshConfig)
 	if err != nil {
 		return fmt.Errorf("SSH连接失败: %v", err)
 	}
