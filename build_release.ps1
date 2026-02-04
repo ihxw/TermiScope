@@ -5,9 +5,11 @@ $ErrorActionPreference = "Stop"
 
 # Configuration
 $AppName = "TermiScope"
-$Version = "1.0.0" # You might want to extract this from config or git tags later
-$ReleaseDir = Join-Path $PSScriptRoot "release"
 $WebDir = Join-Path $PSScriptRoot "web"
+$ReleaseDir = Join-Path $PSScriptRoot "release"
+$PackageJson = Get-Content (Join-Path $WebDir "package.json") | ConvertFrom-Json
+$Version = $PackageJson.version
+Write-Host "Build Version: $Version"
 $BinDir = Join-Path $PSScriptRoot "bin"
 $DistDir = Join-Path $WebDir "dist"
 
@@ -173,7 +175,7 @@ foreach ($Target in $Targets) {
     if (Test-Path $ScriptDir) {
         $Templates = Get-ChildItem -Path $ScriptDir -Filter "*.tmpl"
         foreach ($Tmpl in $Templates) {
-             Copy-Item -Path $Tmpl.FullName -Destination $ScriptDest
+            Copy-Item -Path $Tmpl.FullName -Destination $ScriptDest
         }
     }
 
@@ -201,8 +203,6 @@ foreach ($Target in $Targets) {
     $Env:CGO_ENABLED = "0"
     
     # Read version from package.json
-    $PackageJson = Get-Content (Join-Path $WebDir "package.json") | ConvertFrom-Json
-    $Version = $PackageJson.version
     Write-Host "   Using Version: $Version"
 
     go build -ldflags "-X 'github.com/ihxw/termiscope/internal/config.Version=$Version'" -o $BinaryPath ./cmd/server/main.go
