@@ -352,7 +352,7 @@ const pathParts = computed(() => {
 
 const columns = computed(() => [
   { title: t('sftp.action'), key: 'action', width: 150, align: 'center' },
-  { title: t('sftp.name'), key: 'name', sorter: (a, b) => a.name.localeCompare(b.name) },
+  { title: t('sftp.name'), key: 'name', sorter: (a, b) => a.name.localeCompare(b.name), defaultSortOrder: 'ascend' },
   { title: t('sftp.size'), key: 'size', align: 'right', sorter: (a, b) => a.size - b.size }
 ])
 
