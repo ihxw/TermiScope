@@ -34,6 +34,7 @@ import * as monaco from 'monaco-editor'
 import { message } from 'ant-design-vue'
 import { downloadFile, uploadFile } from '../api/sftp'
 import { useI18n } from 'vue-i18n'
+import { useThemeStore } from '../stores/theme'
 
 // Since we are using Vite, we might need to configure workers.
 // For simplicity in this step, we will rely on basic setup. 
@@ -83,6 +84,7 @@ const props = defineProps({
 
 const emit = defineEmits(['update:open', 'saved'])
 const { t } = useI18n()
+const themeStore = useThemeStore()
 
 const visible = computed({
   get: () => props.open,
@@ -137,7 +139,7 @@ const initEditor = () => {
     editorInstance.value = monaco.editor.create(editorRef.value, {
         value: content.value,
         language: getLanguage(props.fileName),
-        theme: 'vs-light',
+        theme: themeStore.isDark ? 'vs-dark' : 'vs-light',
         automaticLayout: false, // automaticLayout can cause freezes with modals/destroyOnClose
         minimap: { enabled: true },
         scrollBeyondLastLine: false,
@@ -147,6 +149,13 @@ const initEditor = () => {
     // Manual layout handling
     window.addEventListener('resize', handleResize)
 }
+
+// Watch theme changes
+watch(() => themeStore.isDark, (isDark) => {
+    if (editorInstance.value) {
+        monaco.editor.setTheme(isDark ? 'vs-dark' : 'vs-light')
+    }
+})
 
 const handleResize = () => {
     if (editorInstance.value) {
