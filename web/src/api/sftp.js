@@ -6,7 +6,7 @@ export const listFiles = async (hostId, path = '.') => {
 
 export const downloadFile = async (hostId, path, onProgress) => {
     return await api.get(`/sftp/download/${hostId}`, {
-        params: { path },
+        params: { path, _t: Date.now() },
         responseType: 'blob',
         timeout: 0,
         onDownloadProgress: (progressEvent) => {
