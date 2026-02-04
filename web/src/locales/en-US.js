@@ -531,6 +531,7 @@ export default {
         newName: 'New name',
         failedToPaste: 'Failed to paste',
         failedToRename: 'Failed to rename',
-        failedToCreate: 'Failed to create {type}'
+        failedToCreate: 'Failed to create {type}',
+        calcFailed: 'Calculation Failed'
     }
 }

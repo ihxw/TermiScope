@@ -574,6 +574,7 @@ export default {
         newName: '新名称',
         failedToPaste: '粘贴失败',
         failedToRename: '重命名失败',
-        failedToCreate: '创建 {type} 失败'
+        failedToCreate: '创建 {type} 失败',
+        calcFailed: '统计失败'
     }
 }

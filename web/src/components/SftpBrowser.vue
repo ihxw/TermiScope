@@ -65,6 +65,7 @@
           </template>
           <template v-else-if="column.key === 'size'">
             <a-spin v-if="record.is_dir && record.size === null" size="small" />
+            <span v-else-if="record.size === -1" style="color: #ff4d4f; font-size: 12px;">{{ t('sftp.calcFailed') }}</span>
             <span v-else>{{ formatSize(record.size) }}</span>
           </template>
           <template v-else-if="column.key === 'action'">
@@ -382,6 +383,7 @@ const loadFiles = async () => {
                 }
             } catch (err) {
                 console.error(`Failed to get size for ${file.name}`, err)
+                files.value[index].size = -1 // Mark as failed
             }
         }
     })

@@ -57,5 +57,8 @@ export const createFile = async (hostId, path) => {
 }
 
 export const getDirSize = async (hostId, path) => {
-    return await api.get(`/sftp/size/${hostId}`, { params: { path } })
+    return await api.get(`/sftp/size/${hostId}`, {
+        params: { path },
+        timeout: 10000 // 10s timeout to prevent long hanging
+    })
 }
