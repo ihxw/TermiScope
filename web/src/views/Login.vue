@@ -55,9 +55,14 @@
         </a-form-item>
 
         <a-form-item>
-          <a-checkbox v-model:checked="formState.remember">
-            {{ t('auth.rememberMe') }}
-          </a-checkbox>
+          <div style="display: flex; justify-content: space-between">
+            <a-checkbox v-model:checked="formState.remember">
+              {{ t('auth.rememberMe') }}
+            </a-checkbox>
+            <a-button type="link" size="small" @click="router.push('/forgot-password')">
+              {{ t('auth.forgotPassword') }}
+            </a-button>
+          </div>
         </a-form-item>
 
         <a-form-item>
@@ -164,6 +169,7 @@ import { useI18n } from 'vue-i18n'
 import api from '../api'
 import { getSystemInfo } from '../api/system'
 import packageJson from '../../package.json'
+import SparkMD5 from 'spark-md5'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -207,7 +213,7 @@ const handleLogin = async () => {
   try {
     const response = await authStore.login(
       formState.username,
-      formState.password,
+      SparkMD5.hash(formState.password),
       formState.remember
     )
 

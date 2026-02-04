@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"crypto/md5"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -789,4 +791,94 @@ func (h *AuthHandler) autoAddOrigin(c *gin.Context) {
 			log.Printf("Auto-added origin to allowed list: %s", origin)
 		}
 	}
+}
+
+// ForgotPassword handles password reset request
+// @Summary Forgot Password
+// @Description Resets password and sends it to user's email
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param request body struct{Email string} true "Email address"
+// @Success 200 {object} map[string]string "Success message"
+// @Failure 404 {object} map[string]string "User not found"
+// @Router /auth/forgot-password [post]
+func (h *AuthHandler) ForgotPassword(c *gin.Context) {
+	var req struct {
+		Email string `json:"email" binding:"required,email"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorResponse(c, http.StatusBadRequest, "invalid request: "+err.Error())
+		return
+	}
+
+	var user models.User
+	if err := h.db.Where("email = ?", req.Email).First(&user).Error; err != nil {
+		// For security, do not return 404 if email not found, just success.
+		// But for UX (specifically asked by user "处理忘记密码"), let's be explicit for now or just generic.
+		// User requirement "用户可以通过邮箱获得一个随机的密码".
+		// If email not found, we can't send email.
+		// Let's use standard ambiguous response or just return error if internal.
+		// For this project, clear feedback is likely preferred by the user unless specified.
+		utils.ErrorResponse(c, http.StatusNotFound, "user not found")
+		return
+	}
+
+	// Generate temp password
+	// 8 chars: 4 random bytes -> hex = 8 chars? No.
+	// Simple random alphanumeric.
+	tempPassword := utils.GenerateRandomString(8)
+
+	// Hash it: MD5 -> Bcrypt
+	// Client usually sends MD5. So we must treat this tempPassword as if client sent MD5(tempPassword).
+	// So we compute MD5(tempPassword), then pass to SetPassword which does Bcrypt.
+	md5Hash := md5.Sum([]byte(tempPassword))
+	md5String := hex.EncodeToString(md5Hash[:])
+
+	if err := user.SetPassword(md5String); err != nil {
+		utils.ErrorResponse(c, http.StatusInternalServerError, "failed to set password")
+		return
+	}
+
+	if err := h.db.Save(&user).Error; err != nil {
+		utils.ErrorResponse(c, http.StatusInternalServerError, "failed to update user")
+		return
+	}
+
+	// Send notification (Email / Telegram) based on system settings
+	var configs []models.SystemConfig
+	if err := h.db.Find(&configs).Error; err != nil {
+		// Log error but generally return success to user so they don't know it failed internally?
+		// Actually, if we can't send email, they can't reset.
+		utils.ErrorResponse(c, http.StatusInternalServerError, "failed to load system configuration")
+		return
+	}
+
+	configMap := make(map[string]string)
+	for _, c := range configs {
+		configMap[c.ConfigKey] = c.ConfigValue
+	}
+
+	message := fmt.Sprintf("Hello,\n\n"+
+		"You requested a password reset. Your temporary password is:\n\n"+
+		"%s\n\n"+
+		"Please login with this password and change it immediately using the 'Change Password' feature.\n\n"+
+		"Best regards,\nTermiScope Team", tempPassword)
+
+	subject := "TermiScope Password Reset"
+
+	// Send Email if configured
+	// Check minimal config presence
+	// We use the system SMTP settings (Host, Port, User, Pass) but send TO the user's email (req.Email)
+	if configMap["smtp_server"] != "" && configMap["smtp_from"] != "" {
+		go func() {
+			if err := utils.SendEmail(configMap, req.Email, subject, message); err != nil {
+				log.Printf("Failed to send password reset email: %v", err)
+			}
+		}()
+	}
+
+	utils.SuccessResponse(c, http.StatusOK, gin.H{
+		"message": "Password reset processed. If the email exists and notifications are configured, you will receive a message.",
+	})
 }

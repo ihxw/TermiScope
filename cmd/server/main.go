@@ -109,6 +109,7 @@ func main() {
 	handlers.LoginRateLimiter = loginRateLimiter // Set global reference for hot-reloading
 	router.POST("/api/auth/login", loginRateLimiter.RateLimitMiddleware(), authHandler.Login)
 	router.POST("/api/auth/verify-2fa-login", authHandler.Verify2FALogin)
+	router.POST("/api/auth/forgot-password", authHandler.ForgotPassword)
 	router.POST("/api/auth/logout", authHandler.Logout)
 	router.POST("/api/auth/refresh", authHandler.RefreshToken)
 	router.GET("/api/system/info", authHandler.GetSystemInfo)

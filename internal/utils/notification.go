@@ -62,7 +62,7 @@ func SendNotification(db *gorm.DB, host models.SSHHost, subject, message string)
 	finalMsg = strings.ReplaceAll(finalMsg, "{{time}}", time.Now().Format("2006-01-02 15:04:05"))
 
 	if strings.Contains(channels, "email") {
-		go SendEmail(configMap, subject, finalMsg)
+		go SendEmail(configMap, configMap["smtp_to"], subject, finalMsg)
 	}
 
 	if strings.Contains(channels, "telegram") {
@@ -71,13 +71,13 @@ func SendNotification(db *gorm.DB, host models.SSHHost, subject, message string)
 }
 
 // SendEmail sends an email using the provided configuration
-func SendEmail(config map[string]string, subject, body string) error {
+func SendEmail(config map[string]string, to, subject, body string) error {
 	server := config["smtp_server"]
 	port := config["smtp_port"]
 	user := config["smtp_user"]
 	password := config["smtp_password"]
 	from := config["smtp_from"]
-	to := config["smtp_to"]
+	// to argument overrides config["smtp_to"]
 	skipVerify := config["smtp_tls_skip_verify"] == "true"
 
 	if server == "" || port == "" || from == "" || to == "" {

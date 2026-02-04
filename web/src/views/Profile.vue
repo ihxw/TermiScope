@@ -177,6 +177,7 @@ import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '../stores/auth'
 import { changePassword } from '../api/auth'
 import { setup2FA, verifySetup2FA, disable2FA, regenerateBackupCodes } from '../api/twofa'
+import SparkMD5 from 'spark-md5'
 
 const { t } = useI18n()
 const authStore = useAuthStore()
@@ -222,7 +223,11 @@ const handleChangePassword = async () => {
 
   loading.value = true
   try {
-    await changePassword(passwordForm.value.current, passwordForm.value.new)
+    // Hash passwords with MD5 before sending, to match login logic
+    const currentHash = SparkMD5.hash(passwordForm.value.current)
+    const newHash = SparkMD5.hash(passwordForm.value.new)
+    
+    await changePassword(currentHash, newHash)
     message.success(t('auth.passwordChanged'))
     showPasswordModal.value = false
     passwordForm.value = { current: '', new: '', confirm: '' }

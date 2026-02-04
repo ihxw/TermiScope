@@ -61,3 +61,5 @@ log:
   level: info
   # 日志文件输出路径
   file: ./logs/app.log
+
+

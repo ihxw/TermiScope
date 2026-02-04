@@ -471,7 +471,7 @@ func (h *SystemHandler) TestEmail(c *gin.Context) {
 	// The requirement implies testing the *current* settings in the UI form.
 	// So we should rely on the request body.
 
-	err := utils.SendEmail(configMap, "TermiScope Test Email", "This is a test email from TermiScope.")
+	err := utils.SendEmail(configMap, req.SMTPTo, "TermiScope Test Email", "This is a test email from TermiScope.")
 	if err != nil {
 		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to send email: "+err.Error())
 		return

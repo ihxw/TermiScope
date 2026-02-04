@@ -9,6 +9,12 @@ const routes = [
         meta: { requiresAuth: false }
     },
     {
+        path: '/forgot-password',
+        name: 'ForgotPassword',
+        component: () => import('../views/ForgotPassword.vue'),
+        meta: { requiresAuth: false }
+    },
+    {
         path: '/',
         redirect: '/dashboard/monitor'
     },

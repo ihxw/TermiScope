@@ -38,7 +38,8 @@ export default {
         settings: 'Settings',
         hostSettings: 'Host Settings',
         update: 'Update',
-        updateNow: 'Update Now'
+        updateNow: 'Update Now',
+        backToLogin: 'Back to Login'
     },
     nav: {
         terminal: 'Terminal',
@@ -70,7 +71,15 @@ export default {
         passwordRequired: 'Please input your password!',
         usernamePlaceholder: 'Enter username or email',
         passwordPlaceholder: 'Enter password',
-        passwordMinLength: 'New password must be at least 6 characters'
+        passwordMinLength: 'New password must be at least 6 characters',
+        forgotPassword: 'Forgot Password',
+        resetPassword: 'Reset Password',
+        resetPasswordDesc: 'Enter your registered email address and we will send you a temporary password.',
+        email: 'Email',
+        emailRequired: 'Please input your email!',
+        emailInvalid: 'Invalid email address',
+        sendResetEmail: 'Send Reset Email',
+        resetEmailSent: 'Reset email sent. If the account exists, you will receive an email with a temporary password.'
     },
     terminal: {
         title: 'Terminal',

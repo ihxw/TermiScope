@@ -37,7 +37,6 @@ type SecurityConfig struct {
 	LoginRateLimit    int    `mapstructure:"login_rate_limit"`
 	AccessExpiration  string `mapstructure:"access_expiration"`
 	RefreshExpiration string `mapstructure:"refresh_expiration"`
-	SMTPTLSSkipVerify bool   `mapstructure:"smtp_tls_skip_verify"` // WARNING: should be false in production
 }
 
 type SSHConfig struct {
@@ -70,7 +69,6 @@ func LoadConfig() (*Config, error) {
 	viper.SetDefault("security.login_rate_limit", 20)
 	viper.SetDefault("security.access_expiration", "60m")
 	viper.SetDefault("security.refresh_expiration", "168h") // 7 days
-	viper.SetDefault("security.smtp_tls_skip_verify", false)
 	viper.SetDefault("log.level", "info")
 	viper.SetDefault("log.file", "./logs/app.log")
 
@@ -120,11 +118,6 @@ func LoadConfig() (*Config, error) {
 	// Validate JWT secret strength (minimum 32 bytes)
 	if len(config.Security.JWTSecret) < 32 {
 		return nil, fmt.Errorf("JWT secret must be at least 32 bytes for security, got %d bytes", len(config.Security.JWTSecret))
-	}
-
-	// Warn if SMTP TLS verification is disabled
-	if config.Security.SMTPTLSSkipVerify {
-		fmt.Println("WARNING: SMTP TLS certificate verification is disabled. This is insecure and should only be used for testing.")
 	}
 
 	return &config, nil

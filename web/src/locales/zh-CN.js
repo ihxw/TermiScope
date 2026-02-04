@@ -44,7 +44,8 @@ export default {
         settings: '设置',
         hostSettings: '主机设置',
         update: '更新',
-        updateNow: '立即更新'
+        updateNow: '立即更新',
+        backToLogin: '返回登录'
     },
     nav: {
         terminal: '终端',
@@ -79,7 +80,15 @@ export default {
         passwordRequired: '请输入密码',
         usernamePlaceholder: '请输入用户名或邮箱',
         passwordPlaceholder: '请输入密码',
-        passwordMinLength: '新密码至少需要 6 个字符'
+        passwordMinLength: '新密码至少需要 6 个字符',
+        forgotPassword: '忘记密码',
+        resetPassword: '重置密码',
+        resetPasswordDesc: '请输入您的注册邮箱，我们将向您发送重置后的临时密码。',
+        email: '邮箱',
+        emailRequired: '请输入邮箱',
+        emailInvalid: '请输入有效的邮箱地址',
+        sendResetEmail: '发送重置邮件',
+        resetEmailSent: '重置邮件已发送，如果账号存在，您将收到包含临时密码的邮件。'
     },
     terminal: {
         title: '终端',
