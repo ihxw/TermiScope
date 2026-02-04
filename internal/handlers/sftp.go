@@ -291,7 +291,9 @@ func (h *SftpHandler) Upload(c *gin.Context) {
 	defer sftpClient.Close()
 	defer sshClient.Close()
 
-	fullPath := filepath.Join(remotePath, header.Filename)
+	// Sanitize filename to prevent path traversal
+	cleanFilename := filepath.Base(header.Filename)
+	fullPath := filepath.Join(remotePath, cleanFilename)
 	fullPath = filepath.ToSlash(fullPath) // Ensure forward slashes for Linux remotes
 
 	dst, err := sftpClient.Create(fullPath)

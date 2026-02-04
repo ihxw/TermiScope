@@ -99,6 +99,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons-vue'
 import { getUsers, createUser, updateUser, deleteUser } from '../api/users'
+import SparkMD5 from 'spark-md5'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -172,11 +173,25 @@ const handleSave = async () => {
     await formRef.value.validate()
     saving.value = true
     
+    // Clone form to avoid mutating UI state
+    const submitData = { ...form }
+    
+    // Hash password if present
+    if (submitData.password) {
+      submitData.password = SparkMD5.hash(submitData.password)
+    } else if (!editingUser.value) {
+        // Should be caught by validation, but just in case
+        return
+    } else {
+        // Editing and password empty -> remove it so it doesn't update
+        delete submitData.password
+    }
+
     if (editingUser.value) {
-      await updateUser(editingUser.value.id, form)
+      await updateUser(editingUser.value.id, submitData)
       message.success('User updated successfully')
     } else {
-      await createUser(form)
+      await createUser(submitData)
       message.success('User created successfully')
     }
     
