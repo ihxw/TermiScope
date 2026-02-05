@@ -226,5 +226,97 @@ class AppLocalizationsEn extends AppLocalizations {
   String get connect => 'Connect';
 
   @override
-  String get serverHost => 'Server Host';
+  String get monitorOffline => 'Offline';
+
+  @override
+  String get connectToTerminal => 'Connect to Terminal';
+
+  @override
+  String get terminal => 'Terminal';
+
+  @override
+  String get terminals => 'Terminals';
+
+  @override
+  String get terminalSelectHost => 'Select a host';
+
+  @override
+  String get terminalQuickConnect => 'Quick Connect';
+
+  @override
+  String get terminalNewHost => 'New Host';
+
+  @override
+  String get terminalRecordSession => 'Record Session';
+
+  @override
+  String get terminalNoActive => 'No active terminals';
+
+  @override
+  String get terminalConnectToHost => 'Connect to Host';
+
+  @override
+  String get serverHost => 'Server Address';
+
+  @override
+  String get monitorTotal => 'Total';
+
+  @override
+  String get monitorOnline => 'Online';
+
+  @override
+  String get networkTitle => 'Network Detail';
+
+  @override
+  String get monitorOnly => 'Monitor Only';
+
+  @override
+  String get monitorHistory => 'History';
+
+  @override
+  String get uptime => 'Uptime';
+
+  @override
+  String get agentOutdated => 'Agent Outdated';
+
+  @override
+  String get networkUsage => 'Traffic Usage';
+
+  @override
+  String get expirationDate => 'Expiration';
+
+  @override
+  String remainingDays(Object days) {
+    return '$days days';
+  }
+
+  @override
+  String get remainingValueLong => 'Remaining Value';
+
+  @override
+  String get expired => 'Expired';
+
+  @override
+  String get daysRemaining => 'days left';
+
+  @override
+  String get billingMonthly => 'Monthly';
+
+  @override
+  String get billingQuarterly => 'Quarterly';
+
+  @override
+  String get billingSemiannually => 'Semiannually';
+
+  @override
+  String get billingAnnually => 'Annually';
+
+  @override
+  String get billingBiennial => 'Biennial';
+
+  @override
+  String get billingTriennial => 'Triennial';
+
+  @override
+  String get billingOneTime => 'One Time';
 }

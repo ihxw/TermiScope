@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../data/services/auth_service.dart';
 import '../data/models/user.dart';
 import '../core/constants.dart';
@@ -8,7 +8,6 @@ enum AuthStatus { unknown, authenticated, unauthenticated }
 
 class AuthProvider extends ChangeNotifier {
   final AuthService _authService;
-  final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
   AuthStatus _status = AuthStatus.unknown;
   AuthStatus get status => _status;
@@ -30,7 +29,8 @@ class AuthProvider extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
 
-    final token = await _storage.read(key: AppConstants.tokenKey);
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString(AppConstants.tokenKey);
     if (token != null) {
       try {
         _user = await _authService.getCurrentUser();
@@ -38,7 +38,7 @@ class AuthProvider extends ChangeNotifier {
       } catch (e) {
         // If getting user fails (e.g. token expired), treat as unauthenticated
         _status = AuthStatus.unauthenticated;
-        await _storage.delete(key: AppConstants.tokenKey);
+        await prefs.remove(AppConstants.tokenKey);
       }
     } else {
       _status = AuthStatus.unauthenticated;
@@ -54,7 +54,8 @@ class AuthProvider extends ChangeNotifier {
 
     try {
       final token = await _authService.login(username, password);
-      await _storage.write(key: AppConstants.tokenKey, value: token);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(AppConstants.tokenKey, token);
 
       // Update User info
       _user = await _authService.getCurrentUser();
@@ -73,7 +74,8 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
-    await _storage.delete(key: AppConstants.tokenKey);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(AppConstants.tokenKey);
     _user = null;
     _status = AuthStatus.unauthenticated;
     notifyListeners();

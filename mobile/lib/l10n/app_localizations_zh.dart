@@ -225,5 +225,97 @@ class AppLocalizationsZh extends AppLocalizations {
   String get connect => '连接';
 
   @override
+  String get monitorOffline => '离线';
+
+  @override
+  String get connectToTerminal => '连接终端';
+
+  @override
+  String get terminal => '终端';
+
+  @override
+  String get terminals => '终端管理';
+
+  @override
+  String get terminalSelectHost => '选择主机';
+
+  @override
+  String get terminalQuickConnect => '快速连接';
+
+  @override
+  String get terminalNewHost => '新增主机';
+
+  @override
+  String get terminalRecordSession => '录制会话';
+
+  @override
+  String get terminalNoActive => '暂无活跃终端';
+
+  @override
+  String get terminalConnectToHost => '连接到主机';
+
+  @override
   String get serverHost => '服务器地址';
+
+  @override
+  String get monitorTotal => '共';
+
+  @override
+  String get monitorOnline => '在线';
+
+  @override
+  String get networkTitle => '网络详情';
+
+  @override
+  String get monitorOnly => '仅监控';
+
+  @override
+  String get monitorHistory => '历史记录';
+
+  @override
+  String get uptime => '运行时间';
+
+  @override
+  String get agentOutdated => 'Agent过期';
+
+  @override
+  String get networkUsage => '流量使用';
+
+  @override
+  String get expirationDate => '过期时间';
+
+  @override
+  String remainingDays(Object days) {
+    return '$days天';
+  }
+
+  @override
+  String get remainingValueLong => '剩余价值';
+
+  @override
+  String get expired => '已过期';
+
+  @override
+  String get daysRemaining => '天剩余';
+
+  @override
+  String get billingMonthly => '月付';
+
+  @override
+  String get billingQuarterly => '季付';
+
+  @override
+  String get billingSemiannually => '半年付';
+
+  @override
+  String get billingAnnually => '年付';
+
+  @override
+  String get billingBiennial => '两年付';
+
+  @override
+  String get billingTriennial => '三年付';
+
+  @override
+  String get billingOneTime => '一次性';
 }

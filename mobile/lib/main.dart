@@ -9,6 +9,7 @@ import 'data/services/host_service.dart';
 import 'providers/auth_provider.dart';
 import 'providers/host_provider.dart';
 import 'providers/monitor_provider.dart';
+import 'providers/terminal_provider.dart';
 import 'data/services/monitor_service.dart';
 import 'ui/screens/login_screen.dart';
 import 'ui/screens/host_list_screen.dart';
@@ -44,12 +45,19 @@ class MyApp extends StatelessWidget {
               HostProvider(Provider.of<HostService>(context, listen: false)),
           update: (_, hostService, __) => HostProvider(hostService),
         ),
-        ChangeNotifierProxyProvider<MonitorService, MonitorProvider>(
+        ChangeNotifierProxyProvider2<
+          MonitorService,
+          HostService,
+          MonitorProvider
+        >(
           create: (context) => MonitorProvider(
             Provider.of<MonitorService>(context, listen: false),
+            Provider.of<HostService>(context, listen: false),
           ),
-          update: (_, monitorService, __) => MonitorProvider(monitorService),
+          update: (_, monitorService, hostService, __) =>
+              MonitorProvider(monitorService, hostService),
         ),
+        ChangeNotifierProvider(create: (_) => TerminalProvider()),
       ],
       child: MaterialApp(
         title: AppConstants.appName,

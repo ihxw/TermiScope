@@ -6,6 +6,7 @@ import '../screens/monitor_screen.dart';
 import 'package:mobile/l10n/app_localizations.dart';
 import '../screens/history_screen.dart';
 import '../screens/command_screen.dart';
+import '../screens/terminal_list_screen.dart';
 
 import '../screens/settings/profile_screen.dart';
 import '../screens/settings/user_list_screen.dart';
@@ -48,6 +49,12 @@ class AppDrawer extends StatelessWidget {
                   icon: Icons.computer,
                   title: AppLocalizations.of(context)!.hosts,
                   onTap: () => _navigate(context, const HostListScreen()),
+                ),
+                _buildMenuItem(
+                  context,
+                  icon: Icons.terminal,
+                  title: AppLocalizations.of(context)!.terminal,
+                  onTap: () => _navigate(context, const TerminalListScreen()),
                 ),
                 _buildMenuItem(
                   context,

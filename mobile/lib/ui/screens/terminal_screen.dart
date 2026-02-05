@@ -20,6 +20,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
   late final Terminal _terminal;
   late final TerminalService _service;
   final TerminalController _terminalController = TerminalController();
+  final FocusNode _focusNode = FocusNode(); // Add FocusNode
   StreamSubscription? _outputSubscription;
   StreamSubscription? _statusSubscription;
   String _status = 'Initializing...';
@@ -45,6 +46,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
         _status = status;
         if (status == 'Session Started') {
           _isConnected = true;
+          // output initial prompt if needed
         } else if (status == 'Disconnected' || status.startsWith('Error')) {
           _isConnected = false;
         }
@@ -64,6 +66,12 @@ class _TerminalScreenState extends State<TerminalScreen> {
     // Connect
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _service.connect(widget.hostId, 80, 24);
+      if (mounted) {
+        // Slight delay to ensure view is ready for input client registration
+        Future.delayed(const Duration(milliseconds: 100), () {
+          if (mounted) _focusNode.requestFocus();
+        });
+      }
     });
   }
 
@@ -72,6 +80,7 @@ class _TerminalScreenState extends State<TerminalScreen> {
     _outputSubscription?.cancel();
     _statusSubscription?.cancel();
     _service.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -89,6 +98,18 @@ class _TerminalScreenState extends State<TerminalScreen> {
             ),
           ],
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.keyboard),
+            onPressed: () {
+              if (_focusNode.hasFocus) {
+                _focusNode.unfocus();
+              } else {
+                _focusNode.requestFocus();
+              }
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -96,8 +117,11 @@ class _TerminalScreenState extends State<TerminalScreen> {
             child: TerminalView(
               _terminal,
               controller: _terminalController,
-              autofocus: true,
+              autofocus: false,
+              focusNode: _focusNode,
               backgroundOpacity: 1,
+              keyboardType: TextInputType
+                  .visiblePassword, // Optimization for terminal input
               // onResize removed from TerminalView
             ),
           ),

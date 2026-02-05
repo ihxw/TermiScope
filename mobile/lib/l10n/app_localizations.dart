@@ -530,11 +530,191 @@ abstract class AppLocalizations {
   /// **'Connect'**
   String get connect;
 
+  /// No description provided for @monitorOffline.
+  ///
+  /// In en, this message translates to:
+  /// **'Offline'**
+  String get monitorOffline;
+
+  /// No description provided for @connectToTerminal.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect to Terminal'**
+  String get connectToTerminal;
+
+  /// No description provided for @terminal.
+  ///
+  /// In en, this message translates to:
+  /// **'Terminal'**
+  String get terminal;
+
+  /// No description provided for @terminals.
+  ///
+  /// In en, this message translates to:
+  /// **'Terminals'**
+  String get terminals;
+
+  /// No description provided for @terminalSelectHost.
+  ///
+  /// In en, this message translates to:
+  /// **'Select a host'**
+  String get terminalSelectHost;
+
+  /// No description provided for @terminalQuickConnect.
+  ///
+  /// In en, this message translates to:
+  /// **'Quick Connect'**
+  String get terminalQuickConnect;
+
+  /// No description provided for @terminalNewHost.
+  ///
+  /// In en, this message translates to:
+  /// **'New Host'**
+  String get terminalNewHost;
+
+  /// No description provided for @terminalRecordSession.
+  ///
+  /// In en, this message translates to:
+  /// **'Record Session'**
+  String get terminalRecordSession;
+
+  /// No description provided for @terminalNoActive.
+  ///
+  /// In en, this message translates to:
+  /// **'No active terminals'**
+  String get terminalNoActive;
+
+  /// No description provided for @terminalConnectToHost.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect to Host'**
+  String get terminalConnectToHost;
+
   /// No description provided for @serverHost.
   ///
   /// In en, this message translates to:
-  /// **'Server Host'**
+  /// **'Server Address'**
   String get serverHost;
+
+  /// No description provided for @monitorTotal.
+  ///
+  /// In en, this message translates to:
+  /// **'Total'**
+  String get monitorTotal;
+
+  /// No description provided for @monitorOnline.
+  ///
+  /// In en, this message translates to:
+  /// **'Online'**
+  String get monitorOnline;
+
+  /// No description provided for @networkTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Network Detail'**
+  String get networkTitle;
+
+  /// No description provided for @monitorOnly.
+  ///
+  /// In en, this message translates to:
+  /// **'Monitor Only'**
+  String get monitorOnly;
+
+  /// No description provided for @monitorHistory.
+  ///
+  /// In en, this message translates to:
+  /// **'History'**
+  String get monitorHistory;
+
+  /// No description provided for @uptime.
+  ///
+  /// In en, this message translates to:
+  /// **'Uptime'**
+  String get uptime;
+
+  /// No description provided for @agentOutdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Agent Outdated'**
+  String get agentOutdated;
+
+  /// No description provided for @networkUsage.
+  ///
+  /// In en, this message translates to:
+  /// **'Traffic Usage'**
+  String get networkUsage;
+
+  /// No description provided for @expirationDate.
+  ///
+  /// In en, this message translates to:
+  /// **'Expiration'**
+  String get expirationDate;
+
+  /// No description provided for @remainingDays.
+  ///
+  /// In en, this message translates to:
+  /// **'{days} days'**
+  String remainingDays(Object days);
+
+  /// No description provided for @remainingValueLong.
+  ///
+  /// In en, this message translates to:
+  /// **'Remaining Value'**
+  String get remainingValueLong;
+
+  /// No description provided for @expired.
+  ///
+  /// In en, this message translates to:
+  /// **'Expired'**
+  String get expired;
+
+  /// No description provided for @daysRemaining.
+  ///
+  /// In en, this message translates to:
+  /// **'days left'**
+  String get daysRemaining;
+
+  /// No description provided for @billingMonthly.
+  ///
+  /// In en, this message translates to:
+  /// **'Monthly'**
+  String get billingMonthly;
+
+  /// No description provided for @billingQuarterly.
+  ///
+  /// In en, this message translates to:
+  /// **'Quarterly'**
+  String get billingQuarterly;
+
+  /// No description provided for @billingSemiannually.
+  ///
+  /// In en, this message translates to:
+  /// **'Semiannually'**
+  String get billingSemiannually;
+
+  /// No description provided for @billingAnnually.
+  ///
+  /// In en, this message translates to:
+  /// **'Annually'**
+  String get billingAnnually;
+
+  /// No description provided for @billingBiennial.
+  ///
+  /// In en, this message translates to:
+  /// **'Biennial'**
+  String get billingBiennial;
+
+  /// No description provided for @billingTriennial.
+  ///
+  /// In en, this message translates to:
+  /// **'Triennial'**
+  String get billingTriennial;
+
+  /// No description provided for @billingOneTime.
+  ///
+  /// In en, this message translates to:
+  /// **'One Time'**
+  String get billingOneTime;
 }
 
 class _AppLocalizationsDelegate
