@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../widgets/app_drawer.dart';
 import '../../data/services/api_service.dart';
 import '../../data/services/log_service.dart';
+import 'package:mobile/l10n/app_localizations.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -64,23 +64,31 @@ class _HistoryScreenState extends State<HistoryScreen>
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('History'),
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: const [
-            Tab(text: 'SSH Connections'),
-            Tab(text: 'Login History'),
-          ],
-        ),
-      ),
-      drawer: const AppDrawer(),
-      body: TabBarView(
-        controller: _tabController,
+      body: Column(
         children: [
-          _buildLogList(_sshLogs, _sshLoading, 'ssh'),
-          _buildLogList(_loginLogs, _loginLoading, 'login'),
+          // Tab栏（紧凑模式）
+          Material(
+            color: Theme.of(context).primaryColor,
+            child: TabBar(
+              controller: _tabController,
+              tabs: [
+                Tab(text: l10n.sshHistory),
+                Tab(text: l10n.loginHistory),
+              ],
+            ),
+          ),
+          // 内容区
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildLogList(_sshLogs, _sshLoading, 'ssh'),
+                _buildLogList(_loginLogs, _loginLoading, 'login'),
+              ],
+            ),
+          ),
         ],
       ),
     );

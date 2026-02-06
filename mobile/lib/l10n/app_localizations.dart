@@ -715,6 +715,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'One Time'**
   String get billingOneTime;
+
+  /// No description provided for @more.
+  ///
+  /// In en, this message translates to:
+  /// **'More'**
+  String get more;
+
+  /// No description provided for @features.
+  ///
+  /// In en, this message translates to:
+  /// **'Features'**
+  String get features;
+
+  /// No description provided for @sshHistory.
+  ///
+  /// In en, this message translates to:
+  /// **'SSH Connections'**
+  String get sshHistory;
 }
 
 class _AppLocalizationsDelegate

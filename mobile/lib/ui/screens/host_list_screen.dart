@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../widgets/app_drawer.dart';
-import '../../providers/auth_provider.dart';
 import '../../providers/host_provider.dart';
 import 'package:mobile/l10n/app_localizations.dart';
 import 'terminal_screen.dart';
@@ -25,22 +23,6 @@ class _HostListScreenState extends State<HostListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text(AppLocalizations.of(context)!.hosts),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () =>
-                Provider.of<HostProvider>(context, listen: false).fetchHosts(),
-          ),
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () =>
-                Provider.of<AuthProvider>(context, listen: false).logout(),
-          ),
-        ],
-      ),
-      drawer: const AppDrawer(),
       body: Consumer<HostProvider>(
         builder: (context, hostProvider, child) {
           if (hostProvider.isLoading) {

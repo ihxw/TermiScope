@@ -5,7 +5,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/constants.dart';
 import '../../../data/services/api_service.dart';
 import '../../../data/services/settings_service.dart';
-import '../../widgets/app_drawer.dart';
 import 'package:mobile/l10n/app_localizations.dart';
 
 class SystemScreen extends StatefulWidget {
@@ -135,8 +134,6 @@ class _SystemScreenState extends State<SystemScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(AppLocalizations.of(context)!.system)),
-      drawer: const AppDrawer(),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : Form(

@@ -243,7 +243,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get terminalQuickConnect => '快速连接';
 
   @override
-  String get terminalNewHost => '新增主机';
+  String get terminalNewHost => '新建主机';
 
   @override
   String get terminalRecordSession => '录制会话';
@@ -318,4 +318,13 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get billingOneTime => '一次性';
+
+  @override
+  String get more => '更多';
+
+  @override
+  String get features => '功能';
+
+  @override
+  String get sshHistory => 'SSH 连接';
 }

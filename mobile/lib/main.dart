@@ -12,7 +12,7 @@ import 'providers/monitor_provider.dart';
 import 'providers/terminal_provider.dart';
 import 'data/services/monitor_service.dart';
 import 'ui/screens/login_screen.dart';
-import 'ui/screens/host_list_screen.dart';
+import 'ui/screens/main_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -90,7 +90,7 @@ class AuthWrapper extends StatelessWidget {
       builder: (context, auth, _) {
         switch (auth.status) {
           case AuthStatus.authenticated:
-            return const HostListScreen();
+            return const MainScreen();
           case AuthStatus.unauthenticated:
             return const LoginScreen();
           case AuthStatus.unknown:

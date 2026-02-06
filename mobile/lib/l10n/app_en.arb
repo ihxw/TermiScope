@@ -101,5 +101,10 @@
   "billingAnnually": "Annually",
   "billingBiennial": "Biennial",
   "billingTriennial": "Triennial",
-  "billingOneTime": "One Time"
+  "billingOneTime": "One Time",
+  "more": "More",
+  "features": "Features",
+  "sshHistory": "SSH Connections",
+  "loginHistory": "Login History",
+  "terminalNewHost": "New Host"
 }

@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../data/services/api_service.dart';
 import '../../../data/services/settings_service.dart';
-import '../../widgets/app_drawer.dart';
 import 'package:mobile/l10n/app_localizations.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -128,8 +127,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final user = auth.user;
 
     return Scaffold(
-      appBar: AppBar(title: Text(AppLocalizations.of(context)!.profile)),
-      drawer: const AppDrawer(),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [

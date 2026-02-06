@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../data/services/api_service.dart';
 import '../../../data/services/settings_service.dart';
-import '../../widgets/app_drawer.dart';
 import 'package:mobile/l10n/app_localizations.dart';
 
 class UserListScreen extends StatefulWidget {
@@ -179,8 +178,6 @@ class _UserListScreenState extends State<UserListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(AppLocalizations.of(context)!.users)),
-      drawer: const AppDrawer(),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showUserDialog(),
         child: const Icon(Icons.add),

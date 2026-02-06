@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../widgets/app_drawer.dart';
 import '../../data/services/api_service.dart';
 import '../../data/services/command_service.dart';
 import '../../data/models/command_template.dart';
+import 'package:mobile/l10n/app_localizations.dart';
 
 class CommandScreen extends StatefulWidget {
   const CommandScreen({super.key});
@@ -93,9 +93,8 @@ class _CommandScreenState extends State<CommandScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Scaffold(
-      appBar: AppBar(title: const Text('Commands')),
-      drawer: const AppDrawer(),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _showEditor(),
         child: const Icon(Icons.add),

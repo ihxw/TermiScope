@@ -101,5 +101,10 @@
   "billingAnnually": "年付",
   "billingBiennial": "两年付",
   "billingTriennial": "三年付",
-  "billingOneTime": "一次性"
+  "billingOneTime": "一次性",
+  "more": "更多",
+  "features": "功能",
+  "sshHistory": "SSH 连接",
+  "loginHistory": "登录历史",
+  "terminalNewHost": "新建主机"
 }

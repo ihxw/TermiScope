@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/monitor_provider.dart';
 import '../../data/models/monitor_host.dart';
-import '../widgets/app_drawer.dart';
 import '../utils/monitor_utils.dart';
 import 'package:mobile/l10n/app_localizations.dart';
 import 'terminal_screen.dart';
@@ -37,23 +36,6 @@ class _MonitorScreenState extends State<MonitorScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.monitor),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () {
-              final provider = Provider.of<MonitorProvider>(
-                context,
-                listen: false,
-              );
-              provider.disconnect();
-              provider.connect();
-            },
-          ),
-        ],
-      ),
-      drawer: const AppDrawer(),
       body: Consumer<MonitorProvider>(
         builder: (context, provider, child) {
           if (!provider.isConnected && provider.hosts.isEmpty) {

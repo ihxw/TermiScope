@@ -319,4 +319,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get billingOneTime => 'One Time';
+
+  @override
+  String get more => 'More';
+
+  @override
+  String get features => 'Features';
+
+  @override
+  String get sshHistory => 'SSH Connections';
 }
