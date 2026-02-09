@@ -376,14 +376,12 @@ const loadFiles = async () => {
     // Asynchronously fetch folder sizes
     files.value.forEach(async (file, index) => {
         if (file.is_dir) {
-            try {
-                const res = await getDirSize(props.hostId, currentPath.value === '.' ? file.name : `${currentPath.value}/${file.name}`)
-                if (res && res.size !== undefined) {
-                    files.value[index].size = res.size
-                }
-            } catch (err) {
-                console.error(`Failed to get size for ${file.name}`, err)
-                files.value[index].size = -1 // Mark as failed
+            const res = await getDirSize(props.hostId, currentPath.value === '.' ? file.name : `${currentPath.value}/${file.name}`)
+            if (res && res.size !== undefined) {
+                files.value[index].size = res.size
+            } else {
+                // 超时或失败，标记为-1显示"计算失败"
+                files.value[index].size = -1
             }
         }
     })

@@ -8,6 +8,7 @@ import '../../data/services/api_service.dart';
 import '../../data/services/terminal_service.dart';
 import '../../data/services/command_service.dart';
 import '../../data/models/command_template.dart';
+import '../widgets/sftp_browser_widget.dart';
 
 class TerminalScreen extends StatefulWidget {
   final int hostId;
@@ -37,6 +38,10 @@ class _TerminalScreenState extends State<TerminalScreen> {
 
   // 字体设置
   double _fontSize = 14.0;
+
+  // SFTP分屏相关
+  bool _showSftp = false;
+  double _splitRatio = 0.5; // 分屏比例（0.3-0.7）
 
   @override
   void initState() {
@@ -93,10 +98,14 @@ class _TerminalScreenState extends State<TerminalScreen> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final fontSize = prefs.getDouble('terminal_font_size');
-      if (fontSize != null && mounted) {
-        setState(() {
-          _fontSize = fontSize;
-        });
+      if (fontSize != null) {
+        if (mounted) {
+          setState(() {
+            _fontSize = fontSize.toDouble();
+            // 加载分屏比例
+            _splitRatio = prefs.getDouble('terminal_split_ratio') ?? 0.5;
+          });
+        }
       }
     } catch (e) {
       debugPrint('Failed to load settings: $e');
@@ -113,6 +122,16 @@ class _TerminalScreenState extends State<TerminalScreen> {
       if (!_isDisposed) {
         debugPrint('Failed to load command templates: $e');
       }
+    }
+  }
+
+  // 保存分屏状态
+  Future<void> _saveSplitState() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setDouble('terminal_split_ratio', _splitRatio);
+    } catch (e) {
+      debugPrint('Failed to save split state: $e');
     }
   }
 
@@ -140,24 +159,171 @@ class _TerminalScreenState extends State<TerminalScreen> {
 
     return Column(
       children: [
-        // 终端区域（无AppBar，直接显示）
+        // 终端/分屏区域
         Expanded(
-          child: GestureDetector(
-            onTap: () {
-              if (!_focusNode.hasFocus) {
-                _focusNode.requestFocus();
-              }
-            },
-            child: TerminalView(
-              _terminal,
-              controller: _terminalController,
-              autofocus: true,
-              focusNode: _focusNode,
-              backgroundOpacity: 1,
-              keyboardType: TextInputType.visiblePassword,
-              textStyle: TerminalStyle(fontSize: _fontSize),
-            ),
-          ),
+          child: _showSftp
+              ? LayoutBuilder(
+                  builder: (context, constraints) {
+                    // 检测屏幕方向：高度>宽度=竖屏
+                    final isPortrait =
+                        constraints.maxHeight > constraints.maxWidth;
+
+                    if (isPortrait) {
+                      // ===== 竖屏：上下布局 =====
+                      return Column(
+                        children: [
+                          // 上方：SFTP浏览器
+                          Expanded(
+                            flex: (_splitRatio * 100).round(),
+                            child: SftpBrowserWidget(hostId: widget.hostId),
+                          ),
+
+                          // 分隔条（横向）
+                          GestureDetector(
+                            onVerticalDragUpdate: (details) {
+                              setState(() {
+                                final newRatio =
+                                    _splitRatio +
+                                    (details.delta.dy / constraints.maxHeight);
+                                _splitRatio = newRatio.clamp(0.3, 0.7);
+                              });
+                            },
+                            onVerticalDragEnd: (_) => _saveSplitState(),
+                            child: MouseRegion(
+                              cursor: SystemMouseCursors.resizeRow,
+                              child: Container(
+                                height: 4,
+                                color: isDark
+                                    ? Colors.grey.shade700
+                                    : Colors.grey.shade400,
+                                child: Center(
+                                  child: Container(
+                                    width: 40,
+                                    height: 2,
+                                    color: isDark
+                                        ? Colors.grey.shade600
+                                        : Colors.grey.shade500,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          // 下方：终端
+                          Expanded(
+                            flex: ((1 - _splitRatio) * 100).round(),
+                            child: GestureDetector(
+                              onTap: () {
+                                if (!_focusNode.hasFocus) {
+                                  _focusNode.requestFocus();
+                                }
+                              },
+                              child: TerminalView(
+                                _terminal,
+                                controller: _terminalController,
+                                autofocus: true,
+                                focusNode: _focusNode,
+                                backgroundOpacity: 1,
+                                keyboardType: TextInputType.visiblePassword,
+                                textStyle: TerminalStyle(fontSize: _fontSize),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    } else {
+                      // ===== 横屏：左右布局 =====
+                      return Row(
+                        children: [
+                          // 左侧：终端
+                          Expanded(
+                            flex: (_splitRatio * 100).round(),
+                            child: GestureDetector(
+                              onTap: () {
+                                if (!_focusNode.hasFocus) {
+                                  _focusNode.requestFocus();
+                                }
+                              },
+                              child: TerminalView(
+                                _terminal,
+                                controller: _terminalController,
+                                autofocus: true,
+                                focusNode: _focusNode,
+                                backgroundOpacity: 1,
+                                keyboardType: TextInputType.visiblePassword,
+                                textStyle: TerminalStyle(fontSize: _fontSize),
+                              ),
+                            ),
+                          ),
+
+                          // 分隔条（纵向）
+                          GestureDetector(
+                            onHorizontalDragUpdate: (details) {
+                              setState(() {
+                                final newRatio =
+                                    _splitRatio +
+                                    (details.delta.dx / constraints.maxWidth);
+                                _splitRatio = newRatio.clamp(0.3, 0.7);
+                              });
+                            },
+                            onHorizontalDragEnd: (_) => _saveSplitState(),
+                            child: MouseRegion(
+                              cursor: SystemMouseCursors.resizeColumn,
+                              child: Container(
+                                width: 4,
+                                color: isDark
+                                    ? Colors.grey.shade700
+                                    : Colors.grey.shade400,
+                                child: Center(
+                                  child: Container(
+                                    width: 2,
+                                    height: 40,
+                                    color: isDark
+                                        ? Colors.grey.shade600
+                                        : Colors.grey.shade500,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          // 右侧：SFTP浏览器
+                          Expanded(
+                            flex: ((1 - _splitRatio) * 100).round(),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                border: Border(
+                                  left: BorderSide(
+                                    color: isDark
+                                        ? Colors.grey.shade800
+                                        : Colors.grey.shade300,
+                                  ),
+                                ),
+                              ),
+                              child: SftpBrowserWidget(hostId: widget.hostId),
+                            ),
+                          ),
+                        ],
+                      );
+                    }
+                  },
+                )
+              : GestureDetector(
+                  onTap: () {
+                    if (!_focusNode.hasFocus) {
+                      _focusNode.requestFocus();
+                    }
+                  },
+                  child: TerminalView(
+                    _terminal,
+                    controller: _terminalController,
+                    autofocus: true,
+                    focusNode: _focusNode,
+                    backgroundOpacity: 1,
+                    keyboardType: TextInputType.visiblePassword,
+                    textStyle: TerminalStyle(fontSize: _fontSize),
+                  ),
+                ),
         ),
         // 底部工具栏 - 参照Web版
         _buildBottomToolbar(isDark),
@@ -165,78 +331,89 @@ class _TerminalScreenState extends State<TerminalScreen> {
     );
   }
 
-  /// 底部工具栏 - 对齐Web版布局
+  /// 底部工具栏（移动端）
   Widget _buildBottomToolbar(bool isDark) {
-    return Container(
-      height: 32,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1E1E1E) : Colors.grey.shade100,
-        border: Border(
-          top: BorderSide(
-            color: isDark ? Colors.grey.shade800 : Colors.grey.shade300,
+    return Material(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1E1E1E) : Colors.grey.shade100,
+          border: Border(
+            top: BorderSide(
+              color: isDark ? Colors.grey.shade800 : Colors.grey.shade300,
+            ),
           ),
         ),
-      ),
-      child: Row(
-        children: [
-          // 左侧操作按钮（可滚动，防止溢出）
-          Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // 断开连接按钮（红色）
-                  _bottomBtn(
-                    Icons.link_off,
-                    '断开',
-                    _isConnected ? Colors.red : null,
-                    () {
-                      _service.dispose();
-                      setState(() => _isConnected = false);
-                    },
-                  ),
-                  _verticalDivider(isDark),
-                  // 字体设置
-                  _bottomBtn(Icons.text_fields, '字体', null, _showFontSettings),
-                  _verticalDivider(isDark),
-                  // SFTP浏览器
-                  _bottomBtn(
-                    Icons.folder_open,
-                    'SFTP',
-                    null,
-                    _isConnected ? _openSftpBrowser : null,
-                  ),
-                  _verticalDivider(isDark),
-                  // 命令模板（添加key用于定位菜单）
-                  Container(
-                    key: _commandButtonKey,
-                    child: _bottomBtn(Icons.code, '命令', null, _showCommandMenu),
-                  ),
-                ],
+        child: Row(
+          children: [
+            // 左侧操作按钮（可滚动，防止溢出）
+            Expanded(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // 断开连接按钮（红色）
+                    _bottomBtn(
+                      Icons.link_off,
+                      '断开',
+                      _isConnected ? Colors.red : null,
+                      () {
+                        _service.dispose();
+                        setState(() => _isConnected = false);
+                      },
+                    ),
+                    _verticalDivider(isDark),
+                    // 字体设置
+                    _bottomBtn(
+                      Icons.text_fields,
+                      '字体',
+                      null,
+                      _showFontSettings,
+                    ),
+                    _verticalDivider(isDark),
+                    // SFTP浏览器
+                    _bottomBtn(
+                      Icons.folder_open,
+                      'SFTP',
+                      null,
+                      _isConnected ? _openSftpBrowser : null,
+                    ),
+                    _verticalDivider(isDark),
+                    // 命令模板（添加key用于定位菜单）
+                    Container(
+                      key: _commandButtonKey,
+                      child: _bottomBtn(
+                        Icons.code,
+                        '命令',
+                        null,
+                        _showCommandMenu,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-          ),
 
-          // 右侧状态
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(
-              color: _isConnected
-                  ? Colors.green.withOpacity(0.1)
-                  : Colors.orange.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(
-              _isConnected ? 'Connected' : _status,
-              style: TextStyle(
-                fontSize: 10,
-                color: _isConnected ? Colors.green : Colors.orange,
+            // 右侧状态
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: _isConnected
+                    ? Colors.green.withOpacity(0.1)
+                    : Colors.orange.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                _isConnected ? 'Connected' : _status,
+                style: TextStyle(
+                  fontSize: 10,
+                  color: _isConnected ? Colors.green : Colors.orange,
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

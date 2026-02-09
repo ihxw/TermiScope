@@ -7,11 +7,32 @@
     flexDirection: 'column', 
     overflow: 'hidden'
   }">
-    <div ref="terminalRef" class="terminal-container" :style="{ 
-      background: containerBackground,
-      flex: 1,
-      overflow: 'hidden'
-    }"></div>
+    <!-- 终端/分屏区域 -->
+    <div class="split-container" :class="{ 'full-screen': !showSftp }">
+      <!-- 左侧：终端 -->
+      <div class="split-left" :style="{ width: showSftp ? `${splitRatio * 100}%` : '100%' }">
+        <div ref="terminalRef" class="terminal-container" :style="{ 
+          background: containerBackground,
+          flex: 1,
+          overflow: 'hidden'
+        }"></div>
+      </div>
+      
+      <!-- 分隔条（仅在分屏时显示） -->
+      <div 
+        v-show="showSftp"
+        class="split-divider"
+        :class="{ 'split-divider-dark': themeStore.isDark }"
+        @mousedown="startDrag"
+      >
+        <div class="split-divider-line"></div>
+      </div>
+      
+      <!-- 右侧：SFTP浏览器（仅在分屏时显示） -->
+      <div v-show="showSftp" class="split-right" :style="{ width: `${(1 - splitRatio) * 100}%` }">
+        <SftpBrowser :host-id="hostId" :visible="showSftp" />
+      </div>
+    </div>
     
     <!-- Mobile Virtual Keyboard Toolbar -->
     <div v-if="isMobileDevice" class="mobile-keyboard-toolbar" :style="{ 
@@ -166,19 +187,7 @@
       </div>
     </div>
 
-    <!-- SFTP Drawer -->
-    <a-drawer
-      v-model:open="showSftp"
-      :title="t('terminal.fileExplorer')"
-      placement="right"
-      width="80%"
-      :body-style="{ padding: '8px' }"
-    >
-      <SftpBrowser 
-        :host-id="hostId" 
-        :visible="showSftp"
-      />
-    </a-drawer>
+
   </div>
 </template>
 
@@ -226,6 +235,7 @@ const ws = ref(null)
 const connectionStatus = ref('Connecting...')
 const terminalSize = ref('80x24')
 const showSftp = ref(false)
+const splitRatio = ref(parseFloat(localStorage.getItem('terminal_split_ratio')) || 0.5)
 const commandTemplates = ref([])
 
 // Mobile device detection
@@ -680,11 +690,110 @@ const pasteFromClipboard = async () => {
     message.error('Failed to read from clipboard')
   }
 }
+
+// Split screen drag functionality
+const startDrag = (e) => {
+  e.preventDefault()
+  
+  const terminalWrapper = e.currentTarget.parentElement
+  
+  const onMouseMove = (e) => {
+    const containerWidth = terminalWrapper.offsetWidth
+    const newRatio = e.clientX / containerWidth
+    
+    // 限制比例在0.3-0.7之间
+    splitRatio.value = Math.max(0.3, Math.min(0.7, newRatio))
+  }
+  
+  const onMouseUp = () => {
+    localStorage.setItem('terminal_split_ratio', splitRatio.value.toString())
+    document.removeEventListener('mousemove', onMouseMove)
+    document.removeEventListener('mouseup', onMouseUp)
+    
+    // Trigger terminal resize after drag ends
+    nextTick(() => {
+      handleResize()
+    })
+  }
+  
+  document.addEventListener('mousemove', onMouseMove)
+  document.addEventListener('mouseup', onMouseUp)
+}
+
+// Watch splitRatio to trigger terminal resize
+watch(splitRatio, () => {
+  nextTick(() => {
+    handleResize()
+  })
+})
+
+// Watch showSftp to trigger terminal resize
+watch(showSftp, () => {
+  nextTick(() => {
+    handleResize()
+  })
+})
 </script>
 
 <style scoped>
 .terminal-wrapper {
   /* background managed by inline style */
+}
+
+/* Split screen styles */
+.split-container {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+.split-container.full-screen {
+  /* 全屏模式下，只显示终端 */
+}
+
+.split-left,
+.split-right {
+  flex-shrink: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.split-divider {
+  width: 4px;
+  background: #ddd;
+  cursor: col-resize;
+  flex-shrink: 0;
+  position: relative;
+  transition: background 0.2s;
+  user-select: none;
+}
+
+.split-divider:hover {
+  background: #1890ff;
+}
+
+.split-divider-dark {
+  background: #444;
+}
+
+.split-divider-dark:hover {
+  background: #1890ff;
+}
+
+.split-divider-line {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 2px;
+  height: 40px;
+  background: #999;
+  border-radius: 1px;
+}
+
+.split-divider-dark .split-divider-line {
+  background: #666;
 }
 
 

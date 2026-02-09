@@ -57,8 +57,15 @@ export const createFile = async (hostId, path) => {
 }
 
 export const getDirSize = async (hostId, path) => {
-    return await api.get(`/sftp/size/${hostId}`, {
-        params: { path },
-        timeout: 10000 // 10s timeout to prevent long hanging
-    })
+    try {
+        return await api.get(`/sftp/size/${hostId}`, {
+            params: { path },
+            timeout: 10000 // 10s timeout to prevent long hanging
+        })
+    } catch (error) {
+        // 静默失败，不显示toast
+        // 返回一个特殊对象表示超时/失败
+        console.warn(`Failed to get dir size for ${path}:`, error.message)
+        return null
+    }
 }
