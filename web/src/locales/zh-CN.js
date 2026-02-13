@@ -415,6 +415,7 @@ export default {
         autoTotal: '自动 (总计)',
         resetDay: '流量重置日',
         resetDayHelp: '每月重置流量统计的日期',
+        nextReset: '下个重置日',
         trafficLimit: '流量限制',
         monthlyLimit: '每月限额 (GB)',
         unlimitedHelp: '0 表示不限制',

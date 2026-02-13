@@ -92,7 +92,8 @@
                       </div>
                       <a-progress :percent="usagePercentage" :status="usageStatus" size="small" />
                       <div style="margin-top: 4px; font-size: 11px; color: #8c8c8c">
-                          {{ t('network.remaining') }}: {{ formatBytes(remainingBytes) }}
+                          <span>{{ t('network.remaining') }}: {{ formatBytes(remainingBytes) }}</span>
+                          <span style="margin-left: 12px" v-if="config.net_reset_day">{{ t('network.nextReset') }}: {{ nextResetDate }}</span>
                       </div>
                   </div>
 
@@ -214,6 +215,20 @@ const config = ref({
     limit_gb: 0,
     adjustment_gb: 0,
     net_traffic_counter_mode: 'total'
+})
+
+const nextResetDate = computed(() => {
+    if (!config.value.net_reset_day) return ''
+    const now = dayjs()
+    let resetDay = config.value.net_reset_day
+    if (resetDay < 1) resetDay = 1
+    if (resetDay > 31) resetDay = 31
+
+    let target = now.date(resetDay)
+    if (target.isBefore(now, 'day') || target.isSame(now, 'day')) {
+        target = target.add(1, 'month').date(resetDay)
+    }
+    return target.format('YYYY-MM-DD')
 })
 
 // Notification Configuration

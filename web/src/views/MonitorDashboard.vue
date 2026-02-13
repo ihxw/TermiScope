@@ -139,7 +139,12 @@
             <!-- Traffic Usage (If Limit Set) -->
             <div v-if="host.net_traffic_limit > 0" style="margin-top: 8px; border-top: 1px solid #f0f0f0; padding-top: 8px">
                <div style="display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 2px">
-                  <span>{{ t('network.usage') }} ({{ getTrafficUsagePct(host) }}%)</span>
+                  <span>
+                    {{ t('network.usage') }} ({{ getTrafficUsagePct(host) }}%)
+                    <span v-if="host.net_reset_day" style="color: #bfbfbf; font-size: 10px; margin-left: 4px">
+                        {{ t('network.nextReset') }}: {{ getNextResetDate(host) }}
+                    </span>
+                  </span>
                   <span>{{ formatTrafficUsage(host) }}</span>
                </div>
                <a-progress :percent="getTrafficUsagePct(host)" :status="getStatus(getTrafficUsagePct(host))" :show-info="false" stroke-linecap="square" size="small" />
@@ -258,6 +263,9 @@
                     <span>{{ formatTrafficUsage(record) }}</span>
                 </div>
                 <a-progress :percent="getTrafficUsagePct(record)" :status="getStatus(getTrafficUsagePct(record))" :show-info="false" stroke-linecap="square" size="small" :stroke-width="6" />
+                <div style="text-align: right; font-size: 9px; color: #ccc;" v-if="record.net_reset_day">
+                   {{ t('network.nextReset') }}: {{ getNextResetDate(record) }}
+                </div>
             </div>
             <div v-else style="font-size: 10px; color: #ccc; text-align: center">-</div>
         </template>
@@ -455,6 +463,10 @@ const syncHostsFromStore = () => {
       existing.billing_amount = sh.billing_amount
       existing.currency = sh.currency
       existing.flag = sh.flag
+      // Update network config
+      existing.net_reset_day = sh.net_reset_day
+      existing.net_last_reset_date = sh.net_last_reset_date
+      
       return existing
     } else {
       // Add new host with default/empty metrics
@@ -475,6 +487,11 @@ const syncHostsFromStore = () => {
         net_tx: 0,
         net_monthly_rx: 0,
         net_monthly_tx: 0,
+        net_traffic_limit: sh.net_traffic_limit,
+        net_traffic_used_adjustment: sh.net_traffic_used_adjustment,
+        net_traffic_counter_mode: sh.net_traffic_counter_mode,
+        net_reset_day: sh.net_reset_day,
+        net_last_reset_date: sh.net_last_reset_date,
         last_updated: Math.floor(Date.now() / 1000), // Use current timestamp to avoid showing as offline initially
         // Financial logic
         expiration_date: sh.expiration_date,
@@ -589,6 +606,22 @@ const formatTrafficUsage = (host) => {
     }
     const used = measured + (host.net_traffic_used_adjustment || 0)
     return formatBytes(used) + ' / ' + formatBytes(host.net_traffic_limit)
+}
+
+const getNextResetDate = (host) => {
+    if (!host.net_reset_day) return ''
+    const now = dayjs()
+    let resetDay = host.net_reset_day
+    // Ensure valid day (1-31)
+    if (resetDay < 1) resetDay = 1
+    if (resetDay > 31) resetDay = 31
+
+    let target = now.date(resetDay)
+    // If target is today or in past, next reset is next month
+    if (target.isBefore(now, 'day') || target.isSame(now, 'day')) {
+        target = target.add(1, 'month').date(resetDay)
+    }
+    return target.format('YYYY-MM-DD')
 }
 
 // Financial calculation helpers

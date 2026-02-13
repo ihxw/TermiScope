@@ -403,6 +403,7 @@ export default {
         autoTotal: 'Auto (Total)',
         resetDay: 'Traffic Reset Day',
         resetDayHelp: 'Day of the month to reset traffic statistics',
+        nextReset: 'Next Reset',
         trafficLimit: 'Traffic Limit',
         monthlyLimit: 'Monthly Limit (GB)',
         unlimitedHelp: '0 means unlimited',

@@ -40,7 +40,7 @@ func RunMigrations(db *gorm.DB) error {
 		&models.MonitorRecord{},
 		&models.MonitorStatusLog{},
 		&models.NetworkMonitorTask{},
-		&models.NetworkMonitorTask{},
+		&models.MonitorTrafficResetLog{},
 		&models.NetworkMonitorResult{},
 		&models.NetworkMonitorTemplate{},
 		&models.RevokedToken{},

@@ -75,3 +75,15 @@ type SSHHost struct {
 func (SSHHost) TableName() string {
 	return "ssh_hosts"
 }
+
+type MonitorTrafficResetLog struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	HostID    uint      `gorm:"index;not null" json:"host_id"`
+	ResetDate string    `gorm:"size:20;not null;index" json:"reset_date"` // YYYY-MM-DD
+	Status    string    `gorm:"size:20;default:'success'" json:"status"`  // success
+	CreatedAt time.Time `json:"created_at"`
+}
+
+func (MonitorTrafficResetLog) TableName() string {
+	return "monitor_traffic_reset_logs"
+}

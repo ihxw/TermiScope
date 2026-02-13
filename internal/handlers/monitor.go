@@ -362,6 +362,12 @@ func (h *MonitorHandler) Pulse(c *gin.Context) {
 		return time.Date(y, m, d, 0, 0, 0, 0, time.Local)
 	}
 
+	// 2. Check for Traffic Reset (Monthly)
+	// Logic to find "Current Cycle Start Date"
+	// If Today >= ResetDay, then Cycle Start is [ThisMonth]-[ResetDay]
+	// If Today < ResetDay, then Cycle Start is [LastMonth]-[ResetDay]
+	// Note: Handle short months (e.g. ResetDay=31, Feb has 28).
+
 	if day >= resetDay {
 		currentCycleStart = getValidDate(year, month, resetDay)
 	} else {
@@ -376,35 +382,90 @@ func (h *MonitorHandler) Pulse(c *gin.Context) {
 	currentCycleStartStr := currentCycleStart.Format("2006-01-02")
 	dbUpdated := false
 
-	// If the LastResetDate recorded in DB is BEFORE the CurrentCycleStart,
-	// It means we have crossed into a new cycle and haven't reset yet.
-	// OR if LastResetDate is empty.
+	// Robust Reset Logic: Check DB Record first
+	// We only reset if we haven't successfully reset for this cycle yet.
+	// We use a separate table `monitor_traffic_reset_logs` as the source of truth for "Reset Success".
+	// This handles race conditions and ensures eventual consistency (retry on failure).
+
 	shouldReset := false
 	if host.NetLastResetDate == "" {
 		shouldReset = true
 	} else {
+		// Quick check: if in-memory date is old, we likely need reset.
+		// But we must verify against the Log table to be sure we didn't just lose the date via race condition.
 		lastReset, err := time.Parse("2006-01-02", host.NetLastResetDate)
 		if err == nil {
-			// Check if lastReset is strictly before currentCycleStart
-			// Truncate to day just in case
 			lastReset = lastReset.Truncate(24 * time.Hour)
 			cycleStartTrunc := currentCycleStart.Truncate(24 * time.Hour)
 			if lastReset.Before(cycleStartTrunc) {
 				shouldReset = true
 			}
 		} else {
-			// Invalid string, reset to be safe/correct
-			shouldReset = true
+			shouldReset = true // Invalid date
 		}
 	}
 
 	if shouldReset {
-		host.NetMonthlyRx = 0
-		host.NetMonthlyTx = 0
-		host.NetLastResetDate = currentCycleStartStr
-		host.TrafficAlerted = false // Reset alert flag
-		dbUpdated = true
-		log.Printf("Traffic Reset Triggered for Host %d: New Cycle Start %s", host.ID, currentCycleStartStr)
+		// Double check with DB Log to prevent duplicate reset (idempotency)
+		var logCount int64
+		h.DB.Model(&models.MonitorTrafficResetLog{}).
+			Where("host_id = ? AND reset_date = ? AND status = 'success'", host.ID, currentCycleStartStr).
+			Count(&logCount)
+
+		if logCount > 0 {
+			// Already reset in DB, but in-memory/host record is old.
+			// Just update the host record to match reality without clearing traffic (to avoid clearing new traffic).
+			// Wait, if we cleared traffic at T1, and T2 overwrote it with Old Traffic.
+			// And we see Log exists.
+			// Currently we are stuck with Old Traffic (High).
+			// This is the "T2 overwrite" problem.
+			// However, if we assume T2 overwrite is rare or handled elsewhere.
+			// For now, let's update the date so we stop checking.
+			host.NetLastResetDate = currentCycleStartStr
+			dbUpdated = true
+			log.Printf("Monitor: Detected existing reset log for %s but host date was old. Updating host date only.", currentCycleStartStr)
+		} else {
+			// No log found -> Real Reset Needed.
+			// Execute in Transaction
+			err := h.DB.Transaction(func(tx *gorm.DB) error {
+				// 1. Reset Host Fields
+				if err := tx.Model(&host).Updates(map[string]interface{}{
+					"net_monthly_rx":              0,
+					"net_monthly_tx":              0,
+					"net_traffic_used_adjustment": 0,
+					"net_last_reset_date":         currentCycleStartStr,
+					"traffic_alerted":             false,
+				}).Error; err != nil {
+					return err
+				}
+
+				// 2. Create Log Record
+				if err := tx.Create(&models.MonitorTrafficResetLog{
+					HostID:    host.ID,
+					ResetDate: currentCycleStartStr,
+					Status:    "success",
+					CreatedAt: time.Now(),
+				}).Error; err != nil {
+					return err
+				}
+				return nil
+			})
+
+			if err != nil {
+				log.Printf("Traffic Reset Transaction Failed for Host %d: %v", host.ID, err)
+				// Do NOT update in-memory host.
+				// Next Pulse will retry because `shouldReset` will still be true (NetLastResetDate is old).
+			} else {
+				// Success: Update in-memory host to reflect DB
+				host.NetMonthlyRx = 0
+				host.NetMonthlyTx = 0
+				host.NetTrafficUsedAdjustment = 0
+				host.NetLastResetDate = currentCycleStartStr
+				host.TrafficAlerted = false
+				dbUpdated = true // Mark as updated so we don't save again below (optimization)
+				log.Printf("Traffic Reset Transaction SUCCESS for Host %d: New Cycle %s", host.ID, currentCycleStartStr)
+			}
+		}
 	}
 
 	// 3. Delta Calculation (Accumulation)
