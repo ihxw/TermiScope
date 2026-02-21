@@ -171,6 +171,12 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		refreshJti = refreshClaimsParsed.ID
 	}
 
+	var expiresAt *time.Time
+	if claimsParsed != nil && claimsParsed.ExpiresAt != nil {
+		t := claimsParsed.ExpiresAt.Time
+		expiresAt = &t
+	}
+
 	loginHistory := models.LoginHistory{
 		UserID:          user.ID,
 		Username:        user.Username,
@@ -179,6 +185,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		JTI:             jti,
 		RefreshTokenJTI: refreshJti,
 		LoginAt:         time.Now(),
+		ExpiresAt:       expiresAt,
 	}
 	h.db.Create(&loginHistory)
 
@@ -399,13 +406,8 @@ func (h *AuthHandler) GetLoginHistory(c *gin.Context) {
 		status := "Active"
 		if revokedMap[l.JTI] {
 			status = "Revoked"
-		} else {
-			// Check expiry? We don't store expiry in LoginHistory yet, but JWT has 24h usually.
-			// Ideally we assume active unless revoked, or check if very old.
-			// Let's just return "Revoked" or "Active".
-			// Use 24h as rough estimate for now or just rely on backend rejection.
-			// If we want precise expiry status we need to decode JTI or store expiry in LoginHistory.
-			// For now, "Active" / "Revoked" is good enough.
+		} else if l.ExpiresAt != nil && l.ExpiresAt.Before(time.Now()) {
+			status = "Expired"
 		}
 
 		// Check if it's CURRENT session
@@ -671,6 +673,37 @@ func (h *AuthHandler) Verify2FALogin(c *gin.Context) {
 	now := time.Now()
 	user.LastLoginAt = &now
 	h.db.Save(&user)
+
+	// Record Login History for 2FA login
+	var jti string
+	var refreshJti string
+	var expiresAt *time.Time
+
+	claimsParsed, _ := utils.ValidateToken(accessToken, h.config.Security.JWTSecret)
+	if claimsParsed != nil {
+		jti = claimsParsed.ID
+		if claimsParsed.ExpiresAt != nil {
+			t := claimsParsed.ExpiresAt.Time
+			expiresAt = &t
+		}
+	}
+
+	refreshClaimsParsed, _ := utils.ValidateToken(refreshToken, h.config.Security.JWTSecret)
+	if refreshClaimsParsed != nil {
+		refreshJti = refreshClaimsParsed.ID
+	}
+
+	loginHistory := models.LoginHistory{
+		UserID:          user.ID,
+		Username:        user.Username,
+		IPAddress:       c.ClientIP(),
+		UserAgent:       c.Request.UserAgent(),
+		JTI:             jti,
+		RefreshTokenJTI: refreshJti,
+		LoginAt:         time.Now(),
+		ExpiresAt:       expiresAt,
+	}
+	h.db.Create(&loginHistory)
 
 	// Set cookie
 	accessDuration, _ := time.ParseDuration(h.config.Security.AccessExpiration)

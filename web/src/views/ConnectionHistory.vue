@@ -58,7 +58,7 @@
                   <a-tag color="blue">{{ $t('history.currentSession') }}</a-tag>
                 </span>
                 <a-popconfirm
-                  v-else-if="record.status !== 'Revoked'"
+                  v-else-if="record.status !== 'Revoked' && record.status !== 'Expired'"
                   :title="$t('history.forceLogoutConfirm')"
                   :ok-text="$t('common.confirm')"
                   :cancel-text="$t('common.cancel')"
@@ -192,6 +192,7 @@ const handleWebTableChange = (pag) => {
 const getWebStatusColor = (status) => {
   if (status === 'Active') return 'success'
   if (status === 'Revoked') return 'error'
+  if (status === 'Expired') return 'warning'
   return 'default'
 }
 

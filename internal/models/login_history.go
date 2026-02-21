@@ -17,6 +17,7 @@ type LoginHistory struct {
 	RefreshTokenJTI string         `gorm:"index;size:36" json:"refresh_token_jti"` // Refresh Token ID
 	DeviceInfo      string         `gorm:"size:255" json:"device_info"`            // Parsed OS/Browser
 	LoginAt         time.Time      `gorm:"index;not null" json:"login_at"`
+	ExpiresAt       *time.Time     `json:"expires_at"`                             // Access Token expiry
 	DeletedAt       gorm.DeletedAt `gorm:"index" json:"-"`
 
 	// Relations
