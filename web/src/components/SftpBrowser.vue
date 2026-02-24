@@ -43,14 +43,14 @@
       </a-breadcrumb>
     </div>
 
-    <div class="browser-content">
+    <div ref="browserContentRef" class="browser-content">
       <a-table
         :loading="loading"
         :columns="columns"
         :data-source="files"
         :pagination="false"
         size="small"
-        :scroll="{ y: 'calc(100vh - 150px)' }"
+        :scroll="{ y: tableScrollY }"
       >
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'name'">
@@ -180,7 +180,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch, h, reactive } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, h, reactive, nextTick } from 'vue'
 import { message, notification, Progress } from 'ant-design-vue'
 import { 
   FolderFilled, 
@@ -223,6 +223,41 @@ const loading = ref(false)
 const clipboard = reactive({
     source: null,
     type: null // 'cut' or 'copy'
+})
+
+// 动态计算表格滚动高度
+const browserContentRef = ref(null)
+const tableScrollY = ref('calc(100vh - 150px)')
+
+const updateTableScrollY = () => {
+  nextTick(() => {
+    if (browserContentRef.value) {
+      // 表头高度大约 39px，留出余量
+      const contentHeight = browserContentRef.value.clientHeight
+      const headerOffset = 39
+      if (contentHeight > 0) {
+        tableScrollY.value = `${contentHeight - headerOffset}px`
+      }
+    }
+  })
+}
+
+let resizeObserver = null
+onMounted(() => {
+  resizeObserver = new ResizeObserver(() => {
+    updateTableScrollY()
+  })
+  nextTick(() => {
+    if (browserContentRef.value) {
+      resizeObserver.observe(browserContentRef.value)
+    }
+  })
+})
+
+onUnmounted(() => {
+  if (resizeObserver) {
+    resizeObserver.disconnect()
+  }
 })
 const renameVisible = ref(false)
 const renameName = ref('')
@@ -720,7 +755,8 @@ onMounted(() => {
 
 .browser-content {
   flex: 1;
-  overflow: hidden; /* Let table handle scrolling */
+  overflow: hidden;
+  min-height: 0; /* 关键：允许 flex 子元素收缩以正确显示滚动条 */
 }
 
 :deep(.ant-table-cell) {
