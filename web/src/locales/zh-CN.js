@@ -538,7 +538,13 @@ export default {
         uninstallSupport: '支持的系统: Ubuntu, Debian, CentOS, Fedora, Arch Linux',
         noValidHostsForDeploy: '所选主机均为仅监控类型，无法部署',
         skippedMonitorOnly: '已跳过 {count} 个仅监控类型的主机',
-        copyFailed: '复制失败'
+        copyFailed: '复制失败',
+        trafficResetLogs: '流量重置日志',
+        trafficResetLogsTitle: '流量重置记录',
+        resetDate: '重置周期',
+        resetTime: '重置时间',
+        resetStatus: '状态',
+        hostName: '主机名称'
     },
     sftp: {
         new: '新建',

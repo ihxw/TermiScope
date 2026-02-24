@@ -45,6 +45,12 @@ export const getMonitorLogs = async (id, page = 1, pageSize = 20) => {
     return await api.get(`/ssh-hosts/${id}/monitor/logs?page=${page}&page_size=${pageSize}`)
 }
 
+export const getTrafficResetLogs = async (page = 1, pageSize = 20, hostId = '') => {
+    let url = `/monitor/traffic-reset-logs?page=${page}&page_size=${pageSize}`
+    if (hostId) url += `&host_id=${hostId}`
+    return await api.get(url)
+}
+
 export const reorderHosts = async (ids) => {
     return await api.put('/ssh-hosts/reorder', { device_ids: ids })
 }

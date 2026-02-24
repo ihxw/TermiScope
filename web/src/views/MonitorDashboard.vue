@@ -24,6 +24,11 @@
         <a-divider type="vertical" />
         <span style="color: #52c41a">{{ t('monitor.online') }}: {{ onlineHosts }}</span>
       </div>
+
+      <a-button size="small" @click="showResetLogs">
+        <template #icon><FileTextOutlined /></template>
+        {{ t('monitor.trafficResetLogs') }}
+      </a-button>
     </div>
 
     <!-- Card View -->
@@ -330,6 +335,26 @@
         </a-table>
     </a-modal>
 
+    <!-- Traffic Reset Logs Modal -->
+    <a-modal v-model:open="resetLogsVisible" :title="t('monitor.trafficResetLogsTitle')" :footer="null" width="700px">
+        <a-table :dataSource="resetLogs" :columns="resetLogColumns" :pagination="resetLogPagination" :loading="resetLogLoading" size="small" rowKey="id" @change="handleResetLogTableChange">
+            <template #bodyCell="{ column, record }">
+                <template v-if="column.key === 'host_name'">
+                    {{ record.host_name || 'Host #' + record.host_id }}
+                </template>
+                <template v-if="column.key === 'reset_date'">
+                    {{ record.reset_date }}
+                </template>
+                <template v-if="column.key === 'status'">
+                    <a-tag :color="record.status === 'success' ? 'green' : 'red'">{{ record.status.toUpperCase() }}</a-tag>
+                </template>
+                <template v-if="column.key === 'created_at'">
+                    {{ new Date(record.created_at).toLocaleString() }}
+                </template>
+            </template>
+        </a-table>
+    </a-modal>
+
 
   </div>
 </template>
@@ -338,10 +363,10 @@
 import { ref, onMounted, onUnmounted, computed, h, watch, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSSHStore } from '../stores/ssh'
-import { ArrowDownOutlined, ArrowUpOutlined, AppleOutlined, WindowsOutlined, DesktopOutlined, LineChartOutlined, HistoryOutlined, SettingOutlined, CodeOutlined, AppstoreOutlined, UnorderedListOutlined, InfoCircleOutlined } from '@ant-design/icons-vue'
+import { ArrowDownOutlined, ArrowUpOutlined, AppleOutlined, WindowsOutlined, DesktopOutlined, LineChartOutlined, HistoryOutlined, SettingOutlined, CodeOutlined, AppstoreOutlined, UnorderedListOutlined, InfoCircleOutlined, FileTextOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { getWSTicket } from '../api/auth'
-import { getMonitorLogs } from '../api/ssh'
+import { getMonitorLogs, getTrafficResetLogs } from '../api/ssh'
 import { message } from 'ant-design-vue'
 import api from '../api/index'
 import dayjs from 'dayjs'
@@ -809,6 +834,46 @@ const getFlagColor = (flag) => {
     gray: '#8E8E93'
   }
   return colors[flag] || 'transparent'
+}
+
+// Traffic Reset Logs Logic
+const resetLogsVisible = ref(false)
+const resetLogs = ref([])
+const resetLogLoading = ref(false)
+const resetLogPagination = ref({
+    current: 1,
+    pageSize: 10,
+    total: 0
+})
+
+const resetLogColumns = computed(() => [
+    { title: t('monitor.hostName'), key: 'host_name' },
+    { title: t('monitor.resetDate'), key: 'reset_date' },
+    { title: t('monitor.resetStatus'), key: 'status', width: 100 },
+    { title: t('monitor.resetTime'), key: 'created_at' }
+])
+
+const loadResetLogs = async (page = 1) => {
+    resetLogLoading.value = true
+    try {
+        const res = await getTrafficResetLogs(page, resetLogPagination.value.pageSize)
+        resetLogs.value = res.data || []
+        resetLogPagination.value.current = page
+        resetLogPagination.value.total = res.total
+    } catch (e) {
+        console.error(e)
+    } finally {
+        resetLogLoading.value = false
+    }
+}
+
+const showResetLogs = () => {
+    resetLogsVisible.value = true
+    loadResetLogs(1)
+}
+
+const handleResetLogTableChange = (pag) => {
+    loadResetLogs(pag.current)
 }
 
 onUnmounted(() => {

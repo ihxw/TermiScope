@@ -33,8 +33,15 @@ type MonitorHandler struct {
 }
 
 func NewMonitorHandler(db *gorm.DB, cfg *config.Config) *MonitorHandler {
+	handler := &MonitorHandler{
+		DB:         db,
+		Config:     cfg,
+		lastDbSave: make(map[uint]time.Time),
+	}
+
 	// Start the hub
 	go monitor.GlobalHub.Run()
+
 	// Start Cleanup Routine
 	go func() {
 		ticker := time.NewTicker(1 * time.Hour)
@@ -46,11 +53,162 @@ func NewMonitorHandler(db *gorm.DB, cfg *config.Config) *MonitorHandler {
 		}
 	}()
 
-	return &MonitorHandler{
-		DB:         db,
-		Config:     cfg,
-		lastDbSave: make(map[uint]time.Time),
+	// Start Traffic Reset Scheduler (every hour, check all hosts)
+	go handler.startTrafficResetScheduler()
+
+	return handler
+}
+
+// startTrafficResetScheduler runs a background goroutine that periodically checks
+// all monitored hosts and resets traffic counters when a new billing cycle starts.
+// This ensures resets happen even if the agent is temporarily offline.
+func (h *MonitorHandler) startTrafficResetScheduler() {
+	// Run once on startup (short delay to allow DB init)
+	time.Sleep(10 * time.Second)
+	h.checkAllHostsTrafficReset()
+
+	ticker := time.NewTicker(1 * time.Hour)
+	for range ticker.C {
+		h.checkAllHostsTrafficReset()
 	}
+}
+
+// checkAllHostsTrafficReset iterates all monitored hosts and resets traffic if needed.
+func (h *MonitorHandler) checkAllHostsTrafficReset() {
+	var hosts []models.SSHHost
+	if err := h.DB.Where("monitor_enabled = ?", true).Find(&hosts).Error; err != nil {
+		log.Printf("Traffic Reset Scheduler: Failed to load hosts: %v", err)
+		return
+	}
+
+	log.Printf("Traffic Reset Scheduler: Checking %d hosts", len(hosts))
+	for i := range hosts {
+		cycleStart := getCycleStartDate(time.Now(), hosts[i].NetResetDay)
+		log.Printf("Traffic Reset Scheduler: Host %d (%s) ResetDay=%d LastResetDate='%s' CycleStart='%s' MonthlyRx=%d MonthlyTx=%d",
+			hosts[i].ID, hosts[i].Name, hosts[i].NetResetDay, hosts[i].NetLastResetDate, cycleStart,
+			hosts[i].NetMonthlyRx, hosts[i].NetMonthlyTx)
+		if h.checkAndResetTraffic(&hosts[i]) {
+			log.Printf("Traffic Reset Scheduler: Reset completed for Host %d (%s)", hosts[i].ID, hosts[i].Name)
+		}
+	}
+}
+
+// getCycleStartDate calculates the current billing cycle start date for a given reset day.
+func getCycleStartDate(now time.Time, resetDay int) string {
+	if resetDay == 0 {
+		resetDay = 1
+	}
+
+	year, month, day := now.Date()
+
+	getValidDate := func(y int, m time.Month, d int) time.Time {
+		lastDayOfMonth := time.Date(y, m+1, 0, 0, 0, 0, 0, time.Local).Day()
+		if d > lastDayOfMonth {
+			d = lastDayOfMonth
+		}
+		return time.Date(y, m, d, 0, 0, 0, 0, time.Local)
+	}
+
+	var currentCycleStart time.Time
+	if day >= resetDay {
+		currentCycleStart = getValidDate(year, month, resetDay)
+	} else {
+		if month == 1 {
+			currentCycleStart = getValidDate(year-1, 12, resetDay)
+		} else {
+			currentCycleStart = getValidDate(year, month-1, resetDay)
+		}
+	}
+
+	return currentCycleStart.Format("2006-01-02")
+}
+
+// checkAndResetTraffic checks if a host needs traffic reset and performs it.
+// Returns true if a reset was performed, false otherwise.
+// This method is safe to call from both Pulse() and the background scheduler.
+func (h *MonitorHandler) checkAndResetTraffic(host *models.SSHHost) bool {
+	currentCycleStartStr := getCycleStartDate(time.Now(), host.NetResetDay)
+
+	// Determine if reset is needed by comparing date strings (YYYY-MM-DD, lexicographic order)
+	shouldReset := false
+	if host.NetLastResetDate == "" {
+		shouldReset = true
+	} else if host.NetLastResetDate < currentCycleStartStr {
+		shouldReset = true
+	}
+
+	// Fallback: even if date matches current cycle, check if reset log exists.
+	// If date matches but no log exists, the old code may have updated the date
+	// without actually clearing traffic. In that case, we still need to reset.
+	if !shouldReset && host.NetLastResetDate == currentCycleStartStr {
+		var logCount int64
+		h.DB.Model(&models.MonitorTrafficResetLog{}).
+			Where("host_id = ? AND reset_date = ? AND status = 'success'", host.ID, currentCycleStartStr).
+			Count(&logCount)
+		if logCount == 0 {
+			shouldReset = true
+			log.Printf("Traffic Reset: Host %d date matches cycle %s but no reset log found, forcing reset",
+				host.ID, currentCycleStartStr)
+		}
+	}
+
+	if !shouldReset {
+		return false
+	}
+
+	log.Printf("Traffic Reset Check: Host %d, LastResetDate=%s, CurrentCycleStart=%s, ShouldReset=true",
+		host.ID, host.NetLastResetDate, currentCycleStartStr)
+
+	// Double check with DB Log to prevent duplicate reset (idempotency)
+	var logCount int64
+	h.DB.Model(&models.MonitorTrafficResetLog{}).
+		Where("host_id = ? AND reset_date = ? AND status = 'success'", host.ID, currentCycleStartStr).
+		Count(&logCount)
+
+	if logCount > 0 {
+		// Already reset in DB with log. Safe to skip.
+		host.NetLastResetDate = currentCycleStartStr
+		log.Printf("Traffic Reset: Host %d already has reset log for %s, skipping.",
+			host.ID, currentCycleStartStr)
+		return false
+	}
+
+	// Real Reset Needed - Execute in Transaction
+	err := h.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(host).Updates(map[string]interface{}{
+			"net_monthly_rx":              0,
+			"net_monthly_tx":              0,
+			"net_traffic_used_adjustment": 0,
+			"net_last_reset_date":         currentCycleStartStr,
+			"traffic_alerted":             false,
+		}).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Create(&models.MonitorTrafficResetLog{
+			HostID:    host.ID,
+			ResetDate: currentCycleStartStr,
+			Status:    "success",
+			CreatedAt: time.Now(),
+		}).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+
+	if err != nil {
+		log.Printf("Traffic Reset Transaction FAILED for Host %d: %v", host.ID, err)
+		return false
+	}
+
+	// Success: Update in-memory host to reflect DB
+	host.NetMonthlyRx = 0
+	host.NetMonthlyTx = 0
+	host.NetTrafficUsedAdjustment = 0
+	host.NetLastResetDate = currentCycleStartStr
+	host.TrafficAlerted = false
+	log.Printf("Traffic Reset Transaction SUCCESS for Host %d: New Cycle %s", host.ID, currentCycleStartStr)
+	return true
 }
 
 // Agent Script Template
@@ -331,141 +489,10 @@ func (h *MonitorHandler) Pulse(c *gin.Context) {
 		}
 	}
 
-	// 2. Check for Reset Day logic
-	now := time.Now()
-	// Calculate the start of the current cycle
-	var currentCycleStart time.Time
-
-	resetDay := host.NetResetDay
-	if resetDay == 0 {
-		resetDay = 1 // Default to 1st of month
-	}
-
-	// Logic to find "Current Cycle Start Date"
-	// If Today >= ResetDay, then Cycle Start is [ThisMonth]-[ResetDay]
-	// If Today < ResetDay, then Cycle Start is [LastMonth]-[ResetDay]
-	// Note: Handle short months (e.g. ResetDay=31, Feb has 28).
-
-	year, month, day := now.Date()
-
-	// Helper to get valid date in a month
-	getValidDate := func(y int, m time.Month, d int) time.Time {
-		// Normalize day: if d > daysInMonth, clamp to last day
-		// time.Date simply rolls over (Mars 32 -> April 1), which is NOT what we want usually for billing cycles?
-		// Usually "Last Day" billing means "Last Day".
-		// But here we just want a reference point.
-		// Let's use time.Date(y, m+1, 0, ...) to get last day of month.
-		lastDayOfMonth := time.Date(y, m+1, 0, 0, 0, 0, 0, time.Local).Day()
-		if d > lastDayOfMonth {
-			d = lastDayOfMonth
-		}
-		return time.Date(y, m, d, 0, 0, 0, 0, time.Local)
-	}
-
 	// 2. Check for Traffic Reset (Monthly)
-	// Logic to find "Current Cycle Start Date"
-	// If Today >= ResetDay, then Cycle Start is [ThisMonth]-[ResetDay]
-	// If Today < ResetDay, then Cycle Start is [LastMonth]-[ResetDay]
-	// Note: Handle short months (e.g. ResetDay=31, Feb has 28).
-
-	if day >= resetDay {
-		currentCycleStart = getValidDate(year, month, resetDay)
-	} else {
-		// Last month
-		if month == 1 {
-			currentCycleStart = getValidDate(year-1, 12, resetDay)
-		} else {
-			currentCycleStart = getValidDate(year, month-1, resetDay)
-		}
-	}
-
-	currentCycleStartStr := currentCycleStart.Format("2006-01-02")
 	dbUpdated := false
-
-	// Robust Reset Logic: Check DB Record first
-	// We only reset if we haven't successfully reset for this cycle yet.
-	// We use a separate table `monitor_traffic_reset_logs` as the source of truth for "Reset Success".
-	// This handles race conditions and ensures eventual consistency (retry on failure).
-
-	shouldReset := false
-	if host.NetLastResetDate == "" {
-		shouldReset = true
-	} else {
-		// Quick check: if in-memory date is old, we likely need reset.
-		// But we must verify against the Log table to be sure we didn't just lose the date via race condition.
-		lastReset, err := time.Parse("2006-01-02", host.NetLastResetDate)
-		if err == nil {
-			lastReset = lastReset.Truncate(24 * time.Hour)
-			cycleStartTrunc := currentCycleStart.Truncate(24 * time.Hour)
-			if lastReset.Before(cycleStartTrunc) {
-				shouldReset = true
-			}
-		} else {
-			shouldReset = true // Invalid date
-		}
-	}
-
-	if shouldReset {
-		// Double check with DB Log to prevent duplicate reset (idempotency)
-		var logCount int64
-		h.DB.Model(&models.MonitorTrafficResetLog{}).
-			Where("host_id = ? AND reset_date = ? AND status = 'success'", host.ID, currentCycleStartStr).
-			Count(&logCount)
-
-		if logCount > 0 {
-			// Already reset in DB, but in-memory/host record is old.
-			// Just update the host record to match reality without clearing traffic (to avoid clearing new traffic).
-			// Wait, if we cleared traffic at T1, and T2 overwrote it with Old Traffic.
-			// And we see Log exists.
-			// Currently we are stuck with Old Traffic (High).
-			// This is the "T2 overwrite" problem.
-			// However, if we assume T2 overwrite is rare or handled elsewhere.
-			// For now, let's update the date so we stop checking.
-			host.NetLastResetDate = currentCycleStartStr
-			dbUpdated = true
-			log.Printf("Monitor: Detected existing reset log for %s but host date was old. Updating host date only.", currentCycleStartStr)
-		} else {
-			// No log found -> Real Reset Needed.
-			// Execute in Transaction
-			err := h.DB.Transaction(func(tx *gorm.DB) error {
-				// 1. Reset Host Fields
-				if err := tx.Model(&host).Updates(map[string]interface{}{
-					"net_monthly_rx":              0,
-					"net_monthly_tx":              0,
-					"net_traffic_used_adjustment": 0,
-					"net_last_reset_date":         currentCycleStartStr,
-					"traffic_alerted":             false,
-				}).Error; err != nil {
-					return err
-				}
-
-				// 2. Create Log Record
-				if err := tx.Create(&models.MonitorTrafficResetLog{
-					HostID:    host.ID,
-					ResetDate: currentCycleStartStr,
-					Status:    "success",
-					CreatedAt: time.Now(),
-				}).Error; err != nil {
-					return err
-				}
-				return nil
-			})
-
-			if err != nil {
-				log.Printf("Traffic Reset Transaction Failed for Host %d: %v", host.ID, err)
-				// Do NOT update in-memory host.
-				// Next Pulse will retry because `shouldReset` will still be true (NetLastResetDate is old).
-			} else {
-				// Success: Update in-memory host to reflect DB
-				host.NetMonthlyRx = 0
-				host.NetMonthlyTx = 0
-				host.NetTrafficUsedAdjustment = 0
-				host.NetLastResetDate = currentCycleStartStr
-				host.TrafficAlerted = false
-				dbUpdated = true // Mark as updated so we don't save again below (optimization)
-				log.Printf("Traffic Reset Transaction SUCCESS for Host %d: New Cycle %s", host.ID, currentCycleStartStr)
-			}
-		}
+	if h.checkAndResetTraffic(&host) {
+		dbUpdated = true
 	}
 
 	// 3. Delta Calculation (Accumulation)
@@ -1333,6 +1360,144 @@ func (h *MonitorHandler) GetStatusLogs(c *gin.Context) {
 		"data":  logs,
 		"total": total,
 		"page":  page,
+	})
+}
+
+// GetTrafficResetLogs returns the traffic reset history logs.
+// If host_id is provided, filter by host; otherwise return all.
+func (h *MonitorHandler) GetTrafficResetLogs(c *gin.Context) {
+	page := utils.GetIntQuery(c, "page", 1)
+	pageSize := utils.GetIntQuery(c, "page_size", 20)
+	offset := (page - 1) * pageSize
+	hostId := c.Query("host_id")
+
+	var logs []models.MonitorTrafficResetLog
+	var total int64
+
+	db := h.DB.Model(&models.MonitorTrafficResetLog{})
+	if hostId != "" {
+		db = db.Where("host_id = ?", hostId)
+	}
+
+	db.Count(&total)
+
+	if err := db.Order("created_at desc").Offset(offset).Limit(pageSize).Find(&logs).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch traffic reset logs"})
+		return
+	}
+
+	// Enrich with host names
+	type LogWithHost struct {
+		models.MonitorTrafficResetLog
+		HostName string `json:"host_name"`
+	}
+
+	var enrichedLogs []LogWithHost
+	for _, l := range logs {
+		var host models.SSHHost
+		hostName := ""
+		if err := h.DB.Select("name").First(&host, l.HostID).Error; err == nil {
+			hostName = host.Name
+		}
+		enrichedLogs = append(enrichedLogs, LogWithHost{
+			MonitorTrafficResetLog: l,
+			HostName:               hostName,
+		})
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"data":  enrichedLogs,
+		"total": total,
+		"page":  page,
+	})
+}
+
+// GetTrafficResetDebug returns diagnostic info for a host's traffic reset state.
+func (h *MonitorHandler) GetTrafficResetDebug(c *gin.Context) {
+	id := c.Param("id")
+	var host models.SSHHost
+	if err := h.DB.First(&host, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Host not found"})
+		return
+	}
+
+	now := time.Now()
+	cycleStartStr := getCycleStartDate(now, host.NetResetDay)
+
+	shouldReset := false
+	reason := "net_last_reset_date >= currentCycleStart (already reset for this cycle)"
+	if host.NetLastResetDate == "" {
+		shouldReset = true
+		reason = "net_last_reset_date is empty"
+	} else if host.NetLastResetDate < cycleStartStr {
+		shouldReset = true
+		reason = fmt.Sprintf("net_last_reset_date '%s' < currentCycleStart '%s'", host.NetLastResetDate, cycleStartStr)
+	}
+
+	var logCount int64
+	h.DB.Model(&models.MonitorTrafficResetLog{}).
+		Where("host_id = ? AND reset_date = ? AND status = 'success'", host.ID, cycleStartStr).
+		Count(&logCount)
+
+	c.JSON(http.StatusOK, gin.H{
+		"host_id":             host.ID,
+		"host_name":           host.Name,
+		"net_reset_day":       host.NetResetDay,
+		"net_last_reset_date": host.NetLastResetDate,
+		"net_monthly_rx":      host.NetMonthlyRx,
+		"net_monthly_tx":      host.NetMonthlyTx,
+		"current_cycle_start": cycleStartStr,
+		"should_reset":        shouldReset,
+		"reason":              reason,
+		"existing_log_count":  logCount,
+		"server_time":         now.Format("2006-01-02 15:04:05"),
+		"server_timezone":     now.Location().String(),
+	})
+}
+
+// ForceTrafficReset forces a traffic reset for a specific host.
+func (h *MonitorHandler) ForceTrafficReset(c *gin.Context) {
+	id := c.Param("id")
+	var host models.SSHHost
+	if err := h.DB.First(&host, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Host not found"})
+		return
+	}
+
+	cycleStartStr := getCycleStartDate(time.Now(), host.NetResetDay)
+
+	// Force reset: clear traffic and update date
+	err := h.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&host).Updates(map[string]interface{}{
+			"net_monthly_rx":              0,
+			"net_monthly_tx":              0,
+			"net_traffic_used_adjustment": 0,
+			"net_last_reset_date":         cycleStartStr,
+			"traffic_alerted":             false,
+		}).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Create(&models.MonitorTrafficResetLog{
+			HostID:    host.ID,
+			ResetDate: cycleStartStr,
+			Status:    "success",
+			CreatedAt: time.Now(),
+		}).Error; err != nil {
+			return err
+		}
+		return nil
+	})
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Force reset failed: %v", err)})
+		return
+	}
+
+	log.Printf("Force Traffic Reset SUCCESS for Host %d (%s): Cycle %s", host.ID, host.Name, cycleStartStr)
+	c.JSON(http.StatusOK, gin.H{
+		"message":    "Traffic reset forced successfully",
+		"cycle_date": cycleStartStr,
 	})
 }
 

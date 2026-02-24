@@ -162,6 +162,9 @@ func main() {
 		protected.POST("/ssh-hosts/monitor/batch-deploy", monitorHandler.BatchDeploy)
 		protected.POST("/ssh-hosts/monitor/batch-stop", monitorHandler.BatchStop)
 		protected.GET("/ssh-hosts/:id/monitor/logs", monitorHandler.GetStatusLogs)
+		protected.GET("/monitor/traffic-reset-logs", monitorHandler.GetTrafficResetLogs)
+		protected.GET("/monitor/traffic-reset-debug/:id", monitorHandler.GetTrafficResetDebug)
+		protected.POST("/monitor/traffic-reset-force/:id", monitorHandler.ForceTrafficReset)
 
 		// Network Monitor Management (User)
 		protected.POST("/monitor/network/tasks", netMonitorHandler.CreateTask)

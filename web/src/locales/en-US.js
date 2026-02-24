@@ -495,7 +495,13 @@ export default {
         commandCopied: 'Command copied',
         uninstallCommandTitle: 'Manual Agent Uninstallation',
         manualUninstallNotice: 'Execute the following command with root/administrator privileges to uninstall the monitor agent',
-        uninstallSupport: 'Supported: Ubuntu, Debian, CentOS, Fedora, Arch Linux'
+        uninstallSupport: 'Supported: Ubuntu, Debian, CentOS, Fedora, Arch Linux',
+        trafficResetLogs: 'Traffic Reset Logs',
+        trafficResetLogsTitle: 'Traffic Reset History',
+        resetDate: 'Reset Cycle',
+        resetTime: 'Reset Time',
+        resetStatus: 'Status',
+        hostName: 'Host Name'
     },
     sftp: {
         new: 'New',
