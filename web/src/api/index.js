@@ -46,6 +46,11 @@ api.interceptors.response.use(
         return response.data
     },
     async (error) => {
+        // 静默错误：如果请求配置了 _silentError，跳过全局错误提示
+        if (error.config && error.config._silentError) {
+            return Promise.reject(error)
+        }
+
         // Extract error message
         let errorMessage = 'Request failed'
         if (error.response && error.response.data && error.response.data.error) {

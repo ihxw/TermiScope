@@ -60,7 +60,8 @@ export const getDirSize = async (hostId, path) => {
     try {
         return await api.get(`/sftp/size/${hostId}`, {
             params: { path },
-            timeout: 10000 // 10s timeout to prevent long hanging
+            timeout: 10000, // 10s timeout to prevent long hanging
+            _silentError: true // 静默错误，不在全局拦截器中显示 toast
         })
     } catch (error) {
         // 静默失败，不显示toast
