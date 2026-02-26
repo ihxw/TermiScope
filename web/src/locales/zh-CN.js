@@ -582,6 +582,8 @@ export default {
         failedToPaste: '粘贴失败',
         failedToRename: '重命名失败',
         failedToCreate: '创建 {type} 失败',
-        calcFailed: '统计失败'
+        calcFailed: '统计失败',
+        writingToServer: '写入远程服务器中...',
+        uploadCancelled: '已取消上传'
     }
 }

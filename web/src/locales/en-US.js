@@ -539,6 +539,8 @@ export default {
         failedToPaste: 'Failed to paste',
         failedToRename: 'Failed to rename',
         failedToCreate: 'Failed to create {type}',
-        calcFailed: 'Calculation Failed'
+        calcFailed: 'Calculation Failed',
+        writingToServer: 'Writing to remote server...',
+        uploadCancelled: 'Upload Cancelled'
     }
 }

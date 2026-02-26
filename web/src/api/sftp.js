@@ -18,7 +18,7 @@ export const downloadFile = async (hostId, path, onProgress) => {
     })
 }
 
-export const uploadFile = async (hostId, path, file, onProgress) => {
+export const uploadFile = async (hostId, path, file, onProgress, signal) => {
     const formData = new FormData()
     formData.append('path', path)
     formData.append('file', file)
@@ -27,6 +27,7 @@ export const uploadFile = async (hostId, path, file, onProgress) => {
             'Content-Type': 'multipart/form-data'
         },
         timeout: 0,
+        signal,
         onUploadProgress: (progressEvent) => {
             if (onProgress) {
                 const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total)

@@ -181,7 +181,8 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch, h, reactive, nextTick } from 'vue'
-import { message, notification, Progress } from 'ant-design-vue'
+import axios from 'axios'
+import { message, notification, Progress, Button, Spin } from 'ant-design-vue'
 import { 
   FolderFilled, 
   FileOutlined, 
@@ -478,15 +479,31 @@ const navigateTo = (index) => {
   loadFiles()
 }
 
+const uploadControllers = new Map()
+
+const cancelUpload = (key) => {
+    const controller = uploadControllers.get(key)
+    if (controller) {
+        controller.abort()
+        uploadControllers.delete(key)
+    }
+}
+
 const handleUpload = async ({ file, onSuccess, onError }) => {
   const key = `upload-${Date.now()}`
+  const controller = new AbortController()
+  uploadControllers.set(key, controller)
+
   try {
     notification.open({
         key,
-        message: 'Uploading...',
+        message: t('sftp.uploading'),
         description: h('div', [
             h(Progress, { percent: 0, status: 'active', size: 'small' }),
-            h('div', { style: 'margin-top: 8px' }, file.name)
+            h('div', { style: 'display: flex; justify-content: space-between; align-items: center; margin-top: 8px' }, [
+                h('span', { style: 'color: #8c8c8c; font-size: 12px' }, file.name),
+                h(Button, { size: 'small', danger: true, onClick: () => cancelUpload(key) }, () => t('common.cancel'))
+            ])
         ]),
         duration: 0,
         placement: 'bottomRight'
@@ -501,21 +518,46 @@ const handleUpload = async ({ file, onSuccess, onError }) => {
             ? (speed / (1024 * 1024)).toFixed(2) + ' MB/s' 
             : (speed / 1024).toFixed(2) + ' KB/s'
 
+        if (percent >= 100) {
+            // 浏览器已发完数据，但后端仍在写入远程 SFTP
+            notification.open({
+                key,
+                message: t('sftp.uploading'),
+                description: h('div', [
+                    h(Progress, { percent: 100, status: 'active', size: 'small' }),
+                    h('div', { style: 'display: flex; justify-content: space-between; align-items: center; margin-top: 8px' }, [
+                        h('span', { style: 'color: #8c8c8c; font-size: 12px' }, file.name),
+                        h('div', { style: 'display: flex; align-items: center; gap: 6px' }, [
+                            h(Spin, { size: 'small' }),
+                            h('span', { style: 'color: #faad14; font-weight: 500; font-size: 12px' }, t('sftp.writingToServer'))
+                        ])
+                    ])
+                ]),
+                duration: 0,
+                placement: 'bottomRight'
+            })
+            return
+        }
+
         notification.open({
             key,
             message: t('sftp.uploading'),
             description: h('div', [
                 h(Progress, { percent: percent, status: 'active', size: 'small' }),
-                h('div', { style: 'display: flex; justify-content: space-between; margin-top: 8px' }, [
+                h('div', { style: 'display: flex; justify-content: space-between; align-items: center; margin-top: 8px' }, [
                     h('span', { style: 'color: #8c8c8c; font-size: 12px' }, file.name),
-                    h('span', { style: 'color: #1890ff; font-weight: 500; font-size: 12px' }, speedStr)
+                    h('div', { style: 'display: flex; align-items: center; gap: 8px' }, [
+                        h('span', { style: 'color: #1890ff; font-weight: 500; font-size: 12px' }, speedStr),
+                        h(Button, { size: 'small', danger: true, onClick: () => cancelUpload(key) }, () => t('common.cancel'))
+                    ])
                 ])
             ]),
             duration: 0,
             placement: 'bottomRight'
         })
-    })
+    }, controller.signal)
     
+    uploadControllers.delete(key)
     notification.success({
         key,
         message: t('sftp.uploadComplete'),
@@ -527,6 +569,18 @@ const handleUpload = async ({ file, onSuccess, onError }) => {
     loadFiles()
     onSuccess()
   } catch (error) {
+    uploadControllers.delete(key)
+    if (axios.isCancel(error) || error.name === 'CanceledError' || error.code === 'ERR_CANCELED') {
+        notification.warning({
+            key,
+            message: t('sftp.uploadCancelled'),
+            description: file.name,
+            duration: 3,
+            placement: 'bottomRight'
+        })
+        onError(error)
+        return
+    }
     notification.error({
         key,
         message: t('sftp.uploadFailed'),
