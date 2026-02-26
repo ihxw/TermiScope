@@ -189,76 +189,83 @@ if [ -f "$INSTALL_DIR/configs/config.yaml" ]; then
         PORT=8080  # Fallback default
     fi
     echo -e "Detected port: ${GREEN}$PORT${NC}"
-else
     echo "Installing default configuration..."
-    if [ -f "$PACKAGE_DIR/configs/config.yaml" ]; then
-        cp "$PACKAGE_DIR/configs/config.yaml" "$INSTALL_DIR/configs/"
-        
-        # Prompt for Port
-        read -p "Enter server port [8080]: " USER_PORT
-        PORT=${USER_PORT:-8080}
-        
-        # Update Port in config
-        sed -i "s/port: .*/port: $PORT/" "$INSTALL_DIR/configs/config.yaml"
-        echo -e "Set port to ${GREEN}$PORT${NC}"
-        
-        echo ""
-        echo -e "${GREEN}=== Security Keys Configuration ===${NC}"
-        echo ""
-        
-        # Generate JWT Secret (32+ characters)
-        DEFAULT_JWT_SECRET=$(openssl rand -base64 48 | tr -d '\n' | cut -c1-32)
-        echo -e "${YELLOW}JWT Secret Configuration${NC}"
-        echo "A secure random JWT secret has been generated."
-        echo -e "Default value: ${GREEN}$DEFAULT_JWT_SECRET${NC}"
-        read -p "Press Enter to use default, or type your own (min 32 chars): " USER_JWT_SECRET
-        
-        if [ -z "$USER_JWT_SECRET" ]; then
-            JWT_SECRET="$DEFAULT_JWT_SECRET"
-            echo -e "${GREEN}✓ Using generated JWT secret${NC}"
-        else
-            if [ ${#USER_JWT_SECRET} -lt 32 ]; then
-                echo -e "${RED}✗ Error: JWT secret must be at least 32 characters!${NC}"
-                exit 1
-            fi
-            JWT_SECRET="$USER_JWT_SECRET"
-            echo -e "${GREEN}✓ Using custom JWT secret${NC}"
-        fi
-        
-        echo ""
-        
-        # Generate Encryption Key (exactly 32 characters)
-        DEFAULT_ENCRYPTION_KEY=$(openssl rand -base64 48 | tr -d '\n' | cut -c1-32)
-        echo -e "${YELLOW}Encryption Key Configuration${NC}"
-        echo "A secure random encryption key has been generated."
-        echo -e "Default value: ${GREEN}$DEFAULT_ENCRYPTION_KEY${NC}"
-        read -p "Press Enter to use default, or type your own (exactly 32 chars): " USER_ENCRYPTION_KEY
-        
-        if [ -z "$USER_ENCRYPTION_KEY" ]; then
-            ENCRYPTION_KEY="$DEFAULT_ENCRYPTION_KEY"
-            echo -e "${GREEN}✓ Using generated encryption key${NC}"
-        else
-            if [ ${#USER_ENCRYPTION_KEY} -ne 32 ]; then
-                echo -e "${RED}✗ Error: Encryption key must be exactly 32 characters!${NC}"
-                exit 1
-            fi
-            ENCRYPTION_KEY="$USER_ENCRYPTION_KEY"
-            echo -e "${GREEN}✓ Using custom encryption key${NC}"
-        fi
-        
-        echo ""
-        echo "Updating configuration file..."
-        
-        # Update JWT secret in config
-        sed -i "s/jwt_secret: \".*\"/jwt_secret: \"$JWT_SECRET\"/" "$INSTALL_DIR/configs/config.yaml"
-        
-        # Update encryption key in config
-        sed -i "s/encryption_key: \".*\"/encryption_key: \"$ENCRYPTION_KEY\"/" "$INSTALL_DIR/configs/config.yaml"
-        
-        echo -e "${GREEN}✓ Configuration updated with security keys${NC}"
+    
+    # Prompt for Port
+    read -p "Enter server port [3000]: " USER_PORT
+    PORT=${USER_PORT:-3000}
+    
+    echo -e "Set port to ${GREEN}$PORT${NC}"
+    
+    echo ""
+    echo -e "${GREEN}=== Security Keys Configuration ===${NC}"
+    echo ""
+    
+    # Generate JWT Secret (32+ characters)
+    DEFAULT_JWT_SECRET=$(openssl rand -base64 48 | tr -d '\n' | cut -c1-32)
+    echo -e "${YELLOW}JWT Secret Configuration${NC}"
+    echo "A secure random JWT secret has been generated."
+    echo -e "Default value: ${GREEN}$DEFAULT_JWT_SECRET${NC}"
+    read -p "Press Enter to use default, or type your own (min 32 chars): " USER_JWT_SECRET
+    
+    if [ -z "$USER_JWT_SECRET" ]; then
+        JWT_SECRET="$DEFAULT_JWT_SECRET"
+        echo -e "${GREEN}✓ Using generated JWT secret${NC}"
     else
-        echo -e "${RED}Warning: Default config not found in package!${NC}"
+        if [ ${#USER_JWT_SECRET} -lt 32 ]; then
+            echo -e "${RED}✗ Error: JWT secret must be at least 32 characters!${NC}"
+            exit 1
+        fi
+        JWT_SECRET="$USER_JWT_SECRET"
+        echo -e "${GREEN}✓ Using custom JWT secret${NC}"
     fi
+    
+    echo ""
+    
+    # Generate Encryption Key (exactly 32 characters)
+    DEFAULT_ENCRYPTION_KEY=$(openssl rand -base64 48 | tr -d '\n' | cut -c1-32)
+    echo -e "${YELLOW}Encryption Key Configuration${NC}"
+    echo "A secure random encryption key has been generated."
+    echo -e "Default value: ${GREEN}$DEFAULT_ENCRYPTION_KEY${NC}"
+    read -p "Press Enter to use default, or type your own (exactly 32 chars): " USER_ENCRYPTION_KEY
+    
+    if [ -z "$USER_ENCRYPTION_KEY" ]; then
+        ENCRYPTION_KEY="$DEFAULT_ENCRYPTION_KEY"
+        echo -e "${GREEN}✓ Using generated encryption key${NC}"
+    else
+        if [ ${#USER_ENCRYPTION_KEY} -ne 32 ]; then
+            echo -e "${RED}✗ Error: Encryption key must be exactly 32 characters!${NC}"
+            exit 1
+        fi
+        ENCRYPTION_KEY="$USER_ENCRYPTION_KEY"
+        echo -e "${GREEN}✓ Using custom encryption key${NC}"
+    fi
+    
+    echo ""
+    echo "Creating configuration file..."
+    
+    cat > "$INSTALL_DIR/configs/config.yaml" <<EOF
+server:
+  port: $PORT
+  mode: release
+  allowed_origins:
+    - "*"
+  max_upload_size: 1048576000
+
+database:
+  path: ./data/termiscope.db
+
+security:
+  jwt_secret: "$JWT_SECRET"
+  encryption_key: "$ENCRYPTION_KEY"
+  smtp_tls_skip_verify: false
+
+log:
+  level: info
+  file: ./logs/app.log
+EOF
+    
+    echo -e "${GREEN}✓ Configuration created successfully${NC}"
 fi
 
 # 7. Systemd Service
