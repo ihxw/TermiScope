@@ -193,6 +193,7 @@ func main() {
 		protected.POST("/sftp/mkdir/:hostId", sftpHandler.Mkdir)
 		protected.POST("/sftp/create/:hostId", sftpHandler.CreateFile)
 		protected.GET("/sftp/size/:hostId", sftpHandler.GetDirSize)
+		protected.POST("/sftp/transfer", sftpHandler.Transfer)
 
 		// Connection log routes
 		logHandler := handlers.NewConnectionLogHandler(db)

@@ -39,6 +39,10 @@
               <CodeOutlined />
               {{ t('nav.terminal') }}
             </a-menu-item>
+            <a-menu-item key="FileTransfer">
+              <SwapOutlined />
+              {{ t('nav.fileTransfer') }}
+            </a-menu-item>
             <a-menu-item key="HostManagement">
               <DatabaseOutlined />
               {{ t('nav.hosts') }}
@@ -156,6 +160,10 @@
             <CodeOutlined />
             <span>{{ t('nav.terminal') }}</span>
           </a-menu-item>
+          <a-menu-item key="FileTransfer">
+            <SwapOutlined />
+            <span>{{ t('nav.fileTransfer') }}</span>
+          </a-menu-item>
           <a-menu-item key="HostManagement">
             <DatabaseOutlined />
             <span>{{ t('nav.hosts') }}</span>
@@ -208,7 +216,8 @@ import {
   BulbFilled,
   SettingOutlined,
   MenuOutlined,
-  CloseOutlined
+  CloseOutlined,
+  SwapOutlined
 } from '@ant-design/icons-vue'
 import { useAuthStore } from '../stores/auth'
 import { useThemeStore } from '../stores/theme'

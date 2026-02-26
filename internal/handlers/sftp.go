@@ -2,11 +2,13 @@ package handlers
 
 import (
 	"archive/zip"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -17,6 +19,7 @@ import (
 	"github.com/ihxw/termiscope/internal/ssh"
 	"github.com/ihxw/termiscope/internal/utils"
 	"github.com/pkg/sftp"
+	cryptossh "golang.org/x/crypto/ssh"
 	"gorm.io/gorm"
 )
 
@@ -620,4 +623,345 @@ func (h *SftpHandler) GetDirSize(c *gin.Context) {
 		"size":   size,
 		"method": "scan",
 	})
+}
+
+// sendTransferEvent writes a JSON event line and flushes for streaming
+func sendTransferEvent(c *gin.Context, data map[string]interface{}) {
+	jsonBytes, _ := json.Marshal(data)
+	c.Writer.Write(jsonBytes)
+	c.Writer.Write([]byte("\n"))
+	c.Writer.(http.Flusher).Flush()
+}
+
+// Transfer handles POST /api/sftp/transfer
+// Preferred: direct SCP from source VPS to dest VPS (data bypasses this server)
+// Fallback: server-side relay when sshpass is not available for password auth
+func (h *SftpHandler) Transfer(c *gin.Context) {
+	userID := middleware.GetUserID(c)
+
+	var req struct {
+		SourceHostID string `json:"source_host_id" binding:"required"`
+		DestHostID   string `json:"dest_host_id" binding:"required"`
+		SourcePath   string `json:"source_path" binding:"required"`
+		DestPath     string `json:"dest_path" binding:"required"`
+		Type         string `json:"type" binding:"omitempty,oneof=cut copy"` // cut or copy
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorResponse(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	// Get destination host info and decrypt credentials (needed for SCP command)
+	var dstHost models.SSHHost
+	if err := h.db.Where("id = ? AND user_id = ?", req.DestHostID, userID).First(&dstHost).Error; err != nil {
+		utils.ErrorResponse(c, http.StatusInternalServerError, "destination host not found")
+		return
+	}
+	var dstPassword, dstPrivateKey string
+	if dstHost.PasswordEncrypted != "" {
+		dec, err := utils.DecryptAES(dstHost.PasswordEncrypted, h.config.Security.EncryptionKey)
+		if err == nil {
+			dstPassword = dec
+		}
+	}
+	if dstHost.PrivateKeyEncrypted != "" {
+		dec, err := utils.DecryptAES(dstHost.PrivateKeyEncrypted, h.config.Security.EncryptionKey)
+		if err == nil {
+			dstPrivateKey = dec
+		}
+	}
+
+	// Set up NDJSON streaming response
+	c.Header("Content-Type", "application/x-ndjson")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("X-Accel-Buffering", "no")
+
+	// Connect to source via SFTP to get file info
+	srcSftp, srcSSH, err := h.getSftpClient(userID, req.SourceHostID)
+	if err != nil {
+		sendTransferEvent(c, map[string]interface{}{"type": "error", "message": "failed to connect to source: " + err.Error()})
+		return
+	}
+	defer srcSSH.Close()
+
+	srcStat, err := srcSftp.Stat(req.SourcePath)
+	if err != nil {
+		srcSftp.Close()
+		sendTransferEvent(c, map[string]interface{}{"type": "error", "message": "source path not found: " + err.Error()})
+		return
+	}
+	isDir := srcStat.IsDir()
+	totalSize := srcStat.Size()
+	if isDir {
+		totalSize = 0
+		walker := srcSftp.Walk(req.SourcePath)
+		for walker.Step() {
+			if walker.Err() == nil && !walker.Stat().IsDir() {
+				totalSize += walker.Stat().Size()
+			}
+		}
+	}
+	srcSftp.Close()
+
+	fileName := path.Base(req.SourcePath)
+	sendTransferEvent(c, map[string]interface{}{
+		"type": "start", "total_size": totalSize, "is_dir": isDir, "file_name": fileName,
+	})
+
+	// Try direct SCP from source to destination
+	if h.tryDirectSCP(c, srcSSH, dstHost, dstPassword, dstPrivateKey, req.SourcePath, req.DestPath, isDir) {
+		return
+	}
+
+	// Fallback: server-side relay with progress
+	sendTransferEvent(c, map[string]interface{}{"type": "info", "message": "using server relay"})
+	relayErr := h.transferViaRelay(c, userID, req.SourceHostID, req.DestHostID, req.SourcePath, req.DestPath, totalSize)
+
+	// If cut requested and transfer succeeded, delete source
+	if req.Type == "cut" && relayErr == nil {
+		srcSftp, srcSSH, err := h.getSftpClient(userID, req.SourceHostID)
+		if err == nil {
+			h.deleteRecursive(srcSftp, req.SourcePath)
+			srcSftp.Close()
+			srcSSH.Close()
+		}
+	}
+}
+
+// tryDirectSCP runs scp from source VPS directly to dest VPS. Returns true if attempted.
+func (h *SftpHandler) tryDirectSCP(c *gin.Context, srcSSH *ssh.SSHClient, dstHost models.SSHHost, dstPassword, dstPrivateKey, sourcePath, destPath string, isDir bool) bool {
+	rawClient := srcSSH.GetRawClient()
+
+	var scpAuthPrefix, cleanupCmd string
+
+	if dstPrivateKey != "" {
+		// Key auth: write temp key to source VPS
+		setupSession, err := rawClient.NewSession()
+		if err != nil {
+			return false
+		}
+		escapedKey := strings.ReplaceAll(dstPrivateKey, "'", "'\\''")
+		cmd := fmt.Sprintf("TMPKEY=$(mktemp /tmp/ts_key_XXXXXX) && chmod 600 $TMPKEY && printf '%%s' '%s' > $TMPKEY && echo $TMPKEY", escapedKey)
+		output, err := setupSession.Output(cmd)
+		setupSession.Close()
+		if err != nil {
+			return false
+		}
+		tmpKeyPath := strings.TrimSpace(string(output))
+		if tmpKeyPath == "" {
+			return false
+		}
+		scpAuthPrefix = fmt.Sprintf("scp -i %s", tmpKeyPath)
+		cleanupCmd = fmt.Sprintf("rm -f %s", tmpKeyPath)
+	} else if dstPassword != "" {
+		// Check sshpass availability
+		checkSession, err := rawClient.NewSession()
+		if err != nil {
+			return false
+		}
+		_, err = checkSession.Output("command -v sshpass")
+		checkSession.Close()
+		if err != nil {
+			sendTransferEvent(c, map[string]interface{}{"type": "info", "message": "sshpass not available, falling back to relay"})
+			return false
+		}
+		escapedPass := strings.ReplaceAll(dstPassword, "'", "'\\''")
+		scpAuthPrefix = fmt.Sprintf("SSHPASS='%s' sshpass -e scp", escapedPass)
+	} else {
+		return false
+	}
+
+	// Build SCP command
+	scpFlags := "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+	if isDir {
+		scpFlags += " -r"
+	}
+	scpCmd := fmt.Sprintf("%s %s -P %d '%s' %s@%s:'%s/'",
+		scpAuthPrefix, scpFlags, dstHost.Port,
+		sourcePath, dstHost.Username, dstHost.Host, destPath)
+
+	// Run with PTY for progress output
+	session, err := rawClient.NewSession()
+	if err != nil {
+		return false
+	}
+	defer session.Close()
+
+	modes := cryptossh.TerminalModes{cryptossh.ECHO: 0}
+	if err := session.RequestPty("xterm", 40, 200, modes); err != nil {
+		return false
+	}
+
+	stdout, err := session.StdoutPipe()
+	if err != nil {
+		return false
+	}
+	if err := session.Start(scpCmd); err != nil {
+		sendTransferEvent(c, map[string]interface{}{"type": "error", "message": "SCP start failed: " + err.Error()})
+		return true
+	}
+
+	// Parse SCP progress output
+	progressRe := regexp.MustCompile(`(\d+)%\s+(\S+)\s+(\S+/s)`)
+	buf := make([]byte, 4096)
+	var lastPercent int
+	for {
+		n, readErr := stdout.Read(buf)
+		if n > 0 {
+			for _, part := range strings.Split(string(buf[:n]), "\r") {
+				if matches := progressRe.FindStringSubmatch(part); len(matches) >= 4 {
+					var pct int
+					fmt.Sscanf(matches[1], "%d", &pct)
+					if pct != lastPercent {
+						lastPercent = pct
+						sendTransferEvent(c, map[string]interface{}{
+							"type": "progress", "percent": pct, "speed": matches[3],
+						})
+					}
+				}
+			}
+		}
+		if readErr != nil {
+			break
+		}
+	}
+
+	exitErr := session.Wait()
+
+	// Cleanup temp credentials
+	if cleanupCmd != "" {
+		if cs, err := rawClient.NewSession(); err == nil {
+			cs.Run(cleanupCmd)
+			cs.Close()
+		}
+	}
+
+	if exitErr != nil {
+		sendTransferEvent(c, map[string]interface{}{"type": "error", "message": "SCP failed: " + exitErr.Error()})
+	} else {
+		sendTransferEvent(c, map[string]interface{}{"type": "complete", "method": "direct"})
+	}
+	return true
+}
+
+// transferViaRelay uses server-side SFTP relay with progress streaming
+func (h *SftpHandler) transferViaRelay(c *gin.Context, userID uint, srcHostID, dstHostID, sourcePath, destPath string, totalSize int64) error {
+	srcSftp, srcSSH, err := h.getSftpClient(userID, srcHostID)
+	if err != nil {
+		sendTransferEvent(c, map[string]interface{}{"type": "error", "message": "relay connect source failed: " + err.Error()})
+		return err
+	}
+	defer srcSftp.Close()
+	defer srcSSH.Close()
+
+	dstSftp, dstSSH, err := h.getSftpClient(userID, dstHostID)
+	if err != nil {
+		sendTransferEvent(c, map[string]interface{}{"type": "error", "message": "relay connect dest failed: " + err.Error()})
+		return err
+	}
+	defer dstSftp.Close()
+	defer dstSSH.Close()
+
+	srcStat, err := srcSftp.Stat(sourcePath)
+	if err != nil {
+		sendTransferEvent(c, map[string]interface{}{"type": "error", "message": "source not found: " + err.Error()})
+		return err
+	}
+
+	fileName := path.Base(sourcePath)
+	destFullPath := filepath.ToSlash(filepath.Join(destPath, fileName))
+
+	var transferred int64
+	var lastPct int
+	onProgress := func(n int64) {
+		transferred += n
+		if totalSize > 0 {
+			pct := int(transferred * 100 / totalSize)
+			if pct != lastPct {
+				lastPct = pct
+				sendTransferEvent(c, map[string]interface{}{"type": "progress", "percent": pct})
+			}
+		}
+	}
+
+	var transferErr error
+	if srcStat.IsDir() {
+		transferErr = h.relayRecursive(srcSftp, dstSftp, sourcePath, destFullPath, onProgress)
+	} else {
+		transferErr = h.relaySingleFile(srcSftp, dstSftp, sourcePath, destFullPath, onProgress)
+	}
+
+	if transferErr != nil {
+		sendTransferEvent(c, map[string]interface{}{"type": "error", "message": "relay: " + transferErr.Error()})
+		return transferErr
+	}
+	sendTransferEvent(c, map[string]interface{}{"type": "complete", "method": "relay"})
+	return nil
+}
+
+func (h *SftpHandler) relaySingleFile(src, dst *sftp.Client, srcPath, dstPath string, onProgress func(int64)) error {
+	srcFile, err := src.Open(srcPath)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+
+	dstFile, err := dst.Create(dstPath)
+	if err != nil {
+		return err
+	}
+	defer dstFile.Close()
+
+	buf := make([]byte, 32*1024)
+	for {
+		n, readErr := srcFile.Read(buf)
+		if n > 0 {
+			if _, wErr := dstFile.Write(buf[:n]); wErr != nil {
+				return wErr
+			}
+			if onProgress != nil {
+				onProgress(int64(n))
+			}
+		}
+		if readErr == io.EOF {
+			break
+		}
+		if readErr != nil {
+			return readErr
+		}
+	}
+
+	if stat, err := src.Stat(srcPath); err == nil {
+		dst.Chmod(dstPath, stat.Mode())
+	}
+	return nil
+}
+
+func (h *SftpHandler) relayRecursive(src, dst *sftp.Client, srcPath, dstPath string, onProgress func(int64)) error {
+	stat, err := src.Stat(srcPath)
+	if err != nil {
+		return err
+	}
+	if stat.IsDir() {
+		if err := dst.MkdirAll(dstPath); err != nil {
+			if _, e := dst.Stat(dstPath); e != nil {
+				return err
+			}
+		}
+		entries, err := src.ReadDir(srcPath)
+		if err != nil {
+			return err
+		}
+		for _, entry := range entries {
+			s := filepath.ToSlash(filepath.Join(srcPath, entry.Name()))
+			d := filepath.ToSlash(filepath.Join(dstPath, entry.Name()))
+			if err := h.relayRecursive(src, dst, s, d, onProgress); err != nil {
+				return err
+			}
+		}
+	} else {
+		return h.relaySingleFile(src, dst, srcPath, dstPath, onProgress)
+	}
+	return nil
 }

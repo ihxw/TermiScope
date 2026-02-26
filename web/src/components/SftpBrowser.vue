@@ -5,25 +5,35 @@
         <a-button size="small" @click="refresh">
           <template #icon><ReloadOutlined /></template>
         </a-button>
-        <a-button size="small" :disabled="!clipboard.source" @click="paste">
+        <a-button size="small" :disabled="!sftpStore.clipboard.paths.length" @click="paste">
           <template #icon><SnippetsOutlined /></template>
           {{ t('sftp.paste') }}
         </a-button>
+        <a-button-group size="small">
+          <a-button :disabled="!selectedRowKeys.length" @click="handleBulkCut">
+            <template #icon><ScissorOutlined /></template>
+            {{ t('sftp.cut') }}
+          </a-button>
+          <a-button :disabled="!selectedRowKeys.length" @click="handleBulkCopy">
+            <template #icon><CopyOutlined /></template>
+            {{ t('sftp.copy') }}
+          </a-button>
+        </a-button-group>
         <a-dropdown>
-            <a-button size="small">
-                <template #icon><PlusOutlined /></template>
-                {{ t('sftp.new') }}
-            </a-button>
-            <template #overlay>
-                <a-menu>
-                    <a-menu-item key="folder" @click="openCreate('folder')">
-                        <FolderAddOutlined /> {{ t('sftp.newFolder') }}
-                    </a-menu-item>
-                    <a-menu-item key="file" @click="openCreate('file')">
-                        <FileAddOutlined /> {{ t('sftp.newFile') }}
-                    </a-menu-item>
-                </a-menu>
-            </template>
+          <a-button size="small">
+            <template #icon><PlusOutlined /></template>
+            {{ t('sftp.new') }}
+          </a-button>
+          <template #overlay>
+            <a-menu>
+              <a-menu-item key="folder" @click="openCreate('folder')">
+                <FolderAddOutlined /> {{ t('sftp.newFolder') }}
+              </a-menu-item>
+              <a-menu-item key="file" @click="openCreate('file')">
+                <FileAddOutlined /> {{ t('sftp.newFile') }}
+              </a-menu-item>
+            </a-menu>
+          </template>
         </a-dropdown>
         <a-upload
           :custom-request="handleUpload"
@@ -51,6 +61,8 @@
         :pagination="false"
         size="small"
         :scroll="{ y: tableScrollY }"
+        :row-selection="rowSelection"
+        row-key="name"
       >
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'name'">
@@ -89,6 +101,11 @@
                 <template #icon><EditOutlined /></template>
               </a-button>
 
+              <a-tooltip v-if="enableTransfer" :title="t('sftp.sendTo', { name: transferTargetLabel })">
+                <a-button size="small" type="text" style="color: #1890ff" @click="handleTransfer(record)">
+                  <template #icon><SwapOutlined /></template>
+                </a-button>
+              </a-tooltip>
               <a-popconfirm
                 :title="t('sftp.deleteConfirm')"
                 @confirm="remove(record.name)"
@@ -174,8 +191,7 @@
         :host-id="hostId"
         :file-path="editingFile.path"
         :file-name="editingFile.name"
-        @saved="onEditorSaved"
-    />
+        />
   </div>
 </template>
 
@@ -200,13 +216,16 @@ import {
   FileAddOutlined,
   FolderOpenOutlined,
   CloudDownloadOutlined,
-  EyeOutlined
+  EyeOutlined,
+  SwapOutlined
 } from '@ant-design/icons-vue'
-import { listFiles, uploadFile, downloadFile, deleteFile, renameFile, pasteFile, createDirectory, createFile, getDirSize } from '../api/sftp'
+import { listFiles, uploadFile, downloadFile, deleteFile, renameFile, pasteFile, createDirectory, createFile, getDirSize, transferFile } from '../api/sftp'
 import { useI18n } from 'vue-i18n'
 import FileEditor from './FileEditor.vue'
+import { useSftpStore } from '../stores/sftp'
 
 const { t } = useI18n()
+const sftpStore = useSftpStore()
 const props = defineProps({
   hostId: {
     type: [String, Number],
@@ -215,16 +234,32 @@ const props = defineProps({
   visible: {
     type: Boolean,
     default: false
+  },
+  enableTransfer: {
+    type: Boolean,
+    default: false
+  },
+  transferTargetLabel: {
+    type: String,
+    default: ''
   }
 })
+
+const emit = defineEmits(['transfer'])
 
 const currentPath = ref('.')
 const files = ref([])
 const loading = ref(false)
-const clipboard = reactive({
-    source: null,
-    type: null // 'cut' or 'copy'
-})
+
+// Row Selection
+const selectedRowKeys = ref([])
+const onSelectChange = (keys) => {
+  selectedRowKeys.value = keys
+}
+const rowSelection = computed(() => ({
+  selectedRowKeys: selectedRowKeys.value,
+  onChange: onSelectChange,
+}))
 
 // 动态计算表格滚动高度
 const browserContentRef = ref(null)
@@ -366,7 +401,9 @@ const closePreview = () => {
     setTimeout(() => {
         // Only revoke if neither is open (though logic implies one at a time)
        if (!previewVisible.value && !imagePreviewVisible.value && previewSrc.value) {
-           window.URL.revokeObjectURL(previewSrc.value)
+            if (previewSrc.value.startsWith('blob:')) {
+                window.URL.revokeObjectURL(previewSrc.value)
+            }
            previewSrc.value = ''
        }
     }, 300)
@@ -395,6 +432,7 @@ const columns = computed(() => [
 const loadFiles = async () => {
   if (!props.hostId) return
   loading.value = true
+  selectedRowKeys.value = [] // Reset selection on path change
   try {
     const data = await listFiles(props.hostId, currentPath.value)
     // Handle new response format { files: [], cwd: '/...' }
@@ -414,10 +452,10 @@ const loadFiles = async () => {
         if (file.is_dir) {
             const res = await getDirSize(props.hostId, currentPath.value === '.' ? file.name : `${currentPath.value}/${file.name}`)
             if (res && res.size !== undefined) {
-                files.value[index].size = res.size
+                if (files.value[index]) files.value[index].size = res.size
             } else {
                 // 超时或失败，标记为-1显示"计算失败"
-                files.value[index].size = -1
+                if (files.value[index]) files.value[index].size = -1
             }
         }
     })
@@ -678,29 +716,103 @@ const remove = async (name) => {
   }
 }
 
+// Clipboard Actions
+const handleBulkCut = () => {
+  const paths = selectedRowKeys.value.map(name => currentPath.value === '.' ? name : `${currentPath.value}/${name}`)
+  sftpStore.setClipboard(props.hostId, paths, 'cut')
+  message.info(t('sftp.cutCount', { count: paths.length }))
+}
+
+const handleBulkCopy = () => {
+  const paths = selectedRowKeys.value.map(name => currentPath.value === '.' ? name : `${currentPath.value}/${name}`)
+  sftpStore.setClipboard(props.hostId, paths, 'copy')
+  message.info(t('sftp.copyCount', { count: paths.length }))
+}
+
 const cut = (name) => {
     const fullPath = currentPath.value === '.' ? name : `${currentPath.value}/${name}`
-    clipboard.source = fullPath
-    clipboard.type = 'cut'
+    sftpStore.setClipboard(props.hostId, [fullPath], 'cut')
     message.info(t('sftp.cutMsg', { name }))
 }
 
 const copy = (name) => {
     const fullPath = currentPath.value === '.' ? name : `${currentPath.value}/${name}`
-    clipboard.source = fullPath
-    clipboard.type = 'copy'
+    sftpStore.setClipboard(props.hostId, [fullPath], 'copy')
     message.info(t('sftp.copyMsg', { name }))
 }
 
 const paste = async () => {
-    if (!clipboard.source) return
+    const { hostId: srcHostId, paths, type } = sftpStore.clipboard
+    if (!paths.length) return
+
     try {
-        await pasteFile(props.hostId, clipboard.source, currentPath.value, clipboard.type)
+        if (srcHostId === props.hostId) {
+            // Same host: use pasteFile API (rename or local recursive copy)
+            for (const source of paths) {
+                await pasteFile(props.hostId, source, currentPath.value, type)
+            }
+        } else {
+            // Cross host: use transferFile API
+            for (const source of paths) {
+                const name = source.split('/').pop()
+                const key = `transfer-${Date.now()}`
+                
+                notification.open({
+                    key,
+                    message: t('sftp.transferring'),
+                    description: h('div', [
+                        h(Progress, { percent: 0, status: 'active', size: 'small' }),
+                        h('div', { style: 'display: flex; justify-content: space-between; align-items: center; margin-top: 8px' }, [
+                            h('span', { style: 'color: #8c8c8c; font-size: 12px' }, name),
+                            h(Spin, { size: 'small' })
+                        ])
+                    ]),
+                    duration: 0,
+                    placement: 'bottomRight'
+                })
+
+                try {
+                    await transferFile(srcHostId, props.hostId, source, currentPath.value, type, (event) => {
+                        if (event.type === 'progress') {
+                            notification.open({
+                                key,
+                                message: t('sftp.transferring'),
+                                description: h('div', [
+                                    h(Progress, { percent: event.percent || 0, status: 'active', size: 'small' }),
+                                    h('div', { style: 'display: flex; justify-content: space-between; align-items: center; margin-top: 8px' }, [
+                                        h('span', { style: 'color: #8c8c8c; font-size: 12px' }, name),
+                                        h('span', { style: 'color: #1890ff; font-weight: 500; font-size: 12px' }, event.speed || '')
+                                    ])
+                                ]),
+                                duration: 0,
+                                placement: 'bottomRight'
+                            })
+                        }
+                    })
+                    notification.success({
+                        key,
+                        message: t('sftp.transferComplete'),
+                        description: t('sftp.transferSuccess', { name }),
+                        duration: 3,
+                        placement: 'bottomRight'
+                    })
+                } catch (err) {
+                   notification.error({
+                       key,
+                       message: t('sftp.transferFailed'),
+                       description: err.message,
+                       duration: 4.5,
+                       placement: 'bottomRight'
+                   })
+                   throw err // Stop bulk paste if one fails? Or continue? For now stop.
+                }
+            }
+        }
+        
         message.success(t('sftp.pasted'))
         loadFiles()
-        if (clipboard.type === 'cut') {
-            clipboard.source = null
-            clipboard.type = null
+        if (type === 'cut') {
+            sftpStore.clearClipboard()
         }
     } catch (error) {
         message.error(t('sftp.failedToPaste') + ': ' + (error.response?.data?.error || error.message))
@@ -783,6 +895,20 @@ onMounted(() => {
   if (props.visible) {
     loadFiles()
   }
+})
+
+const handleTransfer = (record) => {
+    const fullPath = currentPath.value === '.' ? record.name : `${currentPath.value}/${record.name}`
+    emit('transfer', {
+        name: record.name,
+        fullPath,
+        isDir: record.is_dir
+    })
+}
+
+defineExpose({
+    refresh: loadFiles,
+    currentPath
 })
 </script>
 

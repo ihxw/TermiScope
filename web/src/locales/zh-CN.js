@@ -60,7 +60,8 @@ export default {
         users: '用户',
         profile: '个人资料',
         logout: '退出登录',
-        system: '系统设置'
+        system: '系统设置',
+        fileTransfer: '文件互传'
     },
     auth: {
         login: '登录',
@@ -565,6 +566,8 @@ export default {
         deleted: '删除成功',
         cutMsg: '已剪切 {name}',
         copyMsg: '已复制 {name}',
+        cutCount: '已剪切 {count} 个文件/文件夹',
+        copyCount: '已复制 {count} 个文件/文件夹',
         pasted: '粘贴成功',
         renamed: '重命名成功',
         created: '创建 {type} 成功',
@@ -584,6 +587,13 @@ export default {
         failedToCreate: '创建 {type} 失败',
         calcFailed: '统计失败',
         writingToServer: '写入远程服务器中...',
-        uploadCancelled: '已取消上传'
+        uploadCancelled: '已取消上传',
+        sendTo: '发送到 {name}',
+        transferring: '传输中...',
+        transferComplete: '传输完成',
+        transferSuccess: '{name} 已传输到目标服务器',
+        transferFailed: '传输失败',
+        selectHost: '选择服务器',
+        selectBothHosts: '请选择两台服务器'
     }
 }

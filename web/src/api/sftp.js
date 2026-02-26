@@ -57,6 +57,64 @@ export const createFile = async (hostId, path) => {
     return await api.post(`/sftp/create/${hostId}`, { path })
 }
 
+export const transferFile = async (sourceHostId, destHostId, sourcePath, destPath, type = 'copy', onProgress) => {
+    const token = localStorage.getItem('token')
+    const response = await fetch('/api/sftp/transfer', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+            source_host_id: String(sourceHostId),
+            dest_host_id: String(destHostId),
+            source_path: sourcePath,
+            dest_path: destPath,
+            type: type
+        })
+    })
+
+    if (!response.ok) {
+        let errorMsg = 'Transfer failed'
+        try {
+            const data = await response.json()
+            errorMsg = data.error || errorMsg
+        } catch (e) { }
+        throw new Error(errorMsg)
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let lastError = null
+
+    while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop()
+
+        for (const line of lines) {
+            if (line.trim()) {
+                try {
+                    const event = JSON.parse(line)
+                    if (event.type === 'error') {
+                        lastError = event.message
+                    }
+                    if (onProgress) onProgress(event)
+                } catch (e) {
+                    console.error('JSON parse error:', e)
+                }
+            }
+        }
+    }
+
+    if (lastError) {
+        throw new Error(lastError)
+    }
+}
+
 export const getDirSize = async (hostId, path) => {
     try {
         return await api.get(`/sftp/size/${hostId}`, {

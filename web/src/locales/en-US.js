@@ -51,7 +51,8 @@ export default {
         users: 'Users',
         profile: 'Profile',
         logout: 'Logout',
-        system: 'System Settings'
+        system: 'System Settings',
+        fileTransfer: 'File Transfer'
     },
     auth: {
         login: 'Login',
@@ -522,6 +523,8 @@ export default {
         deleted: 'Deleted successfully',
         cutMsg: 'Cut {name}',
         copyMsg: 'Copied {name}',
+        cutCount: 'Cut {count} items',
+        copyCount: 'Copied {count} items',
         pasted: 'Pasted successfully',
         renamed: 'Renamed successfully',
         created: 'Created {type} successfully',
@@ -541,6 +544,13 @@ export default {
         failedToCreate: 'Failed to create {type}',
         calcFailed: 'Calculation Failed',
         writingToServer: 'Writing to remote server...',
-        uploadCancelled: 'Upload Cancelled'
+        uploadCancelled: 'Upload Cancelled',
+        sendTo: 'Send to {name}',
+        transferring: 'Transferring...',
+        transferComplete: 'Transfer Complete',
+        transferSuccess: '{name} transferred successfully',
+        transferFailed: 'Transfer Failed',
+        selectHost: 'Select Server',
+        selectBothHosts: 'Please select both servers'
     }
 }

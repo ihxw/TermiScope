@@ -83,6 +83,12 @@ const routes = [
                 name: 'SystemManagement',
                 component: () => import('../views/SystemManagement.vue'),
                 meta: { requiresAuth: true, requiresAdmin: true }
+            },
+            {
+                path: 'transfer',
+                name: 'FileTransfer',
+                component: () => import('../views/FileTransfer.vue'),
+                meta: { requiresAuth: true }
             }
         ]
     }
