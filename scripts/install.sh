@@ -189,6 +189,7 @@ if [ -f "$INSTALL_DIR/configs/config.yaml" ]; then
         PORT=8080  # Fallback default
     fi
     echo -e "Detected port: ${GREEN}$PORT${NC}"
+else
     echo "Installing default configuration..."
     
     # Prompt for Port
