@@ -517,7 +517,7 @@ const syncHostsFromStore = () => {
         net_traffic_counter_mode: sh.net_traffic_counter_mode,
         net_reset_day: sh.net_reset_day,
         net_last_reset_date: sh.net_last_reset_date,
-        last_updated: Math.floor(Date.now() / 1000), // Use current timestamp to avoid showing as offline initially
+        _clientLastUpdated: 0, // Will be set when first WebSocket update arrives
         // Financial logic
         expiration_date: sh.expiration_date,
         billing_period: sh.billing_period,
@@ -554,8 +554,8 @@ const OSIcon = (props) => {
 }
 
 const isOffline = (host) => {
-  const now = Date.now() / 1000
-  return (now - host.last_updated) > 15
+  if (!host._clientLastUpdated) return true
+  return (Date.now() - host._clientLastUpdated) > 15000 // 15 seconds in ms
 }
 
 const formatMhz = (mhz) => {
@@ -769,7 +769,9 @@ const enrichHost = (data) => {
 
 const updateHosts = (updates) => {
   if (!updates) return
+  const now = Date.now()
   updates.forEach(update => {
+    update._clientLastUpdated = now // Use client-side timestamp to avoid server/client clock skew
     const index = hosts.value.findIndex(h => h.host_id === update.host_id)
     if (index !== -1) {
       hosts.value[index] = { ...hosts.value[index], ...update }

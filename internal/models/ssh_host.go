@@ -54,6 +54,8 @@ type SSHHost struct {
 	NotifyTrafficThreshold int    `json:"notify_traffic_threshold" gorm:"default:90"`      // Percent
 	NotifyChannels         string `json:"notify_channels" gorm:"default:'email,telegram'"` // comma-separated
 	TrafficAlerted         bool   `json:"traffic_alerted" gorm:"default:false"`
+	OfflineAt              *time.Time `json:"-" gorm:"default:null"`      // When the host was marked offline
+	OfflineNotified        bool       `json:"-" gorm:"default:false"`     // Whether offline notification has been sent
 
 	// Financial Management
 	ExpirationDate *time.Time `json:"expiration_date"`                       // Server expiration date (nullable)

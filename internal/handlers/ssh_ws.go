@@ -252,6 +252,10 @@ func (h *SSHWebSocketHandler) HandleWebSocket(c *gin.Context) {
 
 	session := sshClient.GetSession()
 
+	// Set environment variables for true color support
+	// Try Setenv first (may fail if sshd doesn't allow it via AcceptEnv, silently ignore)
+	session.Setenv("COLORTERM", "truecolor")
+
 	// Request PTY
 	if err := sshClient.RequestPTY("xterm-256color", 24, 80); err != nil {
 		connLog.Status = "failed"
@@ -301,6 +305,10 @@ func (h *SSHWebSocketHandler) HandleWebSocket(c *gin.Context) {
 	// Update connection log
 	connLog.Status = "success"
 	h.db.Save(connLog)
+
+	// Inject COLORTERM environment variable via stdin as a reliable fallback
+	// (session.Setenv often fails because sshd AcceptEnv doesn't allow custom vars)
+	stdin.Write([]byte("export COLORTERM=truecolor; clear\n"))
 
 	// Send success message
 	writeJSON(gin.H{"type": "connected", "data": "Connected successfully"})

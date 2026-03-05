@@ -595,6 +595,14 @@ func (h *MonitorHandler) Pulse(c *gin.Context) {
 
 	if host.Status != "online" {
 		host.Status = "online"
+
+		// Check if this was a short outage (< 1 minute) — suppress notifications
+		wasShortOutage := host.OfflineAt != nil && time.Since(*host.OfflineAt) < 1*time.Minute
+
+		// Reset offline tracking fields
+		host.OfflineAt = nil
+		host.OfflineNotified = false
+
 		// Record "Coming Online" event
 		go func(hostID uint) {
 			h.DB.Create(&models.MonitorStatusLog{
@@ -604,12 +612,16 @@ func (h *MonitorHandler) Pulse(c *gin.Context) {
 			})
 		}(host.ID)
 
-		// Send Back Online Notification
-		if host.NotifyOfflineEnabled {
+		// Send Back Online Notification (only if it was a real outage, not a short blip)
+		if host.NotifyOfflineEnabled && !wasShortOutage {
 			utils.SendNotification(h.DB, host,
 				fmt.Sprintf("Host Back Online: %s", host.Name),
 				fmt.Sprintf("Host '%s' (ID: %d) is back online.", host.Name, host.ID),
 			)
+		}
+
+		if wasShortOutage {
+			log.Printf("Monitor: Host %s (ID: %d) recovered from short outage, notifications suppressed", host.Name, host.ID)
 		}
 
 		dbUpdated = true
@@ -626,6 +638,8 @@ func (h *MonitorHandler) Pulse(c *gin.Context) {
 			"Status",
 			"LastPulse",
 			"LastAgentTimestamp",
+			"OfflineAt",
+			"OfflineNotified",
 		).Updates(&host)
 	}
 

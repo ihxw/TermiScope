@@ -21,25 +21,28 @@ func StartMonitorChecker(db *gorm.DB) {
 }
 
 func checkOfflineHosts(db *gorm.DB) {
-	// Find all ONLINE hosts with monitoring enabled
-	var hosts []models.SSHHost
-	if err := db.Where("monitor_enabled = ? AND status = ?", true, "online").Find(&hosts).Error; err != nil {
-		log.Printf("Monitor Checker: Failed to query hosts: %v", err)
+	now := time.Now()
+
+	// === Phase 1: Mark online hosts as offline (NO notification yet) ===
+	var onlineHosts []models.SSHHost
+	if err := db.Where("monitor_enabled = ? AND status = ?", true, "online").Find(&onlineHosts).Error; err != nil {
+		log.Printf("Monitor Checker: Failed to query online hosts: %v", err)
 		return
 	}
 
-	for _, host := range hosts {
-		// Default to 1 minute if 0
+	for _, host := range onlineHosts {
 		minutes := host.NotifyOfflineThreshold
 		if minutes <= 0 {
 			minutes = 1
 		}
 
-		threshold := time.Now().Add(-time.Duration(minutes) * time.Minute)
+		threshold := now.Add(-time.Duration(minutes) * time.Minute)
 
 		if host.LastPulse.Before(threshold) {
-			// Mark as offline
+			// Mark as offline, record OfflineAt, but do NOT send notification yet
 			host.Status = "offline"
+			host.OfflineAt = &now
+			host.OfflineNotified = false
 			if err := db.Save(&host).Error; err != nil {
 				log.Printf("Monitor Checker: Failed to update host %d status: %v", host.ID, err)
 				continue
@@ -49,19 +52,34 @@ func checkOfflineHosts(db *gorm.DB) {
 			logEntry := models.MonitorStatusLog{
 				HostID:    host.ID,
 				Status:    "offline",
-				CreatedAt: time.Now(),
+				CreatedAt: now,
 			}
 			db.Create(&logEntry)
 
-			log.Printf("Monitor: Host %s (ID: %d) marked offline (Last Pulse: %v)", host.Name, host.ID, host.LastPulse)
+			log.Printf("Monitor: Host %s (ID: %d) marked offline (Last Pulse: %v), notification deferred", host.Name, host.ID, host.LastPulse)
+		}
+	}
 
-			// Send Notification
-			if host.NotifyOfflineEnabled {
-				utils.SendNotification(db, host,
-					fmt.Sprintf("Host Offline Alert: %s", host.Name),
-					fmt.Sprintf("Host '%s' (ID: %d) has gone offline.\nLast Pulse: %s", host.Name, host.ID, host.LastPulse.Format("2006-01-02 15:04:05")),
-				)
-			}
+	// === Phase 2: Send deferred offline notifications ===
+	// Find hosts that are offline, have been offline for > 1 minute, and haven't been notified yet
+	var pendingHosts []models.SSHHost
+	if err := db.Where("monitor_enabled = ? AND status = ? AND offline_notified = ? AND offline_at IS NOT NULL AND offline_at < ?",
+		true, "offline", false, now.Add(-1*time.Minute)).Find(&pendingHosts).Error; err != nil {
+		log.Printf("Monitor Checker: Failed to query pending offline hosts: %v", err)
+		return
+	}
+
+	for _, host := range pendingHosts {
+		host.OfflineNotified = true
+		db.Model(&host).Update("offline_notified", true)
+
+		log.Printf("Monitor: Host %s (ID: %d) confirmed offline, sending notification", host.Name, host.ID)
+
+		if host.NotifyOfflineEnabled {
+			utils.SendNotification(db, host,
+				fmt.Sprintf("Host Offline Alert: %s", host.Name),
+				fmt.Sprintf("Host '%s' (ID: %d) has gone offline.\nLast Pulse: %s", host.Name, host.ID, host.LastPulse.Format("2006-01-02 15:04:05")),
+			)
 		}
 	}
 }
