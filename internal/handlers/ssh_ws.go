@@ -308,7 +308,7 @@ func (h *SSHWebSocketHandler) HandleWebSocket(c *gin.Context) {
 
 	// Inject COLORTERM environment variable via stdin as a reliable fallback
 	// (session.Setenv often fails because sshd AcceptEnv doesn't allow custom vars)
-	stdin.Write([]byte("export COLORTERM=truecolor; clear\n"))
+	stdin.Write([]byte("export COLORTERM=truecolor\n"))
 
 	// Send success message
 	writeJSON(gin.H{"type": "connected", "data": "Connected successfully"})
