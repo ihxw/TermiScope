@@ -113,6 +113,8 @@ func main() {
 	router.POST("/api/auth/logout", authHandler.Logout)
 	router.POST("/api/auth/refresh", authHandler.RefreshToken)
 	router.GET("/api/system/info", authHandler.GetSystemInfo)
+	router.GET("/api/auth/check-init", authHandler.CheckInit)
+	router.POST("/api/auth/initialize", authHandler.Initialize)
 
 	// WebSocket SSH route (authenticated via one-time ticket in handler)
 	sshWSHandler := handlers.NewSSHWebSocketHandler(db, cfg)

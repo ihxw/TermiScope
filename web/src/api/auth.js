@@ -4,6 +4,14 @@ export const login = async (username, password, remember = false) => {
     return await api.post('/auth/login', { username, password, remember })
 }
 
+export const checkInit = async () => {
+    return await api.get('/auth/check-init')
+}
+
+export const initialize = async (username, password) => {
+    return await api.post('/auth/initialize', { username, password })
+}
+
 export const logout = async () => {
     return await api.post('/auth/logout')
 }

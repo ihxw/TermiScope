@@ -46,14 +46,34 @@
           </a-button>
         </a-upload>
       </div>
-      <a-breadcrumb separator=">" size="small" style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-        <a-breadcrumb-item v-for="(part, index) in pathParts" :key="index">
-          <a @click="navigateTo(index)">{{ part || '/' }}</a>
-        </a-breadcrumb-item>
-      </a-breadcrumb>
+      <!-- 面包屑 / 路径输入框 切换 -->
+      <template v-if="!pathInputVisible">
+        <a-breadcrumb separator=">" size="small" style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+          <a-breadcrumb-item v-for="(part, index) in pathParts" :key="index">
+            <a @click="navigateTo(index)">{{ part || '/' }}</a>
+          </a-breadcrumb-item>
+        </a-breadcrumb>
+        <a-tooltip :title="t('sftp.goToPath')">
+          <a-button size="small" type="text" @click="showPathInput" class="path-toggle-btn">
+            <template #icon><AimOutlined /></template>
+          </a-button>
+        </a-tooltip>
+      </template>
+      <div v-else class="path-input-wrapper">
+        <a-input
+          ref="pathInputRef"
+          v-model:value="pathInputValue"
+          size="small"
+          :placeholder="t('sftp.pathPlaceholder')"
+          @pressEnter="goToPath"
+          @keydown.esc="hidePathInput"
+          @blur="hidePathInput"
+        />
+      </div>
     </div>
 
-    <div ref="browserContentRef" class="browser-content">
+    <!-- 文件列表（非编辑模式时显示） -->
+    <div v-show="!editorVisible" ref="browserContentRef" class="browser-content">
       <a-table
         :loading="loading"
         :columns="columns"
@@ -139,6 +159,16 @@
       </a-table>
     </div>
 
+    <!-- 内嵌文件编辑器（编辑模式时显示） -->
+    <div v-if="editorVisible" class="editor-inline-wrapper">
+      <FileEditor
+          v-model:open="editorVisible"
+          :host-id="hostId"
+          :file-path="editingFile.path"
+          :file-name="editingFile.name"
+          />
+    </div>
+
     <a-modal
       v-model:open="renameVisible"
       :title="t('sftp.rename')"
@@ -186,12 +216,6 @@
         />
     </div>
 
-    <FileEditor
-        v-model:open="editorVisible"
-        :host-id="hostId"
-        :file-path="editingFile.path"
-        :file-name="editingFile.name"
-        />
   </div>
 </template>
 
@@ -217,7 +241,8 @@ import {
   FolderOpenOutlined,
   CloudDownloadOutlined,
   EyeOutlined,
-  SwapOutlined
+  SwapOutlined,
+  AimOutlined
 } from '@ant-design/icons-vue'
 import { listFiles, uploadFile, downloadFile, deleteFile, renameFile, pasteFile, createDirectory, createFile, getDirSize, transferFile } from '../api/sftp'
 import { useI18n } from 'vue-i18n'
@@ -250,6 +275,34 @@ const emit = defineEmits(['transfer'])
 const currentPath = ref('.')
 const files = ref([])
 const loading = ref(false)
+
+// 直达路径
+const pathInputVisible = ref(false)
+const pathInputValue = ref('')
+const pathInputRef = ref(null)
+
+const showPathInput = () => {
+  pathInputValue.value = currentPath.value === '.' ? '/' : currentPath.value
+  pathInputVisible.value = true
+  nextTick(() => {
+    if (pathInputRef.value) {
+      pathInputRef.value.focus()
+      pathInputRef.value.select && pathInputRef.value.select()
+    }
+  })
+}
+
+const hidePathInput = () => {
+  pathInputVisible.value = false
+}
+
+const goToPath = () => {
+  const target = pathInputValue.value.trim()
+  if (!target) return
+  currentPath.value = target
+  pathInputVisible.value = false
+  loadFiles()
+}
 
 // Row Selection
 const selectedRowKeys = ref([])
@@ -933,10 +986,27 @@ defineExpose({
   gap: 8px;
 }
 
+.path-toggle-btn {
+  flex-shrink: 0;
+}
+
+.path-input-wrapper {
+  flex: 1;
+  min-width: 0;
+}
+
 .browser-content {
   flex: 1;
   overflow: hidden;
   min-height: 0; /* 关键：允许 flex 子元素收缩以正确显示滚动条 */
+}
+
+.editor-inline-wrapper {
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
 :deep(.ant-table-cell) {

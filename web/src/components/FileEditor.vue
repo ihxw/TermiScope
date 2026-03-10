@@ -1,37 +1,42 @@
 <template>
-  <a-modal
-    v-model:open="visible"
-    :title="title"
-    width="80%"
-    :footer="null"
-    :maskClosable="false"
-    :destroyOnClose="true"
-    @cancel="handleCancel"
-    class="file-editor-modal"
-  >
-    <a-spin :spinning="loading">
-      <div class="editor-container">
-        <div ref="editorRef" class="editor-instance"></div>
-      </div>
-    </a-spin>
-    <div class="editor-footer">
-      <a-space>
+  <div v-if="visible" class="file-editor-inline">
+    <div class="editor-header">
+      <div class="editor-header-left">
+        <a-button size="small" @click="handleCancel">
+          <template #icon><ArrowLeftOutlined /></template>
+          {{ t('sftp.backToList') }}
+        </a-button>
+        <span class="editor-title">{{ title }}</span>
         <span class="file-info" v-if="fileSize">{{ formatSize(fileSize) }}</span>
-      </a-space>
+      </div>
       <a-space>
-        <a-button @click="handleCancel">{{ t('common.cancel') }}</a-button>
-        <a-button type="primary" :loading="saving" @click="saveFile">
+        <a-tooltip :title="t('sftp.searchReplace')">
+          <a-button size="small" @click="triggerFindReplace">
+            <template #icon><SearchOutlined /></template>
+          </a-button>
+        </a-tooltip>
+        <a-button size="small" type="primary" :loading="saving" @click="saveFile">
           {{ t('common.save') }}
+        </a-button>
+        <a-button size="small" @click="handleClose">
+          <template #icon><CloseOutlined /></template>
         </a-button>
       </a-space>
     </div>
-  </a-modal>
+    <div class="editor-body">
+      <div v-if="loading" class="editor-loading">
+        <a-spin />
+      </div>
+      <div ref="editorRef" class="editor-instance"></div>
+    </div>
+  </div>
 </template>
 
 <script setup>
-import { ref, shallowRef, onMounted, onBeforeUnmount, watch, nextTick, computed } from 'vue'
+import { ref, shallowRef, onBeforeUnmount, watch, nextTick, computed } from 'vue'
 import * as monaco from 'monaco-editor'
-import { message } from 'ant-design-vue'
+import { message, Modal } from 'ant-design-vue'
+import { ArrowLeftOutlined, SearchOutlined, CloseOutlined } from '@ant-design/icons-vue'
 import { downloadFile, uploadFile } from '../api/sftp'
 import { useI18n } from 'vue-i18n'
 import { useThemeStore } from '../stores/theme'
@@ -96,6 +101,7 @@ const editorInstance = shallowRef(null)
 const loading = ref(false)
 const saving = ref(false)
 const content = ref('')
+const savedContent = ref('') // baseline for dirty check
 const fileSize = ref(0) // bytes
 
 const title = computed(() => `${t('sftp.edit')}: ${props.fileName}`)
@@ -140,14 +146,11 @@ const initEditor = () => {
         value: content.value,
         language: getLanguage(props.fileName),
         theme: themeStore.isDark ? 'vs-dark' : 'vs-light',
-        automaticLayout: false, // automaticLayout can cause freezes with modals/destroyOnClose
+        automaticLayout: true,
         minimap: { enabled: true },
         scrollBeyondLastLine: false,
         fontSize: 14
     })
-    
-    // Manual layout handling
-    window.addEventListener('resize', handleResize)
 }
 
 // Watch theme changes
@@ -156,12 +159,6 @@ watch(() => themeStore.isDark, (isDark) => {
         monaco.editor.setTheme(isDark ? 'vs-dark' : 'vs-light')
     }
 })
-
-const handleResize = () => {
-    if (editorInstance.value) {
-        editorInstance.value.layout()
-    }
-}
 
 const loadFileContent = async () => {
     if (!props.hostId || !props.filePath) return
@@ -173,6 +170,7 @@ const loadFileContent = async () => {
         // Convert blob to text
         const text = await response.text()
         content.value = text
+        savedContent.value = text
         fileSize.value = response.size
         
         if (editorInstance.value) {
@@ -217,9 +215,9 @@ const saveFile = async () => {
     try {
         await uploadFile(props.hostId, targetDir, file)
         message.success(t('sftp.uploadComplete'))
+        // Update saved baseline so dirty check works correctly
+        savedContent.value = newContent
         emit('saved')
-        handleCancel() // Close on save? Or keep open? User preference usually keep open, but modal style implies close.
-        // Let's close for now to be safe.
     } catch (error) {
         message.error(t('sftp.uploadFailed') + ': ' + (error.message || 'Unknown error'))
     } finally {
@@ -227,8 +225,39 @@ const saveFile = async () => {
     }
 }
 
+const isDirty = () => {
+    if (!editorInstance.value) return false
+    return editorInstance.value.getValue() !== savedContent.value
+}
+
+const confirmClose = () => {
+    if (isDirty()) {
+        Modal.confirm({
+            title: t('sftp.unsavedTitle'),
+            content: t('sftp.unsavedContent'),
+            okText: t('sftp.unsavedLeave'),
+            cancelText: t('common.cancel'),
+            onOk() {
+                visible.value = false
+            }
+        })
+    } else {
+        visible.value = false
+    }
+}
+
 const handleCancel = () => {
-    visible.value = false
+    confirmClose()
+}
+
+const handleClose = () => {
+    confirmClose()
+}
+
+const triggerFindReplace = () => {
+    if (editorInstance.value) {
+        editorInstance.value.getAction('editor.action.startFindReplaceAction').run()
+    }
 }
 
 const formatSize = (bytes) => {
@@ -249,25 +278,66 @@ watch(() => props.open, (val) => {
             editorInstance.value.dispose()
             editorInstance.value = null
         }
-        window.removeEventListener('resize', handleResize)
     }
-})
+}, { immediate: true })
 
 onBeforeUnmount(() => {
     if (editorInstance.value) {
         editorInstance.value.dispose()
     }
-    window.removeEventListener('resize', handleResize)
 })
 </script>
 
 <style scoped>
-.editor-container {
-    height: 70vh;
-    border: 1px solid #d9d9d9;
-    border-radius: 4px;
-    margin-bottom: 16px;
+.file-editor-inline {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
     overflow: hidden;
+}
+
+.editor-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 8px;
+    border-bottom: 1px solid #d9d9d9;
+    flex-shrink: 0;
+}
+
+.editor-header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    overflow: hidden;
+}
+
+.editor-title {
+    font-weight: 500;
+    font-size: 13px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.editor-body {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    position: relative;
+}
+
+.editor-loading {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: rgba(255, 255, 255, 0.6);
+    z-index: 10;
 }
 
 .editor-instance {
@@ -275,14 +345,9 @@ onBeforeUnmount(() => {
     height: 100%;
 }
 
-.editor-footer {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
 .file-info {
     color: #8c8c8c;
     font-size: 12px;
+    white-space: nowrap;
 }
 </style>

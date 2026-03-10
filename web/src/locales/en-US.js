@@ -222,7 +222,12 @@ export default {
         flagGreen: 'Green',
         flagBlue: 'Blue',
         flagPurple: 'Purple',
-        flagGray: 'Gray'
+        flagPurple: 'Purple',
+        flagGray: 'Gray',
+        revealPassword: 'Show saved password',
+        passwordRevealed: 'Saved password retrieved',
+        noSavedPassword: 'No password saved for this host',
+        revealPasswordFailed: 'Failed to retrieve password'
     },
     history: {
         title: 'Connection History',
@@ -551,6 +556,23 @@ export default {
         transferSuccess: '{name} transferred successfully',
         transferFailed: 'Transfer Failed',
         selectHost: 'Select Server',
-        selectBothHosts: 'Please select both servers'
+        selectBothHosts: 'Please select both servers',
+        goToPath: 'Go to Path',
+        pathPlaceholder: 'Enter path and press Enter...',
+        backToList: 'Back to File List',
+        searchReplace: 'Search & Replace',
+        unsavedTitle: 'Unsaved Changes',
+        unsavedContent: 'You have unsaved changes. Are you sure you want to leave?',
+        unsavedLeave: 'Leave'
+    },
+    setup: {
+        title: 'Initial Setup',
+        description: 'First time use, please create an admin account',
+        usernamePlaceholder: 'Enter admin username',
+        passwordPlaceholder: 'Enter password',
+        confirmPlaceholder: 'Confirm password',
+        confirmRequired: 'Please confirm your password',
+        submit: 'Create Account & Login',
+        success: 'Admin account created successfully'
     }
 }

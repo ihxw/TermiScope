@@ -31,13 +31,13 @@
             @select="handleMenuSelect"
             :keyboard="false"
           >
-            <a-menu-item key="MonitorDashboard">
-              <DashboardOutlined />
-              {{ t('nav.monitor') }}
-            </a-menu-item>
             <a-menu-item key="Terminal">
               <CodeOutlined />
               {{ t('nav.terminal') }}
+            </a-menu-item>
+            <a-menu-item key="MonitorDashboard">
+              <DashboardOutlined />
+              {{ t('nav.monitor') }}
             </a-menu-item>
             <a-menu-item key="FileTransfer">
               <SwapOutlined />
@@ -152,13 +152,13 @@
           :theme="themeStore.isDark ? 'dark' : 'light'"
           @select="handleMobileMenuSelect"
         >
-          <a-menu-item key="MonitorDashboard">
-            <DashboardOutlined />
-            <span>{{ t('nav.monitor') }}</span>
-          </a-menu-item>
           <a-menu-item key="Terminal">
             <CodeOutlined />
             <span>{{ t('nav.terminal') }}</span>
+          </a-menu-item>
+          <a-menu-item key="MonitorDashboard">
+            <DashboardOutlined />
+            <span>{{ t('nav.monitor') }}</span>
           </a-menu-item>
           <a-menu-item key="FileTransfer">
             <SwapOutlined />
@@ -236,7 +236,7 @@ const localeStore = useLocaleStore()
 const frontendVersion = packageJson.version
 const backendVersion = ref('...')
 
-const selectedKeys = ref(['MonitorDashboard'])
+const selectedKeys = ref(['Terminal'])
 const menuDrawerVisible = ref(false)
 const isMobile = ref(false)
 

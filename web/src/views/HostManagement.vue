@@ -1277,7 +1277,7 @@ const handleEdit = async (host) => {
       port: fullHost.port,
       username: fullHost.username,
       auth_type: fullHost.auth_type,
-      password: '',
+      password: fullHost.password || '',
       private_key: '',
       group_name: fullHost.group_name || '',
       description: fullHost.description || '',

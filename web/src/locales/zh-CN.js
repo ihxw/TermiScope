@@ -231,7 +231,12 @@ export default {
         flagGreen: '绿色',
         flagBlue: '蓝色',
         flagPurple: '紫色',
-        flagGray: '灰色'
+        flagPurple: '紫色',
+        flagGray: '灰色',
+        revealPassword: '显示已保存的密码',
+        passwordRevealed: '已读取保存的密码',
+        noSavedPassword: '此主机没有保存密码',
+        revealPasswordFailed: '获取密码失败'
     },
     history: {
         title: '连接历史',
@@ -594,6 +599,23 @@ export default {
         transferSuccess: '{name} 已传输到目标服务器',
         transferFailed: '传输失败',
         selectHost: '选择服务器',
-        selectBothHosts: '请选择两台服务器'
+        selectBothHosts: '请选择两台服务器',
+        goToPath: '前往路径',
+        pathPlaceholder: '输入路径后回车跳转...',
+        backToList: '返回文件列表',
+        searchReplace: '搜索替换',
+        unsavedTitle: '未保存的更改',
+        unsavedContent: '文件已被修改但尚未保存，确定要离开吗？',
+        unsavedLeave: '离开'
+    },
+    setup: {
+        title: '初始化设置',
+        description: '首次使用，请创建管理员账号',
+        usernamePlaceholder: '请输入管理员用户名',
+        passwordPlaceholder: '请输入密码',
+        confirmPlaceholder: '请再次输入密码',
+        confirmRequired: '请确认密码',
+        submit: '创建账号并登录',
+        success: '管理员账号创建成功'
     }
 }

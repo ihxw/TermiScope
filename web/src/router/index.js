@@ -1,11 +1,18 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { checkInit } from '../api/auth'
 
 const routes = [
     {
         path: '/login',
         name: 'Login',
         component: () => import('../views/Login.vue'),
+        meta: { requiresAuth: false }
+    },
+    {
+        path: '/setup',
+        name: 'Setup',
+        component: () => import('../views/Setup.vue'),
         meta: { requiresAuth: false }
     },
     {
@@ -16,7 +23,7 @@ const routes = [
     },
     {
         path: '/',
-        redirect: '/dashboard/monitor'
+        redirect: '/dashboard/terminal'
     },
     {
         path: '/dashboard',
@@ -138,8 +145,27 @@ router.beforeEach(async (to, from, next) => {
         }
     } else {
         // Public route
-        if (to.name === 'Login' && authStore.isAuthenticated) {
-            next({ name: 'MonitorDashboard' })
+        if (to.name === 'Login' || to.name === 'Setup') {
+            // If already authenticated, go to dashboard
+            if (authStore.isAuthenticated) {
+                next({ name: 'MonitorDashboard' })
+                return
+            }
+            // Check if system needs initialization
+            try {
+                const result = await checkInit()
+                if (!result.initialized && to.name !== 'Setup') {
+                    next({ name: 'Setup' })
+                    return
+                }
+                if (result.initialized && to.name === 'Setup') {
+                    next({ name: 'Login' })
+                    return
+                }
+            } catch (err) {
+                console.error('Failed to check init status:', err)
+            }
+            next()
         } else {
             next()
         }

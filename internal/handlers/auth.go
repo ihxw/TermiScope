@@ -793,6 +793,85 @@ func (h *AuthHandler) ChangePassword(c *gin.Context) {
 	})
 }
 
+// CheckInit checks if the system needs initial setup (no users exist)
+func (h *AuthHandler) CheckInit(c *gin.Context) {
+	var count int64
+	h.db.Model(&models.User{}).Count(&count)
+	utils.SuccessResponse(c, http.StatusOK, gin.H{
+		"initialized": count > 0,
+	})
+}
+
+// InitializeRequest represents the request body for initial setup
+type InitializeRequest struct {
+	Username string `json:"username" binding:"required"`
+	Password string `json:"password" binding:"required"`
+}
+
+// Initialize creates the first admin user (only works when no users exist)
+func (h *AuthHandler) Initialize(c *gin.Context) {
+	// Check if system is already initialized
+	var count int64
+	h.db.Model(&models.User{}).Count(&count)
+	if count > 0 {
+		utils.ErrorResponse(c, http.StatusForbidden, "system is already initialized")
+		return
+	}
+
+	var req InitializeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorResponse(c, http.StatusBadRequest, "invalid request: "+err.Error())
+		return
+	}
+
+	// Create admin user
+	user := &models.User{
+		Username:    req.Username,
+		Email:       req.Username + "@localhost",
+		DisplayName: "Administrator",
+		Role:        "admin",
+		Status:      "active",
+	}
+
+	// Password is already MD5-hashed by the client (same as Login flow)
+	if err := user.SetPassword(req.Password); err != nil {
+		utils.ErrorResponse(c, http.StatusInternalServerError, "failed to hash password")
+		return
+	}
+
+	if err := h.db.Create(user).Error; err != nil {
+		utils.ErrorResponse(c, http.StatusInternalServerError, "failed to create user")
+		return
+	}
+
+	log.Printf("Initial admin user '%s' created via web setup from %s", req.Username, c.ClientIP())
+
+	// Auto-login: generate tokens
+	accessToken, refreshToken, err := h.generateTokens(user)
+	if err != nil {
+		utils.ErrorResponse(c, http.StatusInternalServerError, "failed to generate tokens")
+		return
+	}
+
+	// Update last login
+	now := time.Now()
+	user.LastLoginAt = &now
+	h.db.Save(user)
+
+	// Set cookie
+	accessDuration, _ := time.ParseDuration(h.config.Security.AccessExpiration)
+	if accessDuration == 0 {
+		accessDuration = 60 * time.Minute
+	}
+	c.SetCookie("access_token", accessToken, int(accessDuration.Seconds()), "/", "", false, true)
+
+	utils.SuccessResponse(c, http.StatusOK, LoginResponse{
+		Token:        accessToken,
+		RefreshToken: refreshToken,
+		User:         user,
+	})
+}
+
 // GetSystemInfo returns system information including version
 // @Summary Get System Info
 // @Description Returns system version information.
