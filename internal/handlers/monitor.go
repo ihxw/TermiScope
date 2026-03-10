@@ -101,23 +101,30 @@ func getCycleStartDate(now time.Time, resetDay int) string {
 
 	year, month, day := now.Date()
 
-	getValidDate := func(y int, m time.Month, d int) time.Time {
-		lastDayOfMonth := time.Date(y, m+1, 0, 0, 0, 0, 0, time.Local).Day()
-		if d > lastDayOfMonth {
-			d = lastDayOfMonth
+	// Helper to safely get the effective reset day for a given month
+	getEffectiveResetDay := func(y int, m time.Month) int {
+		lastDay := time.Date(y, m+1, 0, 0, 0, 0, 0, time.Local).Day()
+		if resetDay > lastDay {
+			return lastDay
 		}
-		return time.Date(y, m, d, 0, 0, 0, 0, time.Local)
+		return resetDay
 	}
 
+	effectiveResetDay := getEffectiveResetDay(year, month)
+
 	var currentCycleStart time.Time
-	if day >= resetDay {
-		currentCycleStart = getValidDate(year, month, resetDay)
+	if day >= effectiveResetDay {
+		currentCycleStart = time.Date(year, month, effectiveResetDay, 0, 0, 0, 0, time.Local)
 	} else {
-		if month == 1 {
-			currentCycleStart = getValidDate(year-1, 12, resetDay)
-		} else {
-			currentCycleStart = getValidDate(year, month-1, resetDay)
+		// Calculate the effective reset day for the previous month
+		prevMonth := month - 1
+		prevYear := year
+		if prevMonth == 0 {
+			prevMonth = 12
+			prevYear--
 		}
+		prevEffectiveResetDay := getEffectiveResetDay(prevYear, prevMonth)
+		currentCycleStart = time.Date(prevYear, prevMonth, prevEffectiveResetDay, 0, 0, 0, 0, time.Local)
 	}
 
 	return currentCycleStart.Format("2006-01-02")
@@ -174,7 +181,18 @@ func (h *MonitorHandler) checkAndResetTraffic(host *models.SSHHost) bool {
 	}
 
 	// Real Reset Needed - Execute in Transaction
+	var alreadyReset bool
 	err := h.DB.Transaction(func(tx *gorm.DB) error {
+		// Double check inside transaction to prevent race conditions
+		var count int64
+		tx.Model(&models.MonitorTrafficResetLog{}).
+			Where("host_id = ? AND reset_date = ? AND status = 'success'", host.ID, currentCycleStartStr).
+			Count(&count)
+		if count > 0 {
+			alreadyReset = true
+			return nil
+		}
+
 		if err := tx.Model(host).Updates(map[string]interface{}{
 			"net_monthly_rx":              0,
 			"net_monthly_tx":              0,
@@ -198,6 +216,11 @@ func (h *MonitorHandler) checkAndResetTraffic(host *models.SSHHost) bool {
 
 	if err != nil {
 		log.Printf("Traffic Reset Transaction FAILED for Host %d: %v", host.ID, err)
+		return false
+	}
+
+	if alreadyReset {
+		host.NetLastResetDate = currentCycleStartStr
 		return false
 	}
 
