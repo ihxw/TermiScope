@@ -25,6 +25,7 @@ type ServerConfig struct {
 	Mode           string   `mapstructure:"mode"` // debug or release
 	AllowedOrigins []string `mapstructure:"allowed_origins"`
 	MaxUploadSize  int64    `mapstructure:"max_upload_size"` // in bytes
+	Timezone       string   `mapstructure:"timezone"`
 }
 
 type DatabaseConfig struct {
@@ -60,6 +61,7 @@ func LoadConfig() (*Config, error) {
 	// Set defaults
 	viper.SetDefault("server.port", 8080)
 	viper.SetDefault("server.mode", "debug")
+	viper.SetDefault("server.timezone", "Local")
 	viper.SetDefault("server.allowed_origins", []string{"*"}) // Allow all by default for dev
 	viper.SetDefault("server.max_upload_size", 524288000)     // 500MB
 	viper.SetDefault("database.path", "./data/termiscope.db")
@@ -127,6 +129,7 @@ func LoadConfig() (*Config, error) {
 func (c *Config) SaveConfig() error {
 	viper.Set("server.port", c.Server.Port)
 	viper.Set("server.mode", c.Server.Mode)
+	viper.Set("server.timezone", c.Server.Timezone)
 	viper.Set("database.path", c.Database.Path)
 	viper.Set("security.jwt_secret", c.Security.JWTSecret)
 	viper.Set("security.encryption_key", c.Security.EncryptionKey)

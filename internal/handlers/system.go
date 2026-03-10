@@ -252,6 +252,7 @@ func (h *SystemHandler) GetSettings(c *gin.Context) {
 	h.db.Where("config_key LIKE ? OR config_key LIKE ? OR config_key = ?", "smtp_%", "telegram_%", "notification_template").Find(&configs)
 
 	settings := gin.H{
+		"timezone":                 h.config.Server.Timezone,
 		"ssh_timeout":              h.config.SSH.Timeout,
 		"idle_timeout":             h.config.SSH.IdleTimeout,
 		"max_connections_per_user": h.config.SSH.MaxConnectionsPerUser,
@@ -269,6 +270,7 @@ func (h *SystemHandler) GetSettings(c *gin.Context) {
 
 // UpdateSettingsRequest defines the request body for updating settings
 type UpdateSettingsRequest struct {
+	Timezone              string `json:"timezone" binding:"required"`
 	SSHTimeout            string `json:"ssh_timeout" binding:"required"`
 	IdleTimeout           string `json:"idle_timeout" binding:"required"`
 	MaxConnectionsPerUser int    `json:"max_connections_per_user" binding:"required"`
@@ -319,6 +321,7 @@ func (h *SystemHandler) UpdateSettings(c *gin.Context) {
 	// Update DB (Transaction)
 	err := h.db.Transaction(func(tx *gorm.DB) error {
 		updates := map[string]string{
+			"server.timezone":              req.Timezone,
 			"ssh.timeout":                  req.SSHTimeout,
 			"ssh.idle_timeout":             req.IdleTimeout,
 			"ssh.max_connections_per_user": fmt.Sprintf("%d", req.MaxConnectionsPerUser),
@@ -362,6 +365,15 @@ func (h *SystemHandler) UpdateSettings(c *gin.Context) {
 	}
 
 	// Update in-memory config
+	h.config.Server.Timezone = req.Timezone
+	if req.Timezone != "" && req.Timezone != "Local" {
+		loc, err := time.LoadLocation(req.Timezone)
+		if err == nil {
+			time.Local = loc
+		}
+	} else if req.Timezone == "Local" {
+		time.Local = time.Now().Location()
+	}
 	h.config.SSH.Timeout = req.SSHTimeout
 	h.config.SSH.IdleTimeout = req.IdleTimeout
 	h.config.SSH.MaxConnectionsPerUser = req.MaxConnectionsPerUser

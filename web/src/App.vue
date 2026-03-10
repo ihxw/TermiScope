@@ -12,6 +12,7 @@
 <script setup>
 import { onMounted, computed } from 'vue'
 import { useThemeStore } from './stores/theme'
+import api from './api'
 import { useI18n } from 'vue-i18n'
 import zhCN from 'ant-design-vue/es/locale/zh_CN'
 import enUS from 'ant-design-vue/es/locale/en_US'
@@ -24,8 +25,16 @@ const antdLocale = computed(() => {
   return locale.value === 'zh-CN' ? zhCN : enUS
 })
 
-onMounted(() => {
+onMounted(async () => {
   themeStore.initTheme()
+  try {
+    const response = await api.get('/system/settings')
+    if (response && response.timezone) {
+      localStorage.setItem('system_timezone', response.timezone)
+    }
+  } catch (err) {
+    console.error('Failed to load system settings for timezone', err)
+  }
 })
 </script>
 

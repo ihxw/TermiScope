@@ -265,7 +265,7 @@ const containerBackground = ref(themeStore.isDark ? '#1e1e1e' : '#ffffff')
 // Font Settings
 const fontSettings = reactive({
   size: parseInt(localStorage.getItem('termScope_fontSize')) || 14,
-  family: localStorage.getItem('termScope_fontFamily') || "'Courier New', monospace"
+  family: localStorage.getItem('termScope_fontFamily') || "'Menlo', 'Monaco', monospace"
 })
 
 const updateFont = () => {

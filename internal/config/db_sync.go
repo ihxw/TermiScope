@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/ihxw/termiscope/internal/models"
 	"gorm.io/gorm"
@@ -10,6 +11,7 @@ import (
 
 // Default settings hardcoded as requested
 var defaultSettings = map[string]string{
+	"server.timezone":              "Local",
 	"ssh.timeout":                  "30s",
 	"ssh.idle_timeout":             "30m",
 	"ssh.max_connections_per_user": "10",
@@ -84,6 +86,16 @@ func SyncConfigFromDB(db *gorm.DB, cfg *Config) error {
 func updateConfigValue(cfg *Config, key, value string) error {
 	var err error
 	switch key {
+	case "server.timezone":
+		cfg.Server.Timezone = value
+		if value != "" && value != "Local" {
+			loc, err := time.LoadLocation(value)
+			if err == nil {
+				time.Local = loc
+			}
+		} else if value == "Local" {
+			time.Local = time.Now().Location()
+		}
 	case "ssh.timeout":
 		cfg.SSH.Timeout = value
 	case "ssh.idle_timeout":

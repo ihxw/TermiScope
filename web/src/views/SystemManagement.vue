@@ -42,6 +42,19 @@
               <a-form :model="settingsForm" layout="vertical" @finish="handleSaveSettings">
                 <a-row :gutter="16">
                   <a-col :span="6">
+                    <a-form-item :label="t('system.timezone', 'System Timezone')" name="timezone">
+                      <a-select v-model:value="settingsForm.timezone" >
+                        <a-select-option value="Local">Local (Server Default)</a-select-option>
+                        <a-select-option value="UTC">UTC</a-select-option>
+                        <a-select-option value="Asia/Shanghai">Asia/Shanghai (CST)</a-select-option>
+                        <a-select-option value="America/New_York">America/New_York (EST/EDT)</a-select-option>
+                        <a-select-option value="Europe/London">Europe/London (GMT/BST)</a-select-option>
+                        <a-select-option value="Asia/Tokyo">Asia/Tokyo (JST)</a-select-option>
+                        <a-select-option value="Europe/Paris">Europe/Paris (CET/CEST)</a-select-option>
+                      </a-select>
+                    </a-form-item>
+                  </a-col>
+                  <a-col :span="6">
                     <a-form-item :label="t('system.sshTimeout')" name="ssh_timeout">
                       <a-input v-model:value="settingsForm.ssh_timeout" />
                     </a-form-item>
@@ -296,6 +309,7 @@ const restorePassword = ref('')
 const restoreFile = ref(null)
 
 const settingsForm = reactive({
+  timezone: 'Local',
   ssh_timeout: '30s',
   idle_timeout: '30m',
   max_connections_per_user: 10,
@@ -398,7 +412,13 @@ const handleSaveSettings = async () => {
   settingsLoading.value = true
   try {
     await api.put('/system/settings', settingsForm)
+    if (settingsForm.timezone) {
+       localStorage.setItem('system_timezone', settingsForm.timezone)
+    }
     message.success(t('system.saveSettingsSuccess'))
+    setTimeout(() => {
+        window.location.reload()
+    }, 1000)
   } catch (err) {
     message.error(err.response?.data?.error || t('system.saveSettingsFailed'))
   } finally {
