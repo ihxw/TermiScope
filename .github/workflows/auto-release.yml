@@ -99,15 +99,16 @@ jobs:
           
           # Create release using GitHub CLI
           $ReleaseNotesContent = @"
-          ## TermiScope $VERSION
+## TermiScope $VERSION
+
+自动发布版本 $VERSION
+
+### 更新内容
+请查看提交历史了解详细变更。
+"@
           
-          自动发布版本 $VERSION
-          
-          ### 更新内容
-          请查看提交历史了解详细变更。
-          "@
-          
-          Set-Content -Path "release_notes.md" -Value $ReleaseNotesContent -Encoding UTF8
+          # Write WITHOUT BOM — PowerShell's default UTF8 includes BOM which garbles GitHub release notes
+          [System.IO.File]::WriteAllText("release_notes.md", $ReleaseNotesContent, [System.Text.UTF8Encoding]::new($false))
           
           gh release create $VERSION `
             --title "Release $VERSION" `
