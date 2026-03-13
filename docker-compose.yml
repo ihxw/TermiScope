@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  termiscope:
+    build: .
+    container_name: termiscope
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - termiscope_PORT=3000
+      - termiscope_DB_PATH=/app/data/termiscope.db
+    restart: always

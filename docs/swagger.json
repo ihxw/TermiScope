@@ -1,0 +1,991 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "This is the API documentation for TermiScope Server.",
+        "title": "TermiScope API",
+        "termsOfService": "http://swagger.io/terms/",
+        "contact": {
+            "name": "API Support",
+            "url": "http://www.swagger.io/support",
+            "email": "support@swagger.io"
+        },
+        "license": {
+            "name": "Apache 2.0",
+            "url": "http://www.apache.org/licenses/LICENSE-2.0.html"
+        },
+        "version": "1.0"
+    },
+    "host": "localhost:8080",
+    "basePath": "/api",
+    "paths": {
+        "/auth/login": {
+            "post": {
+                "description": "Authenticates a user and returns access/refresh tokens.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "User Login",
+                "parameters": [
+                    {
+                        "description": "Login Credentials",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.LoginRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.LoginResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid credentials",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/logout": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Logs out the user (client-side action for JWT).",
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Logout",
+                "responses": {
+                    "200": {
+                        "description": "Success message",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/me": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Returns the profile of the currently logged-in user.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Get Current User",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.User"
+                        }
+                    },
+                    "404": {
+                        "description": "User not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/auth/refresh": {
+            "post": {
+                "description": "Refreshes the access token using a valid refresh token.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Auth"
+                ],
+                "summary": "Refresh Token",
+                "parameters": [
+                    {
+                        "description": "Refresh Token",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.RefreshTokenRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "New Access Token",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Invalid token",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/ssh-hosts": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get all SSH hosts for the authenticated user",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Host"
+                ],
+                "summary": "List SSH Hosts",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Group Name",
+                        "name": "group",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Search Term (Name, Host, Description)",
+                        "name": "search",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Include deleted hosts",
+                        "name": "include_deleted",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/models.SSHHost"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Add a new SSH host",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Host"
+                ],
+                "summary": "Create SSH Host",
+                "parameters": [
+                    {
+                        "description": "Host Details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.CreateSSHHostRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.SSHHost"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/ssh-hosts/reorder": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Batch update sort order for hosts",
+                "tags": [
+                    "Host"
+                ],
+                "summary": "Reorder Hosts",
+                "parameters": [
+                    {
+                        "description": "Device IDs in order",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.ReorderRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success message",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/ssh-hosts/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get details of a specific host",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Host"
+                ],
+                "summary": "Get SSH Host",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Host ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SSHHost"
+                        }
+                    },
+                    "404": {
+                        "description": "Host not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Update details of an existing host",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Host"
+                ],
+                "summary": "Update SSH Host",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Host ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update Details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.UpdateSSHHostRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SSHHost"
+                        }
+                    },
+                    "400": {
+                        "description": "Invalid request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Host not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Soft delete a host",
+                "tags": [
+                    "Host"
+                ],
+                "summary": "Delete SSH Host",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Host ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success message",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Host not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/ssh-hosts/{id}/permanent": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Hard delete a host and its relations",
+                "tags": [
+                    "Host"
+                ],
+                "summary": "Permanently Delete SSH Host",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Host ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Success message",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/ssh-hosts/{id}/test": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Ping or Connect to the host to check status",
+                "tags": [
+                    "Host"
+                ],
+                "summary": "Test Connectivity",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Host ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Status and Latency",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/system/info": {
+            "get": {
+                "description": "Returns system version information.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "System"
+                ],
+                "summary": "Get System Info",
+                "responses": {
+                    "200": {
+                        "description": "System Info",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "gorm.DeletedAt": {
+            "type": "object",
+            "properties": {
+                "time": {
+                    "type": "string"
+                },
+                "valid": {
+                    "description": "Valid is true if Time is not NULL",
+                    "type": "boolean"
+                }
+            }
+        },
+        "handlers.CreateSSHHostRequest": {
+            "type": "object",
+            "required": [
+                "host_type",
+                "name"
+            ],
+            "properties": {
+                "auth_type": {
+                    "type": "string",
+                    "enum": [
+                        "password",
+                        "key"
+                    ]
+                },
+                "billing_amount": {
+                    "type": "number"
+                },
+                "billing_period": {
+                    "type": "string"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "expiration_date": {
+                    "description": "Financial Management",
+                    "type": "string"
+                },
+                "group_name": {
+                    "type": "string"
+                },
+                "host": {
+                    "type": "string"
+                },
+                "host_type": {
+                    "type": "string",
+                    "enum": [
+                        "control_monitor",
+                        "monitor_only"
+                    ]
+                },
+                "name": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string"
+                },
+                "port": {
+                    "type": "integer"
+                },
+                "private_key": {
+                    "type": "string"
+                },
+                "tags": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.LoginRequest": {
+            "type": "object",
+            "required": [
+                "password",
+                "username"
+            ],
+            "properties": {
+                "password": {
+                    "type": "string"
+                },
+                "remember": {
+                    "type": "boolean"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.LoginResponse": {
+            "type": "object",
+            "properties": {
+                "refresh_token": {
+                    "type": "string"
+                },
+                "token": {
+                    "type": "string"
+                },
+                "user": {
+                    "$ref": "#/definitions/models.User"
+                }
+            }
+        },
+        "handlers.RefreshTokenRequest": {
+            "type": "object",
+            "required": [
+                "refresh_token"
+            ],
+            "properties": {
+                "refresh_token": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.ReorderRequest": {
+            "type": "object",
+            "required": [
+                "device_ids"
+            ],
+            "properties": {
+                "device_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                }
+            }
+        },
+        "handlers.UpdateSSHHostRequest": {
+            "type": "object",
+            "properties": {
+                "auth_type": {
+                    "type": "string",
+                    "enum": [
+                        "password",
+                        "key"
+                    ]
+                },
+                "billing_amount": {
+                    "type": "number"
+                },
+                "billing_period": {
+                    "type": "string"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "expiration_date": {
+                    "description": "Financial Management",
+                    "type": "string"
+                },
+                "group_name": {
+                    "type": "string"
+                },
+                "host": {
+                    "type": "string"
+                },
+                "host_type": {
+                    "type": "string",
+                    "enum": [
+                        "control_monitor",
+                        "monitor_only"
+                    ]
+                },
+                "name": {
+                    "type": "string"
+                },
+                "net_interface": {
+                    "description": "Network Config",
+                    "type": "string"
+                },
+                "net_reset_day": {
+                    "type": "integer"
+                },
+                "net_traffic_counter_mode": {
+                    "description": "total, rx, tx",
+                    "type": "string"
+                },
+                "net_traffic_limit": {
+                    "description": "Traffic Limit Config",
+                    "type": "integer"
+                },
+                "net_traffic_used_adjustment": {
+                    "type": "integer"
+                },
+                "notify_channels": {
+                    "type": "string"
+                },
+                "notify_offline_enabled": {
+                    "description": "Notification",
+                    "type": "boolean"
+                },
+                "notify_offline_threshold": {
+                    "type": "integer"
+                },
+                "notify_traffic_enabled": {
+                    "type": "boolean"
+                },
+                "notify_traffic_threshold": {
+                    "type": "integer"
+                },
+                "password": {
+                    "type": "string"
+                },
+                "port": {
+                    "type": "integer"
+                },
+                "private_key": {
+                    "type": "string"
+                },
+                "reset_traffic": {
+                    "description": "Actions",
+                    "type": "boolean"
+                },
+                "tags": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.SSHHost": {
+            "type": "object",
+            "properties": {
+                "agent_version": {
+                    "description": "Monitor Status",
+                    "type": "string"
+                },
+                "auth_type": {
+                    "description": "password or key",
+                    "type": "string"
+                },
+                "billing_amount": {
+                    "description": "Cost per billing period",
+                    "type": "number"
+                },
+                "billing_period": {
+                    "description": "monthly, quarterly, semiannually, annually",
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "currency": {
+                    "description": "CNY, USD, GBP, EUR, JPY",
+                    "type": "string"
+                },
+                "deleted_at": {
+                    "$ref": "#/definitions/gorm.DeletedAt"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "expiration_date": {
+                    "description": "Financial Management",
+                    "type": "string"
+                },
+                "fingerprint": {
+                    "description": "SSH Host Key Fingerprint (TOFU)",
+                    "type": "string"
+                },
+                "group_name": {
+                    "type": "string"
+                },
+                "host": {
+                    "type": "string"
+                },
+                "host_type": {
+                    "description": "control_monitor or monitor_only",
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "last_agent_timestamp": {
+                    "description": "Timestamp of last processed packet",
+                    "type": "integer"
+                },
+                "last_pulse": {
+                    "type": "string"
+                },
+                "last_scan_at": {
+                    "type": "string"
+                },
+                "monitor_enabled": {
+                    "type": "boolean"
+                },
+                "monitor_secret": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "net_interface": {
+                    "description": "Network Config",
+                    "type": "string"
+                },
+                "net_last_raw_rx": {
+                    "description": "Last known raw total from agent",
+                    "type": "integer"
+                },
+                "net_last_raw_tx": {
+                    "type": "integer"
+                },
+                "net_last_reset_date": {
+                    "description": "YYYY-MM-DD",
+                    "type": "string"
+                },
+                "net_monthly_rx": {
+                    "description": "Traffic Accumulators (Delta Logic)",
+                    "type": "integer"
+                },
+                "net_monthly_tx": {
+                    "type": "integer"
+                },
+                "net_reset_day": {
+                    "description": "Day of month to reset",
+                    "type": "integer"
+                },
+                "net_traffic_counter_mode": {
+                    "description": "total, rx, tx",
+                    "type": "string"
+                },
+                "net_traffic_limit": {
+                    "description": "Traffic Limit Config",
+                    "type": "integer"
+                },
+                "net_traffic_used_adjustment": {
+                    "description": "Bytes, manual correction",
+                    "type": "integer"
+                },
+                "notify_channels": {
+                    "description": "comma-separated",
+                    "type": "string"
+                },
+                "notify_offline_enabled": {
+                    "description": "Notification Config",
+                    "type": "boolean"
+                },
+                "notify_offline_threshold": {
+                    "description": "Minutes",
+                    "type": "integer"
+                },
+                "notify_traffic_enabled": {
+                    "type": "boolean"
+                },
+                "notify_traffic_threshold": {
+                    "description": "Percent",
+                    "type": "integer"
+                },
+                "password": {
+                    "description": "Transient fields (not stored in database)",
+                    "type": "string"
+                },
+                "port": {
+                    "type": "integer"
+                },
+                "private_key": {
+                    "type": "string"
+                },
+                "sort_order": {
+                    "type": "integer"
+                },
+                "status": {
+                    "description": "online, offline",
+                    "type": "string"
+                },
+                "tags": {
+                    "type": "string"
+                },
+                "traffic_alerted": {
+                    "type": "boolean"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        },
+        "models.User": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "last_login_at": {
+                    "type": "string"
+                },
+                "role": {
+                    "description": "admin or user",
+                    "type": "string"
+                },
+                "status": {
+                    "description": "active or disabled",
+                    "type": "string"
+                },
+                "two_factor_enabled": {
+                    "type": "boolean"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "username": {
+                    "type": "string"
+                }
+            }
+        }
+    },
+    "securityDefinitions": {
+        "BearerAuth": {
+            "type": "apiKey",
+            "name": "Authorization",
+            "in": "header"
+        }
+    }
+}

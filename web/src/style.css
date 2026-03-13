@@ -1,0 +1,346 @@
+:root {
+  font-family: 'Alibaba PuHuiTi', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+#app {
+  min-height: 100vh;
+}
+
+/* Compact layout styles */
+.compact-layout {
+  padding: 0 !important;
+}
+
+.compact-layout .ant-layout-header {
+  height: 48px;
+  line-height: 48px;
+  padding: 0 16px;
+}
+
+.compact-layout .ant-layout-sider {
+  min-height: calc(100vh - 48px);
+}
+
+.compact-layout .ant-layout-content {
+  min-height: calc(100vh - 48px);
+  padding: 8px;
+}
+
+/* Terminal styles */
+.terminal-container {
+  background: #1e1e1e;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.xterm {
+  padding: 10px;
+}
+
+.xterm-viewport {
+  overflow-y: auto;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+/* Dark mode scrollbar overlay */
+.ant-theme-dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.ant-theme-dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Login page styles */
+.login-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: #f0f2f5;
+}
+
+.login-box {
+  width: 100%;
+  max-width: 400px;
+  padding: 40px;
+  background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.login-title {
+  text-align: center;
+  margin-bottom: 32px;
+  font-size: 24px;
+  font-weight: 600;
+  color: #000;
+}
+
+/* Dark mode login overrides */
+.dark-theme .login-container {
+  background: #141414;
+}
+
+.dark-theme .login-box {
+  background: #1f1f1f;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.dark-theme .login-title {
+  color: #fff;
+}
+
+/* Tab styles for terminal */
+.terminal-tabs .ant-tabs-nav {
+  margin-bottom: 0;
+  /* padding: 4px 8px 0; */
+}
+
+.terminal-tabs .ant-tabs-tab {
+  padding: 4px 12px !important;
+  font-size: 13px;
+}
+
+/* .terminal-tabs .ant-tabs-content {
+  height: calc(100vh - 100px);
+} */
+
+.terminal-tabs .ant-tabs-tabpane {
+  height: 100%;
+}
+
+/* ====================================
+   Mobile Responsive Styles
+   ==================================== */
+
+/* Viewport meta should be in index.html */
+/* These styles optimize the layout for mobile devices */
+
+/* Global mobile adjustments */
+@media (max-width: 768px) {
+  /* Header adjustments */
+  .compact-layout .ant-layout-header {
+    padding: 0 12px !important;
+    height: 48px;
+  }
+
+  /* Content area padding */
+  .compact-layout .ant-layout-content {
+    padding: 8px !important;
+  }
+
+  /* Card adjustments */
+  .ant-card {
+    border-radius: 8px;
+  }
+  
+  .ant-card-head {
+    padding: 0 12px;
+    min-height: 40px;
+  }
+  
+  .ant-card-body {
+    padding: 12px;
+  }
+
+  /* Table adjustments */
+  .ant-table {
+    font-size: 12px;
+  }
+  
+  .ant-table-thead > tr > th,
+  .ant-table-tbody > tr > td {
+    padding: 8px 6px !important;
+  }
+
+  /* Button adjustments */
+  .ant-btn {
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+  
+  .ant-btn-sm {
+    padding: 2px 6px;
+    font-size: 11px;
+  }
+
+  /* Form adjustments */
+  .ant-form-item {
+    margin-bottom: 12px;
+  }
+
+  /* Modal adjustments */
+  .ant-modal {
+    max-width: calc(100vw - 32px) !important;
+    margin: 16px auto !important;
+  }
+  
+  .ant-modal-body {
+    padding: 16px !important;
+  }
+
+  /* Drawer adjustments */
+  .ant-drawer-content-wrapper {
+    width: 100% !important;
+    max-width: 100vw !important;
+  }
+
+  /* Tag adjustments */
+  .ant-tag {
+    font-size: 11px;
+    padding: 0 4px;
+  }
+
+  /* Space adjustments */
+  .ant-space {
+    gap: 4px !important;
+  }
+
+  /* Alert adjustments */
+  .ant-alert {
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  /* Login page responsive */
+  .login-box {
+    max-width: 100%;
+    margin: 16px;
+    padding: 24px;
+    border-radius: 12px;
+  }
+
+  .login-title {
+    font-size: 20px;
+    margin-bottom: 24px;
+  }
+
+  /* Dropdown menu */
+  .ant-dropdown-menu {
+    max-width: calc(100vw - 24px);
+  }
+
+  /* Select dropdown */
+  .ant-select-dropdown {
+    max-width: calc(100vw - 24px);
+  }
+
+  /* Popover */
+  .ant-popover {
+    max-width: calc(100vw - 24px);
+  }
+  
+  /* Progress bars */
+  .ant-progress-line {
+    margin-bottom: 4px;
+  }
+}
+
+/* Small mobile devices (phones) */
+@media (max-width: 480px) {
+  .compact-layout .ant-layout-header {
+    padding: 0 8px !important;
+  }
+
+  .compact-layout .ant-layout-content {
+    padding: 4px !important;
+  }
+
+  .ant-card-body {
+    padding: 8px;
+  }
+
+  .login-box {
+    padding: 16px;
+    margin: 8px;
+  }
+
+  .login-title {
+    font-size: 18px;
+    margin-bottom: 20px;
+  }
+
+  /* Hide text in buttons, show only icons on very small screens */
+  .mobile-icon-only .ant-btn > span:not(.anticon) {
+    display: none;
+  }
+}
+
+/* Tablet adjustments */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .compact-layout .ant-layout-content {
+    padding: 12px;
+  }
+}
+
+/* Touch-friendly elements */
+@media (pointer: coarse) {
+  /* Increase touch target sizes */
+  .ant-btn {
+    min-height: 36px;
+    min-width: 36px;
+  }
+  
+  .ant-btn-sm {
+    min-height: 32px;
+    min-width: 32px;
+  }
+
+  .ant-checkbox-wrapper,
+  .ant-radio-wrapper {
+    padding: 4px 0;
+  }
+
+  /* Better spacing for touch */
+  .ant-menu-item {
+    padding: 12px 16px !important;
+  }
+}
+
+/* Safe area insets for notched devices (iPhone X, etc.) */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .compact-layout .ant-layout-content {
+    padding-bottom: calc(8px + env(safe-area-inset-bottom));
+  }
+}
+
+/* Prevent horizontal scroll on mobile */
+html, body {
+  overflow-x: hidden;
+}
+
+#app {
+  overflow-x: hidden;
+}
