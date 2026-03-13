@@ -1,5 +1,8 @@
 # TermiScope
 
+# 本项目所有代码由AI编写，包括 README.md 。
+
+
 <div align="center">
   <img src="./web/public/logo.png" width="100" />
   <h1>TermiScope</h1>
