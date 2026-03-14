@@ -97,18 +97,15 @@ jobs:
           git tag -a $VERSION -m "Release $VERSION"
           git push origin $VERSION
           
-          # Create release using GitHub CLI
-          $ReleaseNotesContent = @"
-## TermiScope $VERSION
-
-自动发布版本 $VERSION
-
-### 更新内容
-请查看提交历史了解详细变更。
-"@
+          # Build release notes without heredoc (heredoc content must be column-0, conflicts with YAML indentation)
+          $nl = [System.Environment]::NewLine
+          $notes = "## TermiScope $VERSION" + $nl + $nl
+          $notes += "自动发布版本 $VERSION" + $nl + $nl
+          $notes += "### 更新内容" + $nl
+          $notes += "请查看提交历史了解详细变更。"
           
-          # Write WITHOUT BOM — PowerShell's default UTF8 includes BOM which garbles GitHub release notes
-          [System.IO.File]::WriteAllText("release_notes.md", $ReleaseNotesContent, [System.Text.UTF8Encoding]::new($false))
+          # Write WITHOUT BOM — PowerShell UTF8 default includes BOM which garbles GitHub release notes
+          [System.IO.File]::WriteAllText("release_notes.md", $notes, [System.Text.UTF8Encoding]::new($false))
           
           gh release create $VERSION `
             --title "Release $VERSION" `

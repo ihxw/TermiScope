@@ -8,9 +8,10 @@ import (
 	"runtime"
 )
 
-// RestartSelf creates and executes a temporary script to restart the application.
-// It returns an error if the restart process fails to start.
-// The caller should call os.Exit(0) shortly after this function returns to allow the script to proceed.
+// RestartSelf creates and executes a temporary script to restart the application,
+// then exits the current process so the new binary can take over.
+// The restart script waits 2 seconds before launching the new process, giving
+// in-flight HTTP responses time to complete before the port is released.
 func RestartSelf() error {
 	exePath, err := os.Executable()
 	if err != nil {
@@ -43,7 +44,7 @@ del "%%~f0"
 		}
 	} else {
 		scriptPath := filepath.Join(dir, "restart_termiscope.sh")
-		// Script: Sleep 2s, Start executable background, Delete self
+		// Script: Sleep 2s, Start executable in background, Delete self
 		content := fmt.Sprintf(`#!/bin/sh
 sleep 2
 "%s" > /dev/null 2>&1 &
@@ -56,12 +57,13 @@ rm "$0"
 
 		// Execute the script detached
 		cmd := exec.Command("/bin/sh", scriptPath)
-		// Detach logic could be added here via SysProcAttr if needed,
-		// but since the script puts the app in bg, it should be fine.
 		if err := cmd.Start(); err != nil {
 			return fmt.Errorf("failed to run restart script: %w", err)
 		}
 	}
 
-	return nil
+	// Exit the current (old) process so the restart script can launch the new binary.
+	// Without this, the old binary keeps running and serving the old version string.
+	os.Exit(0)
+	return nil // unreachable
 }

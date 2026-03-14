@@ -284,8 +284,9 @@ while true; do
   disk_used=0
   disks_json="["
   first_disk=1
+  # -P: POSIX output (one line per FS, no wrapping for long device names like /dev/mapper/...)
   while IFS= read -r dfline; do
-    # df -B1 columns: Filesystem, 1B-blocks, Used, Avail, Use%, Mounted
+    # df -B1 -P columns: Filesystem, 1B-blocks, Used, Available, Capacity%, Mounted
     dfs=$(echo "$dfline" | awk '{print $1}')
     dft=$(echo "$dfline" | awk '{print $2}')
     dfu=$(echo "$dfline" | awk '{print $3}')
@@ -293,17 +294,19 @@ while true; do
     # Skip if any field is empty or total is 0
     if [ -z "$dfs" ] || [ -z "$dft" ] || [ -z "$dfu" ] || [ -z "$dfm" ]; then continue; fi
     if [ "$dft" -eq 0 ] 2>/dev/null; then continue; fi
-    # Skip pseudo/virtual filesystems by mount point prefix
-    case "$dfm" in /proc*|/sys*|/dev*|/run*|/snap/*) continue ;; esac
-    # Skip pseudo/virtual filesystems by filesystem type name
-    case "$dfs" in tmpfs|devtmpfs|sysfs|proc|cgroup*|udev|overlay|shm|none|nsfs) continue ;; esac
+    # Skip virtual/pseudo mount points
+    case "$dfm" in /proc|/proc/*|/sys|/sys/*|/dev|/dev/*|/run|/run/*|/snap/*) continue ;; esac
+    # Skip clearly pseudo filesystem devices by name
+    # NOTE: 'overlay' is intentionally NOT filtered — on Ubuntu/LVM/Docker systems
+    # the root filesystem device name IS 'overlay' and must be included.
+    case "$dfs" in tmpfs|devtmpfs|sysfs|proc|cgroup|cgroup2|udev|shm|none|nsfs|squashfs) continue ;; esac
     disk_total=$((disk_total + dft))
     disk_used=$((disk_used + dfu))
     # Escape mount point for JSON (replace backslash and double-quote)
     safe_mount=$(echo "$dfm" | sed 's/\\/\\\\/g; s/"/\\"/g')
     if [ "$first_disk" -eq 1 ]; then first_disk=0; else disks_json="${disks_json},"; fi
     disks_json="${disks_json}{\"mount_point\":\"${safe_mount}\",\"used\":${dfu},\"total\":${dft}}"
-  done < <(df -B1 2>/dev/null | tail -n +2)
+  done < <(df -B1 -P 2>/dev/null | tail -n +2)
   disks_json="${disks_json}]"
   if [ -z "$disk_total" ]; then disk_total=0; fi
   if [ -z "$disk_used" ]; then disk_used=0; fi
