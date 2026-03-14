@@ -2185,12 +2185,37 @@ func (h *MonitorHandler) GetAgentManifest(c *gin.Context) {
 	}
 
 	filePath := filepath.Join("agents", filename)
-	shaValue, fileSize, err := computeFileSHA256(filePath)
+	
+	// Read from cache
+	hashInfo, err := utils.GetAgentHashInfo(filename)
 	if err != nil {
-		log.Printf("Agent manifest failed for %s: %v", filePath, err)
-		c.JSON(http.StatusNotFound, gin.H{"error": "Agent binary not found"})
-		return
+		log.Printf("Agent manifest cache miss for %s: %v. Regenerating...", filename, err)
+		// Fallback: regenerate cache
+		if genErr := utils.GenerateAgentHashes(); genErr != nil {
+			log.Printf("Failed to regenerate agent hashes: %v", genErr)
+		}
+		// Try again
+		hashInfo, err = utils.GetAgentHashInfo(filename)
 	}
+
+	if err != nil {
+		log.Printf("Agent manifest failed for %s: %v (cache and regeneration failed)", filename, err)
+		
+		// Fallback to on-the-fly calculation if cache fails completely
+		shaValue, fileSize, compErr := computeFileSHA256(filePath)
+		if compErr != nil {
+			log.Printf("Agent file not found or cannot be hashed: %s: %v", filePath, compErr)
+			c.JSON(http.StatusNotFound, gin.H{"error": "Agent binary not found"})
+			return
+		}
+		hashInfo = &utils.AgentHashInfo{
+			SHA256: shaValue,
+			Size:   fileSize,
+		}
+	}
+
+	shaValue := hashInfo.SHA256
+	fileSize := hashInfo.Size
 
 	version := strings.TrimSpace(config.Version)
 	if version == "" {

@@ -233,6 +233,15 @@ func stageWindowsAgentUpdate(tmpPath, exePath string) error {
 
 func restartUpdatedAgent(exePath string) error {
 	if !service.Interactive() {
+		// If running as a service on Linux, try to restart via systemctl
+		if runtime.GOOS == "linux" {
+			cmd := exec.Command("systemctl", "restart", "--no-block", agentServiceName+".service")
+			if err := cmd.Start(); err != nil {
+				logError("Failed to trigger systemd restart: %v", err)
+			} else {
+				logError("Triggered systemd restart for %s.service", agentServiceName)
+			}
+		}
 		os.Exit(0)
 		return nil
 	}

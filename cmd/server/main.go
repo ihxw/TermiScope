@@ -69,6 +69,11 @@ func main() {
 		log.Printf("Warning: Failed to sync config from DB: %v", err)
 	}
 
+	// Generate agent hashes for auto-updating
+	if err := utils.GenerateAgentHashes(); err != nil {
+		log.Printf("Warning: Failed to generate agent hashes: %v", err)
+	}
+
 	// Configure logging
 	log.SetOutput(&lumberjack.Logger{
 		Filename:   "logs/server.log",
