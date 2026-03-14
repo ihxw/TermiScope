@@ -78,14 +78,16 @@ jobs:
           foreach ($script in $scripts) {
             $content = [IO.File]::ReadAllText($script)
             $content = $content -replace "`r`n", "`n"
-            [IO.File]::WriteAllText($script, $content)
+            [IO.File]::WriteAllText($script, $content, [System.Text.UTF8Encoding]::new($false))
           }
       
-      - name: Create Tag and Release
-        shell: powershell
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create Tag and Prepare Release Notes
+        id: prepare_release
+        shell: pwsh
         run: |
+          [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+          $OutputEncoding = [System.Text.Encoding]::UTF8
+
           $VERSION = "v${{ needs.check-version.outputs.new_version }}"
           Write-Host "Creating release: $VERSION"
           
@@ -104,11 +106,19 @@ jobs:
           $notes += "### 更新内容" + $nl
           $notes += "请查看提交历史了解详细变更。"
           
-          # Write WITHOUT BOM — PowerShell UTF8 default includes BOM which garbles GitHub release notes
+          # Persist release notes as UTF-8 without BOM so GitHub reads Chinese text correctly.
           [System.IO.File]::WriteAllText("release_notes.md", $notes, [System.Text.UTF8Encoding]::new($false))
-          
-          gh release create $VERSION `
-            --title "Release $VERSION" `
-            --notes-file "release_notes.md" `
-            release/* `
+
+          "version=$VERSION" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.prepare_release.outputs.version }}
+          name: Release ${{ steps.prepare_release.outputs.version }}
+          body_path: release_notes.md
+          files: |
+            release/*
             scripts/install.sh
+          draft: false
+          prerelease: false

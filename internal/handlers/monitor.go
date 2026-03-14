@@ -279,34 +279,40 @@ while true; do
   if [ -z "$mem_free" ]; then mem_free=0; fi
   mem_used=$((mem_total - mem_free - mem_buffers - mem_cached))
 
-  # Disk (Bytes) - All real mounted partitions
+	# Disk (Bytes) - All real mounted partitions
   disk_total=0
   disk_used=0
   disks_json="["
   first_disk=1
-  # -P: POSIX output (one line per FS, no wrapping for long device names like /dev/mapper/...)
+	declare -A seen_disk_keys
+	# -P: POSIX output (one line per FS, no wrapping for long device names like /dev/mapper/...)
+	# -T: include filesystem type so we can filter pseudo filesystems reliably.
   while IFS= read -r dfline; do
-    # df -B1 -P columns: Filesystem, 1B-blocks, Used, Available, Capacity%, Mounted
+		# df -B1 -P -T columns: Filesystem, Type, 1B-blocks, Used, Available, Capacity%, Mounted
     dfs=$(echo "$dfline" | awk '{print $1}')
-    dft=$(echo "$dfline" | awk '{print $2}')
-    dfu=$(echo "$dfline" | awk '{print $3}')
-    dfm=$(echo "$dfline" | awk '{print $6}')
+		dffstype=$(echo "$dfline" | awk '{print $2}')
+		dft=$(echo "$dfline" | awk '{print $3}')
+		dfu=$(echo "$dfline" | awk '{print $4}')
+		dfm=$(echo "$dfline" | awk '{print $7}')
     # Skip if any field is empty or total is 0
-    if [ -z "$dfs" ] || [ -z "$dft" ] || [ -z "$dfu" ] || [ -z "$dfm" ]; then continue; fi
+		if [ -z "$dfs" ] || [ -z "$dffstype" ] || [ -z "$dft" ] || [ -z "$dfu" ] || [ -z "$dfm" ]; then continue; fi
     if [ "$dft" -eq 0 ] 2>/dev/null; then continue; fi
     # Skip virtual/pseudo mount points
     case "$dfm" in /proc|/proc/*|/sys|/sys/*|/dev|/dev/*|/run|/run/*|/snap/*) continue ;; esac
-    # Skip clearly pseudo filesystem devices by name
-    # NOTE: 'overlay' is intentionally NOT filtered — on Ubuntu/LVM/Docker systems
-    # the root filesystem device name IS 'overlay' and must be included.
-    case "$dfs" in tmpfs|devtmpfs|sysfs|proc|cgroup|cgroup2|udev|shm|none|nsfs|squashfs) continue ;; esac
+		# Skip pseudo filesystem types. Keep overlay only when it is the root filesystem.
+		case "$dffstype" in tmpfs|devtmpfs|sysfs|proc|procfs|cgroup|cgroup2|udev|devfs|shm|none|nsfs|squashfs|fusectl|tracefs|configfs|debugfs|mqueue|pstore|securityfs|selinuxfs) continue ;; esac
+		if [ "$dffstype" = "overlay" ] && [ "$dfm" != "/" ]; then continue; fi
+		# Skip duplicate mounts of the same device.
+		disk_key="$dfs"
+		if [ -n "${seen_disk_keys[$disk_key]}" ]; then continue; fi
+		seen_disk_keys[$disk_key]=1
     disk_total=$((disk_total + dft))
     disk_used=$((disk_used + dfu))
     # Escape mount point for JSON (replace backslash and double-quote)
     safe_mount=$(echo "$dfm" | sed 's/\\/\\\\/g; s/"/\\"/g')
     if [ "$first_disk" -eq 1 ]; then first_disk=0; else disks_json="${disks_json},"; fi
     disks_json="${disks_json}{\"mount_point\":\"${safe_mount}\",\"used\":${dfu},\"total\":${dft}}"
-  done < <(df -B1 -P 2>/dev/null | tail -n +2)
+	done < <(df -B1 -P -T 2>/dev/null | tail -n +2)
   disks_json="${disks_json}]"
   if [ -z "$disk_total" ]; then disk_total=0; fi
   if [ -z "$disk_used" ]; then disk_used=0; fi

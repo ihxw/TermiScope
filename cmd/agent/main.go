@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 
@@ -29,6 +30,12 @@ type InterfaceData struct {
 	Mac  string   `json:"mac"`
 }
 
+type DiskData struct {
+	MountPoint string `json:"mount_point"`
+	Used       uint64 `json:"used"`
+	Total      uint64 `json:"total"`
+}
+
 // MetricData matches the termiscope backend struct
 type MetricData struct {
 	HostID       uint64          `json:"host_id"`
@@ -43,6 +50,7 @@ type MetricData struct {
 	MemTotal     uint64          `json:"mem_total"`
 	DiskUsed     uint64          `json:"disk_used"`
 	DiskTotal    uint64          `json:"disk_total"`
+	Disks        []DiskData      `json:"disks"`
 	NetRx        uint64          `json:"net_rx"` // Sum of all interfaces
 	NetTx        uint64          `json:"net_tx"` // Sum of all interfaces
 	Interfaces   []InterfaceData `json:"interfaces"`
@@ -267,32 +275,7 @@ func collectMetrics() MetricData {
 		data.CPU = percent[0]
 	}
 
-	// Disk - Aggregate all physical partitions (filter out tmpfs, devfs, etc.)
-	partitions, err := disk.Partitions(false) // false = exclude pseudo filesystems
-	if err == nil {
-		var totalSize, totalUsed uint64
-		for _, partition := range partitions {
-			// Skip pseudo filesystems
-			if strings.HasPrefix(partition.Fstype, "tmpfs") ||
-				strings.HasPrefix(partition.Fstype, "devtmpfs") ||
-				strings.HasPrefix(partition.Fstype, "devfs") ||
-				strings.HasPrefix(partition.Fstype, "proc") ||
-				strings.HasPrefix(partition.Fstype, "sysfs") ||
-				strings.HasPrefix(partition.Fstype, "cgroup") ||
-				strings.HasPrefix(partition.Fstype, "overlay") ||
-				partition.Fstype == "" {
-				continue
-			}
-
-			// Get usage for this partition
-			if usage, err := disk.Usage(partition.Mountpoint); err == nil {
-				totalSize += usage.Total
-				totalUsed += usage.Used
-			}
-		}
-		data.DiskTotal = totalSize
-		data.DiskUsed = totalUsed
-	}
+	data.Disks, data.DiskUsed, data.DiskTotal = collectDiskMetrics()
 
 	// Network
 	if counters, err := net.IOCounters(true); err == nil {
@@ -338,6 +321,136 @@ func collectMetrics() MetricData {
 	}
 
 	return data
+}
+
+func collectDiskMetrics() ([]DiskData, uint64, uint64) {
+	partitions, err := disk.Partitions(true)
+	if err != nil {
+		return nil, 0, 0
+	}
+
+	seenKeys := make(map[string]struct{})
+	seenMounts := make(map[string]struct{})
+	disks := make([]DiskData, 0, len(partitions))
+	var totalUsed uint64
+	var totalSize uint64
+
+	for _, partition := range partitions {
+		mountPoint := strings.TrimSpace(partition.Mountpoint)
+		if shouldSkipPartition(partition, mountPoint) {
+			continue
+		}
+
+		usage, err := disk.Usage(mountPoint)
+		if err != nil || usage.Total == 0 {
+			continue
+		}
+
+		if _, exists := seenMounts[mountPoint]; exists {
+			continue
+		}
+
+		diskKey := diskIdentityKey(partition)
+		if _, exists := seenKeys[diskKey]; exists {
+			continue
+		}
+
+		seenMounts[mountPoint] = struct{}{}
+		seenKeys[diskKey] = struct{}{}
+
+		disks = append(disks, DiskData{
+			MountPoint: mountPoint,
+			Used:       usage.Used,
+			Total:      usage.Total,
+		})
+		totalSize += usage.Total
+		totalUsed += usage.Used
+	}
+
+	if len(disks) == 0 && runtime.GOOS != "windows" {
+		if usage, err := disk.Usage("/"); err == nil && usage.Total > 0 {
+			disks = append(disks, DiskData{MountPoint: "/", Used: usage.Used, Total: usage.Total})
+			totalSize = usage.Total
+			totalUsed = usage.Used
+		}
+	}
+
+	sort.Slice(disks, func(i, j int) bool {
+		return disks[i].MountPoint < disks[j].MountPoint
+	})
+
+	return disks, totalUsed, totalSize
+}
+
+func shouldSkipPartition(partition disk.PartitionStat, mountPoint string) bool {
+	if mountPoint == "" {
+		return true
+	}
+
+	lowerMount := strings.ToLower(mountPoint)
+	lowerFS := strings.ToLower(strings.TrimSpace(partition.Fstype))
+	lowerDevice := strings.ToLower(strings.TrimSpace(partition.Device))
+
+	pseudoFS := map[string]struct{}{
+		"autofs":      {},
+		"binfmt_misc": {},
+		"cgroup":      {},
+		"cgroup2":     {},
+		"configfs":    {},
+		"debugfs":     {},
+		"devfs":       {},
+		"devpts":      {},
+		"devtmpfs":    {},
+		"fusectl":     {},
+		"hugetlbfs":   {},
+		"mqueue":      {},
+		"nsfs":        {},
+		"proc":        {},
+		"procfs":      {},
+		"pstore":      {},
+		"securityfs":  {},
+		"selinuxfs":   {},
+		"squashfs":    {},
+		"sysfs":       {},
+		"tmpfs":       {},
+		"tracefs":     {},
+	}
+
+	if _, skip := pseudoFS[lowerFS]; skip {
+		return true
+	}
+
+	if lowerFS == "overlay" && lowerMount != "/" {
+		return true
+	}
+
+	skipMountPrefixes := []string{"/proc", "/sys", "/dev", "/run", "/snap"}
+	for _, prefix := range skipMountPrefixes {
+		if lowerMount == prefix || strings.HasPrefix(lowerMount, prefix+"/") {
+			return true
+		}
+	}
+
+	if runtime.GOOS == "darwin" && strings.HasPrefix(lowerMount, "/system/volumes/") {
+		return true
+	}
+
+	skipDevicePrefixes := []string{"autofs", "devfs", "map ", "none", "proc", "sys", "tmpfs"}
+	for _, prefix := range skipDevicePrefixes {
+		if strings.HasPrefix(lowerDevice, prefix) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func diskIdentityKey(partition disk.PartitionStat) string {
+	device := strings.TrimSpace(partition.Device)
+	if runtime.GOOS == "windows" || device == "" {
+		return strings.TrimSpace(partition.Mountpoint)
+	}
+	return device
 }
 
 func sendMetrics(client *http.Client, data MetricData) error {
