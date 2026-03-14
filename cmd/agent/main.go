@@ -116,15 +116,30 @@ func (p *program) run() {
 	metrics := collectMetrics()
 	if err := sendMetrics(client, metrics); err != nil {
 		logError("Failed to report metrics: %v", err)
+	} else if err := attemptAgentSelfUpdate(client); err != nil {
+		logError("Agent self-update check failed: %v", err)
 	}
 
 	ticker := time.NewTicker(2 * time.Second)
+	updateTicker := time.NewTicker(agentUpdateCheckInterval)
+	defer updateTicker.Stop()
+	nextUpdateAttempt := time.Now()
 	for {
 		select {
 		case <-ticker.C:
 			metrics := collectMetrics()
 			if err := sendMetrics(client, metrics); err != nil {
 				logError("Failed to report metrics: %v", err)
+			}
+		case <-updateTicker.C:
+			if time.Now().Before(nextUpdateAttempt) {
+				continue
+			}
+			if err := attemptAgentSelfUpdate(client); err != nil {
+				logError("Agent self-update check failed: %v", err)
+				nextUpdateAttempt = time.Now().Add(agentUpdateRetryDelay)
+			} else {
+				nextUpdateAttempt = time.Now().Add(agentUpdateCheckInterval)
 			}
 		case <-p.exit:
 			ticker.Stop()

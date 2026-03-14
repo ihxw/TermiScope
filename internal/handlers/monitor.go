@@ -2,14 +2,19 @@ package handlers
 
 import (
 	"bytes"
+	"crypto/hmac"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -2151,27 +2156,63 @@ func (h *MonitorHandler) UninstallCallback(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
+type agentManifestResponse struct {
+	Version   string `json:"version"`
+	Filename  string `json:"filename"`
+	SHA256    string `json:"sha256"`
+	Size      int64  `json:"size"`
+	Signature string `json:"signature"`
+}
+
+func (h *MonitorHandler) GetAgentManifest(c *gin.Context) {
+	host, err := h.authenticateAgentRequest(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+
+	goos := strings.ToLower(strings.TrimSpace(c.Query("os")))
+	goarch := strings.ToLower(strings.TrimSpace(c.Query("arch")))
+	if goos == "" || goarch == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "os and arch parameters are required"})
+		return
+	}
+
+	filename, err := resolveAgentFilename(goos, goarch)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	filePath := filepath.Join("agents", filename)
+	shaValue, fileSize, err := computeFileSHA256(filePath)
+	if err != nil {
+		log.Printf("Agent manifest failed for %s: %v", filePath, err)
+		c.JSON(http.StatusNotFound, gin.H{"error": "Agent binary not found"})
+		return
+	}
+
+	version := strings.TrimSpace(config.Version)
+	if version == "" {
+		version = "dev"
+	}
+
+	manifest := agentManifestResponse{
+		Version:   version,
+		Filename:  filename,
+		SHA256:    shaValue,
+		Size:      fileSize,
+		Signature: signAgentManifest(host.MonitorSecret, version, filename, shaValue, fileSize),
+	}
+
+	c.JSON(http.StatusOK, manifest)
+}
+
 // DownloadAgent 提供 agent 二进制文件下载
 func (h *MonitorHandler) DownloadAgent(c *gin.Context) {
 	filename := c.Param("filename")
-	secret := c.Query("secret")
-	hostID := c.Query("host_id")
-
-	// 验证参数
-	if secret == "" || hostID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "secret and host_id parameters are required"})
-		return
-	}
-
-	// 验证 secret
-	var host models.SSHHost
-	if err := h.DB.First(&host, hostID).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Host not found"})
-		return
-	}
-
-	if host.MonitorSecret != secret {
-		c.JSON(http.StatusForbidden, gin.H{"error": "Invalid secret"})
+	if _, err := h.authenticateAgentRequest(c); err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -2199,4 +2240,82 @@ func (h *MonitorHandler) DownloadAgent(c *gin.Context) {
 
 	// 发送文件
 	c.File(filePath)
+}
+
+func (h *MonitorHandler) authenticateAgentRequest(c *gin.Context) (*models.SSHHost, error) {
+	hostID := strings.TrimSpace(c.Query("host_id"))
+	if hostID == "" {
+		return nil, fmt.Errorf("host_id parameter is required")
+	}
+
+	var host models.SSHHost
+	if err := h.DB.First(&host, hostID).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, fmt.Errorf("host not found")
+		}
+		return nil, fmt.Errorf("failed to load host")
+	}
+
+	secret := strings.TrimSpace(c.Query("secret"))
+	if secret == "" {
+		authHeader := c.GetHeader("Authorization")
+		if len(authHeader) >= 7 && strings.EqualFold(authHeader[:7], "Bearer ") {
+			secret = strings.TrimSpace(authHeader[7:])
+		}
+	}
+
+	if secret == "" {
+		return nil, fmt.Errorf("authorization required")
+	}
+
+	if host.MonitorSecret != secret {
+		return nil, fmt.Errorf("invalid secret")
+	}
+
+	return &host, nil
+}
+
+func resolveAgentFilename(goos, goarch string) (string, error) {
+	switch goos {
+	case "linux":
+		switch goarch {
+		case "amd64", "arm64", "arm":
+			return fmt.Sprintf("termiscope-agent-linux-%s", goarch), nil
+		}
+	case "darwin":
+		switch goarch {
+		case "amd64", "arm64":
+			return fmt.Sprintf("termiscope-agent-darwin-%s", goarch), nil
+		}
+	case "windows":
+		switch goarch {
+		case "amd64", "arm64":
+			return fmt.Sprintf("termiscope-agent-windows-%s.exe", goarch), nil
+		}
+	}
+
+	return "", fmt.Errorf("unsupported platform: %s/%s", goos, goarch)
+}
+
+func computeFileSHA256(filePath string) (string, int64, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return "", 0, err
+	}
+	defer file.Close()
+
+	hasher := sha256.New()
+	size, err := io.Copy(hasher, file)
+	if err != nil {
+		return "", 0, err
+	}
+
+	return hex.EncodeToString(hasher.Sum(nil)), size, nil
+}
+
+func signAgentManifest(secret, version, filename, shaValue string, size int64) string {
+	payload := fmt.Sprintf("%s\n%s\n%s\n%d", version, filename, shaValue, size)
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write([]byte(payload))
+	return hex.EncodeToString(mac.Sum(nil))
 }

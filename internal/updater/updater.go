@@ -151,24 +151,22 @@ func PerformUpdate(downloadURL string) error {
 
 	// 3. Extract if needed
 	var binaryPath string
+	var packageRoot string
+	var extractedRoot string
 
 	lowerURL := strings.ToLower(downloadURL)
 	if strings.HasSuffix(lowerURL, ".zip") {
-		// Extract ZIP
-		extractedPath, err := extractZip(tmpFile.Name())
+		extractedRoot, packageRoot, err = extractZip(tmpFile.Name())
 		if err != nil {
 			return fmt.Errorf("failed to unzip: %v", err)
 		}
-		defer os.Remove(extractedPath) // Clean up extracted binary after install
-		binaryPath = extractedPath
+		defer os.RemoveAll(extractedRoot)
 	} else if strings.HasSuffix(lowerURL, ".tar.gz") {
-		// Extract TarGz
-		extractedPath, err := extractTarGz(tmpFile.Name())
+		extractedRoot, packageRoot, err = extractTarGz(tmpFile.Name())
 		if err != nil {
 			return fmt.Errorf("failed to untar: %v", err)
 		}
-		defer os.Remove(extractedPath)
-		binaryPath = extractedPath
+		defer os.RemoveAll(extractedRoot)
 	} else {
 		// Assume raw binary
 		binaryPath = tmpFile.Name()
@@ -183,6 +181,14 @@ func PerformUpdate(downloadURL string) error {
 	if err != nil {
 		return err
 	}
+	exeDir := filepath.Dir(exePath)
+
+	if packageRoot != "" {
+		binaryPath, err = findPackageBinary(packageRoot)
+		if err != nil {
+			return err
+		}
+	}
 
 	// 5. Backup current
 	oldPath := exePath + ".old"
@@ -196,6 +202,13 @@ func PerformUpdate(downloadURL string) error {
 		// Rollback
 		os.Rename(oldPath, exePath)
 		return fmt.Errorf("failed to install new binary: %v", err)
+	}
+
+	if packageRoot != "" {
+		if err := syncPackageAssets(packageRoot, exeDir); err != nil {
+			os.Rename(oldPath, exePath)
+			return fmt.Errorf("failed to sync package assets: %v", err)
+		}
 	}
 
 	// 7. Chmod +x
@@ -229,95 +242,89 @@ func copyFile(src, dst string) error {
 	return out.Sync()
 }
 
-func extractZip(zipPath string) (string, error) {
+func extractZip(zipPath string) (string, string, error) {
 	r, err := zip.OpenReader(zipPath)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	defer r.Close()
 
-	// Find the largest file, assume it's the binary (simple heuristic)
-	// Or looks for file with name containing 'termiscope'
-	var candidate *zip.File
-	var maxSize int64
+	extractDir, err := os.MkdirTemp("", "termiscope_update_zip_*")
+	if err != nil {
+		return "", "", err
+	}
 
 	for _, f := range r.File {
+		targetPath, err := safeExtractPath(extractDir, f.Name)
+		if err != nil {
+			os.RemoveAll(extractDir)
+			return "", "", err
+		}
+
 		if f.FileInfo().IsDir() {
+			if err := os.MkdirAll(targetPath, 0755); err != nil {
+				os.RemoveAll(extractDir)
+				return "", "", err
+			}
 			continue
 		}
-		// Skip dotfiles, readme, license
-		name := strings.ToLower(f.Name)
-		if strings.HasSuffix(name, ".md") || strings.HasSuffix(name, ".txt") {
-			continue
+
+		if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+			os.RemoveAll(extractDir)
+			return "", "", err
 		}
-		if f.FileInfo().Size() > maxSize {
-			maxSize = f.FileInfo().Size()
-			candidate = f
+
+		rc, err := f.Open()
+		if err != nil {
+			os.RemoveAll(extractDir)
+			return "", "", err
 		}
+
+		out, err := os.OpenFile(targetPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, f.Mode())
+		if err != nil {
+			rc.Close()
+			os.RemoveAll(extractDir)
+			return "", "", err
+		}
+
+		if _, err := io.Copy(out, rc); err != nil {
+			out.Close()
+			rc.Close()
+			os.RemoveAll(extractDir)
+			return "", "", err
+		}
+
+		out.Close()
+		rc.Close()
 	}
 
-	if candidate == nil {
-		return "", fmt.Errorf("no binary found in zip")
-	}
-
-	// Extract candidate
-	rc, err := candidate.Open()
+	packageRoot, err := detectPackageRoot(extractDir)
 	if err != nil {
-		return "", err
-	}
-	defer rc.Close()
-
-	tmpBin, err := os.CreateTemp("", "termiscope_new_bin_*")
-	if err != nil {
-		return "", err
-	}
-	defer tmpBin.Close()
-
-	_, err = io.Copy(tmpBin, rc)
-	if err != nil {
-		return "", err
+		os.RemoveAll(extractDir)
+		return "", "", err
 	}
 
-	return tmpBin.Name(), nil
+	return extractDir, packageRoot, nil
 }
 
-func extractTarGz(tarPath string) (string, error) {
+func extractTarGz(tarPath string) (string, string, error) {
 	f, err := os.Open(tarPath)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	defer f.Close()
 
 	gzr, err := gzip.NewReader(f)
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	defer gzr.Close()
 
 	tr := tar.NewReader(gzr)
-
-	// Similar heuristic: find largest file? Or first executable?
-	// Tars are stream, so we must iterate.
-	// We'll extract to a temp file directly if matches logic.
-
-	// Create a temp file to store potential candidate
-	tmpBin, err := os.CreateTemp("", "termiscope_new_bin_*")
+	extractDir, err := os.MkdirTemp("", "termiscope_update_targz_*")
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
-
-	// We might overwrite if we find a better candidate? No, tar stream.
-	// Let's assume the server binary is the largest file or named 'termiscope-server'
-	// Since we receive the stream, calculating size beforehand is hard.
-	// But `Header` has size.
-
-	// This is tricky with single pass.
-	// Let's write the valid-looking file to tmp.
-	// If we encounter a better one?
-	// Let's assume the release archive is clean and contains the binary.
-	// Usually: `termiscope-server`
-
-	found := false
 
 	for {
 		header, err := tr.Next()
@@ -325,40 +332,145 @@ func extractTarGz(tarPath string) (string, error) {
 			break
 		}
 		if err != nil {
-			return "", err
+			os.RemoveAll(extractDir)
+			return "", "", err
 		}
 
-		if header.Typeflag == tar.TypeReg {
-			name := filepath.Base(header.Name)
-			// Heuristic: Name contains 'termiscope' and not an extension like .md/.txt
-			if strings.Contains(strings.ToLower(name), "termiscope") && !strings.Contains(name, ".") {
-				// Likely the binary (linux/mac has no extension)
-				if _, err := io.Copy(tmpBin, tr); err != nil {
-					tmpBin.Close()
-					return "", err
-				}
-				found = true
-				break
-			} else if strings.HasSuffix(strings.ToLower(name), ".exe") {
-				// Windows in tar.gz? rare but possible
-				if _, err := io.Copy(tmpBin, tr); err != nil {
-					tmpBin.Close()
-					return "", err
-				}
-				found = true
-				break
+		targetPath, err := safeExtractPath(extractDir, header.Name)
+		if err != nil {
+			os.RemoveAll(extractDir)
+			return "", "", err
+		}
+
+		switch header.Typeflag {
+		case tar.TypeDir:
+			if err := os.MkdirAll(targetPath, 0755); err != nil {
+				os.RemoveAll(extractDir)
+				return "", "", err
 			}
+		case tar.TypeReg:
+			if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+				os.RemoveAll(extractDir)
+				return "", "", err
+			}
+
+			out, err := os.OpenFile(targetPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, os.FileMode(header.Mode))
+			if err != nil {
+				os.RemoveAll(extractDir)
+				return "", "", err
+			}
+
+			if _, err := io.Copy(out, tr); err != nil {
+				out.Close()
+				os.RemoveAll(extractDir)
+				return "", "", err
+			}
+			out.Close()
 		}
 	}
 
-	tmpBin.Close() // Close to flush
-
-	if !found {
-		// If strict name match failed, maybe look for any large file executable logic?
-		// For now fail.
-		os.Remove(tmpBin.Name())
-		return "", fmt.Errorf("binary not found in tar.gz")
+	packageRoot, err := detectPackageRoot(extractDir)
+	if err != nil {
+		os.RemoveAll(extractDir)
+		return "", "", err
 	}
 
-	return tmpBin.Name(), nil
+	return extractDir, packageRoot, nil
+}
+
+func detectPackageRoot(extractDir string) (string, error) {
+	entries, err := os.ReadDir(extractDir)
+	if err != nil {
+		return "", err
+	}
+
+	if len(entries) == 1 && entries[0].IsDir() {
+		return filepath.Join(extractDir, entries[0].Name()), nil
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			return extractDir, nil
+		}
+	}
+
+	if len(entries) > 0 {
+		return extractDir, nil
+	}
+
+	return "", fmt.Errorf("update package is empty")
+}
+
+func findPackageBinary(packageRoot string) (string, error) {
+	binaryName := "TermiScope"
+	if runtime.GOOS == "windows" {
+		binaryName += ".exe"
+	}
+
+	binaryPath := filepath.Join(packageRoot, binaryName)
+	if _, err := os.Stat(binaryPath); err != nil {
+		return "", fmt.Errorf("updated server binary not found in package: %s", binaryName)
+	}
+
+	return binaryPath, nil
+}
+
+func syncPackageAssets(packageRoot, installDir string) error {
+	for _, dirName := range []string{"agents", "scripts", "web"} {
+		srcPath := filepath.Join(packageRoot, dirName)
+		if _, err := os.Stat(srcPath); err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return err
+		}
+
+		dstPath := filepath.Join(installDir, dirName)
+		if err := os.RemoveAll(dstPath); err != nil {
+			return err
+		}
+		if err := copyDir(srcPath, dstPath); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func copyDir(src, dst string) error {
+	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		relPath, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+
+		targetPath := filepath.Join(dst, relPath)
+		if info.IsDir() {
+			return os.MkdirAll(targetPath, info.Mode())
+		}
+
+		if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+			return err
+		}
+
+		if err := copyFile(path, targetPath); err != nil {
+			return err
+		}
+
+		return os.Chmod(targetPath, info.Mode())
+	})
+}
+
+func safeExtractPath(baseDir, archivePath string) (string, error) {
+	cleanPath := filepath.Clean(archivePath)
+	targetPath := filepath.Join(baseDir, cleanPath)
+	basePrefix := baseDir + string(os.PathSeparator)
+	if targetPath != baseDir && !strings.HasPrefix(targetPath, basePrefix) {
+		return "", fmt.Errorf("invalid archive path: %s", archivePath)
+	}
+	return targetPath, nil
 }

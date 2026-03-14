@@ -126,6 +126,7 @@ func main() {
 	router.GET("/api/monitor/install", monitorHandler.GetInstallScript)              // Public install script (verified by host secret)
 	router.GET("/api/monitor/uninstall", monitorHandler.GetUninstallScript)          // Public uninstall script
 	router.POST("/api/monitor/uninstall/callback", monitorHandler.UninstallCallback) // Callback from uninstall script
+	router.GET("/api/monitor/agent-manifest", monitorHandler.GetAgentManifest)       // Agent manifest for secure self-update
 	router.GET("/api/monitor/agent/:filename", monitorHandler.DownloadAgent)         // Public agent download (verified by host secret)
 
 	// Network Monitor Agent Routes
