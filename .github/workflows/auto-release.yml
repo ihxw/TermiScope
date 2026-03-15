@@ -47,7 +47,7 @@ jobs:
   trigger-release:
     needs: check-version
     if: needs.check-version.outputs.version_changed == 'true'
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
@@ -68,18 +68,17 @@ jobs:
           cache-dependency-path: web/package-lock.json
 
       - name: Build Release
-        shell: powershell
-        run: .\build_release.ps1
+        shell: bash
+        run: bash ./build_release.sh
 
       - name: Fix Scripts Line Endings
-        shell: powershell
+        shell: bash
         run: |
-          $scripts = @("scripts/install.sh", "scripts/uninstall.sh")
-          foreach ($script in $scripts) {
-            $content = [IO.File]::ReadAllText($script)
-            $content = $content -replace "`r`n", "`n"
-            [IO.File]::WriteAllText($script, $content, [System.Text.UTF8Encoding]::new($false))
-          }
+          for script in scripts/install.sh scripts/uninstall.sh; do
+            if [ -f "$script" ]; then
+              sed -i 's/\r$//' "$script"
+            fi
+          done
       
       - name: Create Tag and Prepare Release Notes
         id: prepare_release

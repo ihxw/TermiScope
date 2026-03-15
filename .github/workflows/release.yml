@@ -11,7 +11,7 @@ permissions:
 jobs:
   build-and-release:
     name: Build and Release
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
@@ -31,18 +31,17 @@ jobs:
           cache-dependency-path: web/package-lock.json
 
       - name: Build Release
-        shell: powershell
-        run: .\build_release.ps1
+        shell: bash
+        run: bash ./build_release.sh
 
       - name: Fix Scripts Line Endings
-        shell: powershell
+        shell: bash
         run: |
-          $scripts = @("scripts/install.sh", "scripts/uninstall.sh")
-          foreach ($script in $scripts) {
-            $content = [IO.File]::ReadAllText($script)
-            $content = $content -replace "`r`n", "`n"
-            [IO.File]::WriteAllText($script, $content)
-          }
+          for script in scripts/install.sh scripts/uninstall.sh; do
+            if [ -f "$script" ]; then
+              sed -i 's/\r$//' "$script"
+            fi
+          done
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
