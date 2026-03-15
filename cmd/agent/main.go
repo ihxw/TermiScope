@@ -349,6 +349,7 @@ func collectDiskMetrics() ([]DiskData, uint64, uint64) {
 	seenMounts := make(map[string]struct{})
 	seenPools := make(map[string]struct{})
 	seenDevIDs := make(map[uint64]struct{})
+	seenPhysicalDevices := make(map[string]struct{})
 	disks := make([]DiskData, 0, len(partitions))
 	var totalUsed uint64
 	var totalSize uint64
@@ -380,6 +381,16 @@ func collectDiskMetrics() ([]DiskData, uint64, uint64) {
 				continue
 			}
 			seenDevIDs[devID] = struct{}{}
+		}
+
+		// Also deduplicate by underlying physical device (merge partitions on same disk)
+		phys := getPhysicalDevice(diskKey)
+		if phys != "" {
+			if _, exists := seenPhysicalDevices[phys]; exists {
+				// Already counted this physical disk
+				continue
+			}
+			seenPhysicalDevices[phys] = struct{}{}
 		}
 
 		// Deduplicate pooled filesystems (ZFS, Btrfs, APFS)
