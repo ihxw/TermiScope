@@ -20,8 +20,8 @@ import (
 
 const (
 	agentUpdateCheckInterval = 1 * time.Minute
-	agentUpdateRetryDelay   = 10 * time.Minute
-	agentServiceName        = "TermiScopeAgent"
+	agentUpdateRetryDelay    = 10 * time.Minute
+	agentServiceName         = "TermiScopeAgent"
 )
 
 type agentUpdateManifest struct {
