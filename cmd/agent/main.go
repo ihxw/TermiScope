@@ -8,9 +8,11 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os/exec"
 	"runtime"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 	"path/filepath"
 
@@ -340,6 +342,15 @@ func collectMetrics() MetricData {
 }
 
 func collectDiskMetrics() ([]DiskData, uint64, uint64) {
+	// Prefer lsblk-based collection on Linux to enumerate physical disks
+	if runtime.GOOS == "linux" {
+		if d, used, size, err := collectDiskMetricsLsblk(); err == nil && len(d) > 0 {
+			return d, used, size
+		}
+		// Fallthrough to original method on error
+	}
+
+	// Fallback: use partition-based method
 	partitions, err := disk.Partitions(true)
 	if err != nil {
 		return nil, 0, 0
@@ -349,7 +360,6 @@ func collectDiskMetrics() ([]DiskData, uint64, uint64) {
 	seenMounts := make(map[string]struct{})
 	seenPools := make(map[string]struct{})
 	seenDevIDs := make(map[uint64]struct{})
-	seenPhysicalDevices := make(map[string]struct{})
 	disks := make([]DiskData, 0, len(partitions))
 	var totalUsed uint64
 	var totalSize uint64
@@ -381,16 +391,6 @@ func collectDiskMetrics() ([]DiskData, uint64, uint64) {
 				continue
 			}
 			seenDevIDs[devID] = struct{}{}
-		}
-
-		// Also deduplicate by underlying physical device (merge partitions on same disk)
-		phys := getPhysicalDevice(diskKey)
-		if phys != "" {
-			if _, exists := seenPhysicalDevices[phys]; exists {
-				// Already counted this physical disk
-				continue
-			}
-			seenPhysicalDevices[phys] = struct{}{}
 		}
 
 		// Deduplicate pooled filesystems (ZFS, Btrfs, APFS)
@@ -429,6 +429,96 @@ func collectDiskMetrics() ([]DiskData, uint64, uint64) {
 	})
 
 	return disks, totalUsed, totalSize
+}
+
+// collectDiskMetricsLsblk uses `lsblk -b -J` to list block devices and then
+// aggregates per-physical-disk size and used bytes (using statfs on mountpoints).
+func collectDiskMetricsLsblk() ([]DiskData, uint64, uint64, error) {
+	out, err := exec.Command("lsblk", "-b", "-J", "-o", "NAME,TYPE,SIZE,MOUNTPOINT").Output()
+	if err != nil {
+		return nil, 0, 0, err
+	}
+
+	var raw struct {
+		Blockdevices []struct {
+			Name       string `json:"name"`
+			Type       string `json:"type"`
+			Size       json.Number `json:"size"`
+			Mountpoint *string `json:"mountpoint"`
+			Children   []struct {
+				Name       string `json:"name"`
+				Type       string `json:"type"`
+				Size       json.Number `json:"size"`
+				Mountpoint *string `json:"mountpoint"`
+			} `json:"children"`
+		} `json:"blockdevices"`
+	}
+
+	if err := json.Unmarshal(out, &raw); err != nil {
+		return nil, 0, 0, err
+	}
+
+	var disks []DiskData
+	var totalUsed uint64
+	var totalSize uint64
+	seen := make(map[string]struct{})
+
+	for _, dev := range raw.Blockdevices {
+		if dev.Type != "disk" {
+			continue
+		}
+		// parse size
+		size64, _ := dev.Size.Int64()
+		if size64 <= 0 {
+			continue
+		}
+
+		// Collect mountpoints from children (partitions)
+		var mountpoints []string
+		for _, ch := range dev.Children {
+			if ch.Mountpoint != nil && *ch.Mountpoint != "" {
+				mountpoints = append(mountpoints, *ch.Mountpoint)
+			}
+		}
+
+		// If no partition mountpoints, maybe disk itself mounted (rare)
+		if dev.Mountpoint != nil && *dev.Mountpoint != "" {
+			mountpoints = append(mountpoints, *dev.Mountpoint)
+		}
+
+		// Aggregate used bytes by summing statfs on unique mountpoints
+		var used uint64
+		for _, mp := range mountpoints {
+			if mp == "" {
+				continue
+			}
+			if _, ok := seen[mp]; ok {
+				continue
+			}
+			var stat syscall.Statfs_t
+			if err := syscall.Statfs(mp, &stat); err != nil {
+				continue
+			}
+			bsize := uint64(stat.Frsize)
+			if bsize == 0 {
+				bsize = uint64(stat.Bsize)
+			}
+			total := uint64(stat.Blocks) * bsize
+			free := uint64(stat.Bfree) * bsize
+			used += (total - free)
+			seen[mp] = struct{}{}
+		}
+
+		disks = append(disks, DiskData{
+			MountPoint: "/dev/" + dev.Name,
+			Used:       used,
+			Total:      uint64(size64),
+		})
+		totalUsed += used
+		totalSize += uint64(size64)
+	}
+
+	return disks, totalUsed, totalSize, nil
 }
 
 func shouldSkipPartition(partition disk.PartitionStat, mountPoint string) bool {
