@@ -461,7 +461,7 @@ func (h *SystemHandler) PerformUpdate(c *gin.Context) {
 			utils.LogError("Update failed: %v", err)
 		} else {
 			setServerUpdateStatus("restarting", "")
-			utils.LogError("Update successful, restarting...") 
+			utils.LogError("Update successful, restarting...")
 		}
 	}()
 
