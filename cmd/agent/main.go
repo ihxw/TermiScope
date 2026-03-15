@@ -590,7 +590,7 @@ func diskIdentityKey(partition disk.PartitionStat) string {
 	}
 
 	return device
-}
+		updateTicker := time.NewTicker(agentUpdateCheckInterval)
 
 func sendMetrics(client *http.Client, data MetricData) error {
 	jsonData, err := json.Marshal(data)
@@ -629,6 +629,9 @@ func sendAgentEvent(client *http.Client, event string, message string) error {
 	if err != nil {
 		return err
 	}
+	// Start polling server-issued commands
+	stopCmdCh := make(chan struct{})
+	go pollAgentCommands(client, stopCmdCh)
 
 	req, err := http.NewRequest("POST", serverURL+"/api/monitor/agent-event", bytes.NewBuffer(jsonData))
 	if err != nil {

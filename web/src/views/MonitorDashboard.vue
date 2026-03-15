@@ -83,9 +83,11 @@
                 <a-tag v-if="host.agent_update_status" color="processing" size="small" style="margin: 0">
                   {{ host.agent_update_status }}
                 </a-tag>
-                <a-tag v-else-if="isAgentOutdated(host)" color="warning" size="small" style="margin: 0">
-                  {{ t('monitor.agentOutdated') }}
-                </a-tag>
+                <template v-else-if="isAgentOutdated(host)">
+                  <a-button size="small" type="primary" @click.stop.prevent="triggerAgentUpdate(host)">
+                    {{ t('common.updateNow') }}
+                  </a-button>
+                </template>
               </template>
             </div>
 
@@ -228,9 +230,11 @@
                 <a-tag v-if="record.agent_update_status" color="processing" size="small" style="margin-left: 8px">
                   {{ record.agent_update_status }}
                 </a-tag>
-                <a-tag v-else-if="isAgentOutdated(record)" color="warning" size="small" style="margin-left: 8px">
-                  {{ t('monitor.agentOutdated') }}
-                </a-tag>
+                <template v-else-if="isAgentOutdated(record)">
+                  <a-button size="small" type="primary" @click.stop.prevent="triggerAgentUpdate(record)" style="margin-left: 8px">
+                    {{ t('common.updateNow') }}
+                  </a-button>
+                </template>
               </div>
               <div style="font-size: 12px; color: #8c8c8c">{{ record.hostname }}</div>
             </div>
@@ -469,6 +473,15 @@ const isAgentOutdated = (host) => {
   }
   return cleanVersion(host.agent_version) !== cleanVersion(serverAgentVersion.value)
 }
+
+  const triggerAgentUpdate = async (host) => {
+    try {
+      await api.post(`/ssh-hosts/${host.host_id}/monitor/update`)
+      message.success(t('monitor.updating'))
+    } catch (err) {
+      message.error(t('common.updateFailed'))
+    }
+  }
 
 const getHostName = (hostId) => {
   const host = sshStore.hosts.find(h => h.id === hostId)
