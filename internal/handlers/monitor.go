@@ -2280,10 +2280,19 @@ func (h *MonitorHandler) DownloadAgent(c *gin.Context) {
 	// 构建文件路径
 	filePath := fmt.Sprintf("agents/%s", filename)
 
-	// 检查文件是否存在
-	if _, err := ioutil.ReadFile(filePath); err != nil {
-		log.Printf("Agent file not found: %s", filePath)
+	// 检查文件是否存在（使用 Stat 避免将大文件读入内存）
+	if info, err := os.Stat(filePath); err != nil {
+		if os.IsNotExist(err) {
+			log.Printf("Agent file not found: %s", filePath)
+			c.JSON(http.StatusNotFound, gin.H{"error": "Agent binary not found"})
+			return
+		}
+		log.Printf("Agent file stat failed: %s: %v", filePath, err)
 		c.JSON(http.StatusNotFound, gin.H{"error": "Agent binary not found"})
+		return
+	} else if info.IsDir() {
+		log.Printf("Agent file path is a directory: %s", filePath)
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid agent binary"})
 		return
 	}
 

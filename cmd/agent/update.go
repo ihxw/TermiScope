@@ -19,7 +19,7 @@ import (
 )
 
 const (
-	agentUpdateCheckInterval = 15 * time.Minute
+	agentUpdateCheckInterval = 1 * time.Minute
 	agentUpdateRetryDelay   = 10 * time.Minute
 	agentServiceName        = "TermiScopeAgent"
 )
@@ -243,6 +243,20 @@ func restartUpdatedAgent(exePath string) error {
 			cmd := exec.Command("systemctl", "restart", "--no-block", agentServiceName+".service")
 			if err := cmd.Start(); err != nil {
 				logError("Failed to trigger systemd restart: %v", err)
+				// Fallback: try SysV "service" command
+				svcCmd := exec.Command("service", agentServiceName, "restart")
+				if err2 := svcCmd.Start(); err2 != nil {
+					logError("Fallback 'service' restart failed: %v", err2)
+					// Try init.d script as last resort
+					initdCmd := exec.Command("/etc/init.d/"+agentServiceName, "restart")
+					if err3 := initdCmd.Start(); err3 != nil {
+						logError("Fallback init.d restart failed: %v", err3)
+					} else {
+						logError("Triggered init.d restart for %s", agentServiceName)
+					}
+				} else {
+					logError("Triggered SysV 'service' restart for %s", agentServiceName)
+				}
 			} else {
 				logError("Triggered systemd restart for %s.service", agentServiceName)
 			}
@@ -289,8 +303,9 @@ func currentAgentFilename() (string, error) {
 			return fmt.Sprintf("termiscope-agent-darwin-%s", runtime.GOARCH), nil
 		}
 	case "windows":
-		if runtime.GOARCH == "amd64" {
-			return "termiscope-agent-windows-amd64.exe", nil
+		switch runtime.GOARCH {
+		case "amd64", "arm64":
+			return fmt.Sprintf("termiscope-agent-windows-%s.exe", runtime.GOARCH), nil
 		}
 	}
 
