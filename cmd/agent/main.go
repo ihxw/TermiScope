@@ -506,3 +506,35 @@ func sendMetrics(client *http.Client, data MetricData) error {
 
 	return nil
 }
+
+func sendAgentEvent(client *http.Client, event string, message string) error {
+	data := map[string]interface{}{
+		"host_id": hostID,
+		"event":   event,
+		"message": message,
+	}
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("POST", serverURL+"/api/monitor/agent-event", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+secret)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("server returned status: %d", resp.StatusCode)
+	}
+
+	return nil
+}

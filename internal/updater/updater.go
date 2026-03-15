@@ -124,7 +124,10 @@ func CheckForUpdate(currentVersion string) (*UpdateInfo, error) {
 }
 
 // PerformUpdate downloads, extracts (if needed), replaces, and restarts
-func PerformUpdate(downloadURL string) error {
+func PerformUpdate(downloadURL string, statusCallback func(string)) error {
+	if statusCallback != nil {
+		statusCallback("downloading")
+	}
 	// 1. Download
 	resp, err := http.Get(downloadURL)
 	if err != nil {
@@ -147,6 +150,10 @@ func PerformUpdate(downloadURL string) error {
 	tmpFile.Close()
 	if err != nil {
 		return fmt.Errorf("failed to save download: %v", err)
+	}
+
+	if statusCallback != nil {
+		statusCallback("extracting")
 	}
 
 	// 3. Extract if needed
@@ -195,6 +202,10 @@ func PerformUpdate(downloadURL string) error {
 	os.Remove(oldPath) // Remove existing backup
 	if err := os.Rename(exePath, oldPath); err != nil {
 		return fmt.Errorf("failed to backup current binary: %v", err)
+	}
+
+	if statusCallback != nil {
+		statusCallback("installing")
 	}
 
 	// 6. Install new binary

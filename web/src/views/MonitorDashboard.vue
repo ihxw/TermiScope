@@ -80,7 +80,10 @@
               <template v-if="host.agent_version">
                 <span style="color: #d9d9d9">|</span>
                 <span>Agent: v{{ host.agent_version }}</span>
-                <a-tag v-if="isAgentOutdated(host)" color="warning" size="small" style="margin: 0">
+                <a-tag v-if="host.agent_update_status" color="processing" size="small" style="margin: 0">
+                  {{ host.agent_update_status }}
+                </a-tag>
+                <a-tag v-else-if="isAgentOutdated(host)" color="warning" size="small" style="margin: 0">
                   {{ t('monitor.agentOutdated') }}
                 </a-tag>
               </template>
@@ -220,7 +223,15 @@
           <a-space style="padding-left: 8px">
             <component :is="getOsIcon(record.os)" :style="{ fontSize: '18px' }" />
             <div>
-              <div style="font-weight: 500">{{ getHostName(record.host_id) }}</div>
+              <div style="font-weight: 500">
+                {{ getHostName(record.host_id) }}
+                <a-tag v-if="record.agent_update_status" color="processing" size="small" style="margin-left: 8px">
+                  {{ record.agent_update_status }}
+                </a-tag>
+                <a-tag v-else-if="isAgentOutdated(record)" color="warning" size="small" style="margin-left: 8px">
+                  {{ t('monitor.agentOutdated') }}
+                </a-tag>
+              </div>
               <div style="font-size: 12px; color: #8c8c8c">{{ record.hostname }}</div>
             </div>
           </a-space>
@@ -775,6 +786,11 @@ const connect = async () => {
           updateHosts(msg.data)
         } else if (msg.type === 'update') {
           updateHosts(msg.data)
+        } else if (msg.type === 'agent_event') {
+          const index = hosts.value.findIndex(h => h.host_id === msg.data.host_id)
+          if (index !== -1) {
+             hosts.value[index].agent_update_status = msg.data.message
+          }
         } else if (msg.type === 'remove') {
           // removeHost(msg.data)
         }

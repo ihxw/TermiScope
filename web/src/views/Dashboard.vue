@@ -193,6 +193,35 @@
           {{ t('common.version') }}: v{{ frontendVersion }}
         </div>
       </a-drawer>
+      <!-- Server Update Progress Modal -->
+      <a-modal
+        v-model:open="updateProgressVisible"
+        :title="t('system.updating')"
+        :footer="null"
+        :closable="false"
+        :maskClosable="false"
+        centered
+      >
+        <div style="text-align: center; padding: 20px 0;">
+          <a-spin size="large" v-if="serverUpdateStatus !== 'error' && serverUpdateStatus !== 'finished'" />
+          <div style="margin-top: 16px; font-size: 16px; font-weight: 500;">
+            <span v-if="serverUpdateStatus === 'downloading'">{{ t('system.downloading', '正在下载更新...') }}</span>
+            <span v-else-if="serverUpdateStatus === 'extracting'">{{ t('system.extracting', '正在解压文件...') }}</span>
+            <span v-else-if="serverUpdateStatus === 'installing'">{{ t('system.installing', '正在安装...') }}</span>
+            <span v-else-if="serverUpdateStatus === 'restarting'">{{ t('system.restarting', '正在重启服务...') }}</span>
+            <span v-else-if="serverUpdateStatus === 'finished'" style="color: #52c41a;">
+              <check-circle-outlined style="margin-right: 8px" />{{ t('system.updateSuccess', '更新完成！') }}
+            </span>
+            <span v-else-if="serverUpdateStatus === 'error'" style="color: #f5222d;">
+              <close-circle-outlined style="margin-right: 8px" />{{ t('system.updateFailed', '更新失败') }}
+            </span>
+            <span v-else>{{ t('system.starting', '准备更新...') }}</span>
+          </div>
+          <div v-if="serverUpdateError" style="margin-top: 8px; color: #f5222d; font-size: 14px;">
+            {{ serverUpdateError }}
+          </div>
+        </div>
+      </a-modal>
     </a-layout>
   </a-config-provider>
 </template>
@@ -217,7 +246,9 @@ import {
   SettingOutlined,
   MenuOutlined,
   CloseOutlined,
-  SwapOutlined
+  SwapOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined
 } from '@ant-design/icons-vue'
 import { useAuthStore } from '../stores/auth'
 import { useThemeStore } from '../stores/theme'
@@ -251,7 +282,7 @@ const handleLogout = async () => {
 }
 
 // Update Logic
-import { checkUpdate, performUpdate } from '../api/system'
+import { checkUpdate, performUpdate, getUpdateStatus } from '../api/system'
 import { Modal, message } from 'ant-design-vue'
 
 const updateAvailable = ref(false)
@@ -269,6 +300,59 @@ const checkForUpdates = async () => {
   } catch (err) {
     console.error('Failed to check updates:', err)
   }
+}
+
+const updateProgressVisible = ref(false)
+const serverUpdateStatus = ref('')
+const serverUpdateError = ref('')
+let pollInterval = null
+
+const startPollingUpdateStatus = () => {
+  if (pollInterval) clearInterval(pollInterval)
+  pollInterval = setInterval(async () => {
+    try {
+      if (serverUpdateStatus.value === 'restarting') {
+        // Ping system info to check if server is back
+        try {
+           await getSystemInfo()
+           // If we get here, server is back online
+           clearInterval(pollInterval)
+           serverUpdateStatus.value = 'finished'
+           setTimeout(() => {
+             window.location.reload()
+           }, 1500)
+        } catch (e) {
+           // Still restarting...
+        }
+        return
+      }
+
+      const res = await getUpdateStatus()
+      if (res && res.status) {
+        serverUpdateStatus.value = res.status
+        if (res.error) {
+           serverUpdateError.value = res.error
+           clearInterval(pollInterval)
+        }
+        if (res.status === 'restarting') {
+           // On restart, slow down polling to wait for server to come back
+           clearInterval(pollInterval)
+           pollInterval = setInterval(async () => {
+              try {
+                await getSystemInfo()
+                clearInterval(pollInterval)
+                serverUpdateStatus.value = 'finished'
+                setTimeout(() => window.location.reload(), 1500)
+              } catch (e) {
+                // Keep waiting
+              }
+           }, 5000) // 5s interval for restart check
+        }
+      }
+    } catch (e) {
+       console.error('Failed to poll status', e)
+    }
+  }, 1000)
 }
 
 const handleUpdateClick = () => {
@@ -294,16 +378,16 @@ const handleUpdateClick = () => {
     onOk: async () => {
       try {
         updateLoading.value = true
-        message.loading({ content: t('system.updating'), key: 'update' })
+        serverUpdateStatus.value = 'starting'
+        serverUpdateError.value = ''
+        updateProgressVisible.value = true
+        startPollingUpdateStatus()
+        
         await performUpdate(updateInfo.value.download_url)
-        message.success({ content: t('system.updateSuccess'), key: 'update', duration: 5 })
-        Modal.info({
-          title: t('system.updateSuccess'),
-          content: t('system.restartDesc'),
-          onOk: () => window.location.reload()
-        })
       } catch (err) {
-        message.error({ content: t('system.updateFailed') + ': ' + (err.response?.data?.error || err.message), key: 'update' })
+        serverUpdateStatus.value = 'error'
+        serverUpdateError.value = err.response?.data?.error || err.message
+        if (pollInterval) clearInterval(pollInterval)
       } finally {
         updateLoading.value = false
       }
@@ -313,6 +397,7 @@ const handleUpdateClick = () => {
 
 onUnmounted(() => {
   window.removeEventListener('resize', checkMobile)
+  if (pollInterval) clearInterval(pollInterval)
 })
 
 // Update selected menu based on route name

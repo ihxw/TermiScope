@@ -42,6 +42,8 @@ func attemptAgentSelfUpdate(client *http.Client) error {
 	}
 
 	logError("Agent update detected: current=%s latest=%s", Version, manifest.Version)
+	sendAgentEvent(client, "update_started", "检测到新版本，正在更新...")
+
 	return downloadAndApplyAgentUpdate(client, manifest)
 }
 

@@ -60,6 +60,15 @@ type MetricData struct {
 	OS          string          `json:"os"`
 	Hostname    string          `json:"hostname"`
 	LastUpdated int64           `json:"last_updated"`
+
+	AgentUpdateStatus string `json:"agent_update_status"` // Inline update status for UI
+}
+
+// AgentEvent represents a status event from the agent
+type AgentEvent struct {
+	HostID  uint   `json:"host_id"`
+	Event   string `json:"event"`
+	Message string `json:"message"`
 }
 
 type Hub struct {
@@ -72,16 +81,18 @@ type Hub struct {
 	hostsMu sync.RWMutex
 
 	// Inbound updates from handlers
-	updateChan chan MetricData
+	updateChan      chan MetricData
+	agentEventChan  chan AgentEvent
 }
 
 var GlobalHub = NewHub()
 
 func NewHub() *Hub {
 	return &Hub{
-		clients:    make(map[*websocket.Conn]bool),
-		hosts:      make(map[uint]*MetricData),
-		updateChan: make(chan MetricData, 100),
+		clients:        make(map[*websocket.Conn]bool),
+		hosts:          make(map[uint]*MetricData),
+		updateChan:     make(chan MetricData, 100),
+		agentEventChan: make(chan AgentEvent, 100),
 	}
 }
 
@@ -137,6 +148,16 @@ func (h *Hub) Run() {
 			// Broadcast to all clients
 			h.broadcast()
 
+		case event := <-h.agentEventChan:
+			h.hostsMu.Lock()
+			if host, ok := h.hosts[event.HostID]; ok {
+				host.AgentUpdateStatus = event.Message
+				// Do not broadcast entire update frame immediately to prevent spam,
+				// the UI will receive the event directly via an 'agent_event' packet.
+			}
+			h.hostsMu.Unlock()
+			h.broadcastAgentEvent(event)
+
 		case <-ticker.C:
 			// Cleanup old hosts? Or just periodic heartbeat
 		}
@@ -146,6 +167,10 @@ func (h *Hub) Run() {
 func (h *Hub) Update(data MetricData) {
 	data.LastUpdated = time.Now().Unix()
 	h.updateChan <- data
+}
+
+func (h *Hub) AgentEvent(event AgentEvent) {
+	h.agentEventChan <- event
 }
 
 func (h *Hub) RemoveHost(hostID uint) {
@@ -177,6 +202,20 @@ func (h *Hub) broadcastRemove(hostID uint) {
 	msg := map[string]interface{}{
 		"type": "remove",
 		"data": hostID,
+	}
+	jsonMsg, _ := json.Marshal(msg)
+
+	h.clientsMu.RLock()
+	defer h.clientsMu.RUnlock()
+	for client := range h.clients {
+		client.WriteMessage(websocket.TextMessage, jsonMsg)
+	}
+}
+
+func (h *Hub) broadcastAgentEvent(event AgentEvent) {
+	msg := map[string]interface{}{
+		"type": "agent_event",
+		"data": event,
 	}
 	jsonMsg, _ := json.Marshal(msg)
 

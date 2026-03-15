@@ -16,12 +16,26 @@ import (
 	"github.com/ihxw/termiscope/internal/updater"
 	"github.com/ihxw/termiscope/internal/utils"
 	"gorm.io/gorm"
+	"sync"
 )
 
 type SystemHandler struct {
 	db      *gorm.DB
 	config  *config.Config
 	version string
+}
+
+var (
+	serverUpdateStatus string
+	serverUpdateError  string
+	serverUpdateMu     sync.Mutex
+)
+
+func setServerUpdateStatus(status, errStr string) {
+	serverUpdateMu.Lock()
+	defer serverUpdateMu.Unlock()
+	serverUpdateStatus = status
+	serverUpdateError = errStr
 }
 
 func NewSystemHandler(db *gorm.DB, cfg *config.Config, version string) *SystemHandler {
@@ -433,20 +447,36 @@ func (h *SystemHandler) PerformUpdate(c *gin.Context) {
 		return
 	}
 
+	setServerUpdateStatus("starting", "")
+
 	// Run update in background to not block response
 	go func() {
-		if err := updater.PerformUpdate(req.DownloadURL); err != nil {
+		statusCallback := func(status string) {
+			setServerUpdateStatus(status, "")
+			utils.LogError("Server update status: %s", status)
+		}
+
+		if err := updater.PerformUpdate(req.DownloadURL, statusCallback); err != nil {
+			setServerUpdateStatus("error", err.Error())
 			utils.LogError("Update failed: %v", err)
 		} else {
-			// Should have restarted
-			utils.LogError("Update successful, restarting...") // Using LogError since LogInfo is missing, or just use fmt/log
-			// Actually let's just use LogError to ensure it hits the file, or check what LogError does.
-			// Ideally we should import "log" and use log.Printf if utils.LogInfo is missing
+			setServerUpdateStatus("restarting", "")
+			utils.LogError("Update successful, restarting...") 
 		}
 	}()
 
 	utils.SuccessResponse(c, http.StatusOK, gin.H{
 		"message": "Update initiated. Server will restart shortly.",
+	})
+}
+
+// GetUpdateStatus API lets frontend poll for server update process status
+func (h *SystemHandler) GetUpdateStatus(c *gin.Context) {
+	serverUpdateMu.Lock()
+	defer serverUpdateMu.Unlock()
+	utils.SuccessResponse(c, http.StatusOK, gin.H{
+		"status": serverUpdateStatus,
+		"error":  serverUpdateError,
 	})
 }
 

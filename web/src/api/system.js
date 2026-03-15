@@ -19,3 +19,7 @@ export const sendTestEmail = (data) => {
 export const sendTestTelegram = (data) => {
     return api.post('/system/settings/test-telegram', data)
 }
+
+export const getUpdateStatus = () => {
+    return api.get('/system/update-status')
+}

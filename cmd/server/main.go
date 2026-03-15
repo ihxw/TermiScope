@@ -128,6 +128,7 @@ func main() {
 	// Monitor routes
 	monitorHandler := handlers.NewMonitorHandler(db, cfg)
 	router.POST("/api/monitor/pulse", monitorHandler.Pulse)                          // Agent reports here using Secret Header
+	router.POST("/api/monitor/agent-event", monitorHandler.AgentEvent)               // Agent reports status events here
 	router.GET("/api/monitor/install", monitorHandler.GetInstallScript)              // Public install script (verified by host secret)
 	router.GET("/api/monitor/uninstall", monitorHandler.GetUninstallScript)          // Public uninstall script
 	router.POST("/api/monitor/uninstall/callback", monitorHandler.UninstallCallback) // Callback from uninstall script
@@ -255,6 +256,7 @@ func main() {
 				system.POST("/settings/test-telegram", systemHandler.TestTelegram)
 				system.POST("/check-update", systemHandler.CheckUpdate)
 				system.POST("/upgrade", systemHandler.PerformUpdate)
+				system.GET("/update-status", systemHandler.GetUpdateStatus)
 			}
 		}
 

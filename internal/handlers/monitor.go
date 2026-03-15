@@ -751,6 +751,36 @@ func (h *MonitorHandler) Pulse(c *gin.Context) {
 	c.Status(http.StatusOK)
 }
 
+// AgentEvent receives status updates or events from the agent
+func (h *MonitorHandler) AgentEvent(c *gin.Context) {
+	authHeader := c.GetHeader("Authorization")
+	if len(authHeader) < 7 || authHeader[:7] != "Bearer " {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+		return
+	}
+	secret := authHeader[7:]
+
+	var event monitor.AgentEvent
+	if err := c.ShouldBindJSON(&event); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	var host models.SSHHost
+	if err := h.DB.Select("monitor_secret").First(&host, event.HostID).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Host not found"})
+		return
+	}
+
+	if host.MonitorSecret != secret {
+		c.JSON(http.StatusForbidden, gin.H{"error": "Invalid secret"})
+		return
+	}
+
+	monitor.GlobalHub.AgentEvent(event)
+	c.Status(http.StatusOK)
+}
+
 // Stream WebSocket for Dashboard
 func (h *MonitorHandler) Stream(c *gin.Context) {
 	upgrader := websocket.Upgrader{
