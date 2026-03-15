@@ -1,5 +1,5 @@
-//go:build !windows
-// +build !windows
+//go:build !windows && !linux
+// +build !windows,!linux
 
 package main
 
@@ -13,10 +13,7 @@ func statfsUsage(mountpoint string) (uint64, error) {
 	if err := syscall.Statfs(mountpoint, &stat); err != nil {
 		return 0, err
 	}
-	bsize := uint64(stat.Frsize)
-	if bsize == 0 {
-		bsize = uint64(stat.Bsize)
-	}
+	bsize := uint64(stat.Bsize)
 	total := uint64(stat.Blocks) * bsize
 	free := uint64(stat.Bfree) * bsize
 	used := total - free

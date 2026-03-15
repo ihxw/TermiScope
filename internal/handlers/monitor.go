@@ -1129,57 +1129,6 @@ start_service() {
     procd_close_instance
 }
 
-// TriggerAgentUpdate 创建一个 agent 更新命令，agent 会在下次轮询命令时执行
-func (h *MonitorHandler) TriggerAgentUpdate(c *gin.Context) {
-	id := c.Param("id")
-
-	var host models.SSHHost
-	if err := h.DB.First(&host, id).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "Host not found"})
-		return
-	}
-
-	cmd := models.AgentCommand{
-		HostID:  host.ID,
-		Command: "update",
-	}
-	if err := h.DB.Create(&cmd).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create command"})
-		return
-	}
-
-	// Broadcast an immediate agent_event to update UI status
-	monitor.GlobalHub.AgentEvent(monitor.AgentEvent{HostID: uint(host.ID), Event: "command", Message: "updating"})
-
-	c.JSON(http.StatusOK, gin.H{"success": true})
-}
-
-// GetAgentCommands returns pending commands for an agent (authenticated by secret)
-func (h *MonitorHandler) GetAgentCommands(c *gin.Context) {
-	host, err := h.authenticateAgentRequest(c)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
-		return
-	}
-
-	var cmds []models.AgentCommand
-	if err := h.DB.Where("host_id = ? AND processed = ?", host.ID, false).Find(&cmds).Error; err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to query commands"})
-		return
-	}
-
-	// Mark as processed (simple semantics: one-time delivery)
-	now := time.Now()
-	var ids []uint
-	for _, ccmd := range cmds {
-		ids = append(ids, ccmd.ID)
-	}
-	if len(ids) > 0 {
-		h.DB.Model(&models.AgentCommand{}).Where("id IN ?", ids).Updates(map[string]interface{}{"processed": true, "processed_at": &now})
-	}
-
-	c.JSON(http.StatusOK, gin.H{"commands": cmds})
-}
 `, execCmd)
 
 		session, _ = client.NewSession()
@@ -2434,4 +2383,56 @@ func signAgentManifest(secret, version, filename, shaValue string, size int64) s
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write([]byte(payload))
 	return hex.EncodeToString(mac.Sum(nil))
+}
+
+// TriggerAgentUpdate 创建一个 agent 更新命令，agent 会在下次轮询命令时执行
+func (h *MonitorHandler) TriggerAgentUpdate(c *gin.Context) {
+	id := c.Param("id")
+
+	var host models.SSHHost
+	if err := h.DB.First(&host, id).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Host not found"})
+		return
+	}
+
+	cmd := models.AgentCommand{
+		HostID:  host.ID,
+		Command: "update",
+	}
+	if err := h.DB.Create(&cmd).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create command"})
+		return
+	}
+
+	// Broadcast an immediate agent_event to update UI status
+	monitor.GlobalHub.AgentEvent(monitor.AgentEvent{HostID: uint(host.ID), Event: "command", Message: "updating"})
+
+	c.JSON(http.StatusOK, gin.H{"success": true})
+}
+
+// GetAgentCommands returns pending commands for an agent (authenticated by secret)
+func (h *MonitorHandler) GetAgentCommands(c *gin.Context) {
+	host, err := h.authenticateAgentRequest(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+
+	var cmds []models.AgentCommand
+	if err := h.DB.Where("host_id = ? AND processed = ?", host.ID, false).Find(&cmds).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to query commands"})
+		return
+	}
+
+	// Mark as processed (simple semantics: one-time delivery)
+	now := time.Now()
+	var ids []uint
+	for _, ccmd := range cmds {
+		ids = append(ids, ccmd.ID)
+	}
+	if len(ids) > 0 {
+		h.DB.Model(&models.AgentCommand{}).Where("id IN ?", ids).Updates(map[string]interface{}{"processed": true, "processed_at": &now})
+	}
+
+	c.JSON(http.StatusOK, gin.H{"commands": cmds})
 }
