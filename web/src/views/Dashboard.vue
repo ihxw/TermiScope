@@ -314,9 +314,17 @@ const startPollingUpdateStatus = () => {
       if (serverUpdateStatus.value === 'restarting') {
         // Ping system info to check if server is back
         try {
-           await getSystemInfo()
-           // If we get here, server is back online
+           const info = await getSystemInfo()
+           // If we get here, server is back online. If backend version changed,
+           // update local backendVersion and reload immediately to fetch new UI.
            clearInterval(pollInterval)
+           if (info && info.version && info.version !== backendVersion.value) {
+             backendVersion.value = info.version
+             serverUpdateStatus.value = 'finished'
+             // Replace location to avoid reload cache issues
+             window.location.replace(window.location.pathname + window.location.search)
+             return
+           }
            serverUpdateStatus.value = 'finished'
            setTimeout(() => {
              window.location.reload()
@@ -339,8 +347,14 @@ const startPollingUpdateStatus = () => {
            clearInterval(pollInterval)
            pollInterval = setInterval(async () => {
               try {
-                await getSystemInfo()
+                const info = await getSystemInfo()
                 clearInterval(pollInterval)
+                if (info && info.version && info.version !== backendVersion.value) {
+                  backendVersion.value = info.version
+                  serverUpdateStatus.value = 'finished'
+                  window.location.replace(window.location.pathname + window.location.search)
+                  return
+                }
                 serverUpdateStatus.value = 'finished'
                 setTimeout(() => window.location.reload(), 1500)
               } catch (e) {
