@@ -351,6 +351,22 @@ const startPollingUpdateStatus = () => {
       }
     } catch (e) {
        console.error('Failed to poll status', e)
+      // If polling failed (likely because server went down for restart),
+      // switch to restarting detection so we can detect when server comes back.
+      if (serverUpdateStatus.value !== 'restarting' && serverUpdateStatus.value !== 'finished' && serverUpdateStatus.value !== 'error') {
+        serverUpdateStatus.value = 'restarting'
+        if (pollInterval) clearInterval(pollInterval)
+        pollInterval = setInterval(async () => {
+          try {
+            await getSystemInfo()
+            clearInterval(pollInterval)
+            serverUpdateStatus.value = 'finished'
+            setTimeout(() => window.location.reload(), 1500)
+          } catch (err) {
+            // still restarting
+          }
+        }, 5000)
+      }
     }
   }, 1000)
 }
