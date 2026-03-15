@@ -114,6 +114,10 @@ func (p *program) run() {
 	netMon := NewNetworkMonitor(client)
 	netMon.StartSimple()
 
+	// Start polling server-issued commands
+	stopCmdCh := make(chan struct{})
+	go pollAgentCommands(client, stopCmdCh)
+
 	// Initial system metrics collection
 	metrics := collectMetrics()
 	if err := sendMetrics(client, metrics); err != nil {
@@ -590,7 +594,8 @@ func diskIdentityKey(partition disk.PartitionStat) string {
 	}
 
 	return device
-		updateTicker := time.NewTicker(agentUpdateCheckInterval)
+
+}
 
 func sendMetrics(client *http.Client, data MetricData) error {
 	jsonData, err := json.Marshal(data)
@@ -629,10 +634,6 @@ func sendAgentEvent(client *http.Client, event string, message string) error {
 	if err != nil {
 		return err
 	}
-	// Start polling server-issued commands
-	stopCmdCh := make(chan struct{})
-	go pollAgentCommands(client, stopCmdCh)
-
 	req, err := http.NewRequest("POST", serverURL+"/api/monitor/agent-event", bytes.NewBuffer(jsonData))
 	if err != nil {
 		return err
