@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"path/filepath"
 
 	"github.com/kardianos/service"
 	"github.com/shirou/gopsutil/v3/cpu"
@@ -347,6 +348,7 @@ func collectDiskMetrics() ([]DiskData, uint64, uint64) {
 	seenKeys := make(map[string]struct{})
 	seenMounts := make(map[string]struct{})
 	seenPools := make(map[string]struct{})
+	seenDevIDs := make(map[uint64]struct{})
 	disks := make([]DiskData, 0, len(partitions))
 	var totalUsed uint64
 	var totalSize uint64
@@ -369,6 +371,15 @@ func collectDiskMetrics() ([]DiskData, uint64, uint64) {
 		diskKey := diskIdentityKey(partition)
 		if _, exists := seenKeys[diskKey]; exists {
 			continue
+		}
+
+		// Deduplicate by strict Unix Device ID if possible
+		devID := getDiskID(mountPoint)
+		if devID != 0 {
+			if _, exists := seenDevIDs[devID]; exists {
+				continue
+			}
+			seenDevIDs[devID] = struct{}{}
 		}
 
 		// Deduplicate pooled filesystems (ZFS, Btrfs, APFS)
@@ -477,6 +488,12 @@ func diskIdentityKey(partition disk.PartitionStat) string {
 	if device == "" {
 		return strings.TrimSpace(partition.Mountpoint)
 	}
+
+	// resolve symlinks like /dev/root -> /dev/mmcblk0p1
+	if resolved, err := filepath.EvalSymlinks(device); err == nil {
+		device = resolved
+	}
+
 	return device
 }
 

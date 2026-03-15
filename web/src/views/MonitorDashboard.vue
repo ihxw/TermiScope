@@ -821,6 +821,12 @@ const updateHosts = (updates) => {
     const index = hosts.value.findIndex(h => h.host_id === update.host_id)
     if (index !== -1) {
       hosts.value[index] = { ...hosts.value[index], ...update }
+      // Clear update status if the agent's version now matches the server's update version
+      if (hosts.value[index].agent_update_status && 
+          serverAgentVersion.value && 
+          cleanVersion(hosts.value[index].agent_version) === cleanVersion(serverAgentVersion.value)) {
+        hosts.value[index].agent_update_status = null
+      }
     } else {
        hosts.value.push(enrichHost(update))
     }

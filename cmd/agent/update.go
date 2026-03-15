@@ -42,7 +42,7 @@ func attemptAgentSelfUpdate(client *http.Client) error {
 	}
 
 	logError("Agent update detected: current=%s latest=%s", Version, manifest.Version)
-	sendAgentEvent(client, "update_started", "检测到新版本，正在更新...")
+	sendAgentEvent(client, "update_downloading", "正在下载更新")
 
 	return downloadAndApplyAgentUpdate(client, manifest)
 }
@@ -162,6 +162,9 @@ func downloadAndApplyAgentUpdate(client *http.Client, manifest *agentUpdateManif
 	if actualHash := hex.EncodeToString(hasher.Sum(nil)); !strings.EqualFold(actualHash, manifest.SHA256) {
 		return fmt.Errorf("download checksum mismatch")
 	}
+
+	// Signify that installation is about to begin
+	sendAgentEvent(client, "update_installing", "正在安装更新")
 
 	if runtime.GOOS != "windows" {
 		if err := os.Chmod(tmpPath, 0755); err != nil {
