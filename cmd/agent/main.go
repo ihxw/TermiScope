@@ -9,12 +9,12 @@ import (
 	"log"
 	"net/http"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
 	"syscall"
 	"time"
-	"path/filepath"
 
 	"github.com/kardianos/service"
 	"github.com/shirou/gopsutil/v3/cpu"
@@ -441,15 +441,15 @@ func collectDiskMetricsLsblk() ([]DiskData, uint64, uint64, error) {
 
 	var raw struct {
 		Blockdevices []struct {
-			Name       string `json:"name"`
-			Type       string `json:"type"`
+			Name       string      `json:"name"`
+			Type       string      `json:"type"`
 			Size       json.Number `json:"size"`
-			Mountpoint *string `json:"mountpoint"`
+			Mountpoint *string     `json:"mountpoint"`
 			Children   []struct {
-				Name       string `json:"name"`
-				Type       string `json:"type"`
+				Name       string      `json:"name"`
+				Type       string      `json:"type"`
 				Size       json.Number `json:"size"`
-				Mountpoint *string `json:"mountpoint"`
+				Mountpoint *string     `json:"mountpoint"`
 			} `json:"children"`
 		} `json:"blockdevices"`
 	}
@@ -495,17 +495,12 @@ func collectDiskMetricsLsblk() ([]DiskData, uint64, uint64, error) {
 			if _, ok := seen[mp]; ok {
 				continue
 			}
-			var stat syscall.Statfs_t
-			if err := syscall.Statfs(mp, &stat); err != nil {
+			u, err := statfsUsage(mp)
+			if err != nil {
+				// statfs not supported on this platform or failed for this mountpoint
 				continue
 			}
-			bsize := uint64(stat.Frsize)
-			if bsize == 0 {
-				bsize = uint64(stat.Bsize)
-			}
-			total := uint64(stat.Blocks) * bsize
-			free := uint64(stat.Bfree) * bsize
-			used += (total - free)
+			used += u
 			seen[mp] = struct{}{}
 		}
 
