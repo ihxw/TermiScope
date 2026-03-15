@@ -1,4 +1,4 @@
-# Build Agents Helper with Version Injection
+# Build Agents Helper with Version Injection (Multi-platform / Multi-arch)
 $ErrorActionPreference = "Stop"
 
 # Read version from package.json
@@ -15,47 +15,47 @@ if (-not (Test-Path $AgentDir)) {
 # Build flags to inject version
 $LdFlags = "-X main.Version=$Version"
 
-# Linux AMD64
-Write-Host "Building linux/amd64..."
-$env:GOOS = "linux"
-$env:GOARCH = "amd64"
-go build -ldflags $LdFlags -o "$AgentDir/termiscope-agent-linux-amd64" ./cmd/agent
+# Define targets (GOOS, GOARCH, optional GOARM, output name)
+$targets = @(
+    @{os='linux'; arch='amd64'; arm=$null; out='termiscope-agent-linux-amd64'},
+    @{os='linux'; arch='arm64'; arm=$null; out='termiscope-agent-linux-arm64'},
+    @{os='linux'; arch='arm'; arm='7'; out='termiscope-agent-linux-armv7'},
+    @{os='linux'; arch='386'; arm=$null; out='termiscope-agent-linux-386'},
 
-# Linux ARM64
-Write-Host "Building linux/arm64..."
-$env:GOOS = "linux"
-$env:GOARCH = "arm64"
-go build -ldflags $LdFlags -o "$AgentDir/termiscope-agent-linux-arm64" ./cmd/agent
+    @{os='darwin'; arch='amd64'; arm=$null; out='termiscope-agent-darwin-amd64'},
+    @{os='darwin'; arch='arm64'; arm=$null; out='termiscope-agent-darwin-arm64'},
 
-# Linux ARMv7
-Write-Host "Building linux/armv7..."
-$env:GOOS = "linux"
-$env:GOARCH = "arm"
-$env:GOARM = "7"
-go build -ldflags $LdFlags -o "$AgentDir/termiscope-agent-linux-armv7" ./cmd/agent
+    @{os='windows'; arch='amd64'; arm=$null; out='termiscope-agent-windows-amd64.exe'},
+    @{os='windows'; arch='arm64'; arm=$null; out='termiscope-agent-windows-arm64.exe'},
+    @{os='windows'; arch='386'; arm=$null; out='termiscope-agent-windows-386.exe'}
+)
 
-# Windows AMD64
-Write-Host "Building windows/amd64..."
-$env:GOOS = "windows"
-$env:GOARCH = "amd64"
-go build -ldflags $LdFlags -o "$AgentDir/termiscope-agent-windows-amd64.exe" ./cmd/agent
+foreach ($t in $targets) {
+    $goos = $t.os
+    $goarch = $t.arch
+    $goarm = $t.arm
+    $outfile = Join-Path $AgentDir $t.out
 
-# macOS AMD64
-Write-Host "Building darwin/amd64..."
-$env:GOOS = "darwin"
-$env:GOARCH = "amd64"
-go build -ldflags $LdFlags -o "$AgentDir/termiscope-agent-darwin-amd64" ./cmd/agent
+    Write-Host "Building $goos/$goarch -> $outfile"
 
-# macOS ARM64 (Apple Silicon)
-Write-Host "Building darwin/arm64..."
-$env:GOOS = "darwin"
-$env:GOARCH = "arm64"
-go build -ldflags $LdFlags -o "$AgentDir/termiscope-agent-darwin-arm64" ./cmd/agent
+    # Set environment for build
+    $env:GOOS = $goos
+    $env:GOARCH = $goarch
+    if ($goarm) { $env:GOARM = $goarm } else { Remove-Item Env:\GOARM -ErrorAction SilentlyContinue }
+
+    # Ensure Windows executables get .exe suffix
+    try {
+        go build -ldflags $LdFlags -o $outfile ./cmd/agent
+        Write-Host "Built: $outfile"
+    } catch {
+        Write-Warning "Build failed for $goos/$goarch: $($_.Exception.Message)"
+    }
+}
 
 # Reset Env
 Remove-Item Env:\GOOS -ErrorAction SilentlyContinue
 Remove-Item Env:\GOARCH -ErrorAction SilentlyContinue
 Remove-Item Env:\GOARM -ErrorAction SilentlyContinue
 
-Write-Host "Agents v$Version built successfully in $AgentDir/" -ForegroundColor Green
+Write-Host "Agents v$Version built (where supported) in $AgentDir/" -ForegroundColor Green
 Get-ChildItem $AgentDir
