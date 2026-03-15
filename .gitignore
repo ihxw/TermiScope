@@ -51,3 +51,4 @@ temp/
 release/
 agents/
 temp/
+test.go

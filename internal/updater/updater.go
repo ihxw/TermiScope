@@ -211,6 +211,9 @@ func PerformUpdate(downloadURL string) error {
 		}
 	}
 
+	// Remove stale agent hashes cache so it gets regenerated on next startup
+	os.Remove(filepath.Join(exeDir, "agent_hashes.json"))
+
 	// 7. Chmod +x
 	if runtime.GOOS != "windows" {
 		os.Chmod(exePath, 0755)
