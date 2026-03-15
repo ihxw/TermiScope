@@ -346,6 +346,7 @@ func collectDiskMetrics() ([]DiskData, uint64, uint64) {
 
 	seenKeys := make(map[string]struct{})
 	seenMounts := make(map[string]struct{})
+	seenPools := make(map[string]struct{})
 	disks := make([]DiskData, 0, len(partitions))
 	var totalUsed uint64
 	var totalSize uint64
@@ -368,6 +369,17 @@ func collectDiskMetrics() ([]DiskData, uint64, uint64) {
 		diskKey := diskIdentityKey(partition)
 		if _, exists := seenKeys[diskKey]; exists {
 			continue
+		}
+
+		// Deduplicate pooled filesystems (ZFS, Btrfs, APFS)
+		lowerFS := strings.ToLower(strings.TrimSpace(partition.Fstype))
+		if lowerFS == "zfs" || lowerFS == "btrfs" || lowerFS == "apfs" {
+			// They share identical pool size
+			poolKey := fmt.Sprintf("%s-%d", lowerFS, usage.Total)
+			if _, exists := seenPools[poolKey]; exists {
+				continue
+			}
+			seenPools[poolKey] = struct{}{}
 		}
 
 		seenMounts[mountPoint] = struct{}{}
@@ -462,7 +474,7 @@ func shouldSkipPartition(partition disk.PartitionStat, mountPoint string) bool {
 
 func diskIdentityKey(partition disk.PartitionStat) string {
 	device := strings.TrimSpace(partition.Device)
-	if runtime.GOOS == "windows" || device == "" {
+	if device == "" {
 		return strings.TrimSpace(partition.Mountpoint)
 	}
 	return device
