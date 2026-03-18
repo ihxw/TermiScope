@@ -270,7 +270,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['transfer'])
+const emit = defineEmits(['transfer', 'selection-change'])
 
 const currentPath = ref('.')
 const files = ref([])
@@ -308,6 +308,7 @@ const goToPath = () => {
 const selectedRowKeys = ref([])
 const onSelectChange = (keys) => {
   selectedRowKeys.value = keys
+  emit('selection-change', keys)
 }
 const rowSelection = computed(() => ({
   selectedRowKeys: selectedRowKeys.value,
