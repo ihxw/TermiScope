@@ -1,5 +1,5 @@
 <template>
-  <div class="sftp-browser">
+  <div class="sftp-browser" @drop="handleDrop" @dragover="handleDragOver" @dragleave="handleDragLeave">
     <div class="browser-header">
       <div class="header-actions">
         <a-button size="small" @click="refresh">
@@ -39,12 +39,43 @@
           :custom-request="handleUpload"
           :show-upload-list="false"
           accept="*"
+          multiple
         >
           <a-button size="small" type="primary">
             <template #icon><UploadOutlined /></template>
             {{ t('sftp.upload') }}
           </a-button>
         </a-upload>
+        <a-dropdown v-if="selectedRowKeys.length > 0">
+          <a-button size="small">
+            {{ t('sftp.selected', { count: selectedRowKeys.length }) }}
+            <DownOutlined />
+          </a-button>
+          <template #overlay>
+            <a-menu>
+              <a-menu-item key="select-all" @click="selectAll">
+                <CheckSquareOutlined /> {{ t('sftp.selectAll') }}
+              </a-menu-item>
+              <a-menu-item key="invert-selection" @click="invertSelection">
+                <SwapOutlined /> {{ t('sftp.invertSelection') }}
+              </a-menu-item>
+              <a-menu-item key="clear-selection" @click="clearSelection">
+                <CloseOutlined /> {{ t('sftp.clearSelection') }}
+              </a-menu-item>
+              <a-menu-divider />
+              <a-menu-item key="download-selected" @click="handleBulkDownload">
+                <DownloadOutlined /> {{ t('sftp.downloadSelected') }}
+              </a-menu-item>
+              <a-menu-item key="delete-selected" @click="handleBulkDelete" danger>
+                <DeleteOutlined /> {{ t('sftp.deleteSelected') }}
+              </a-menu-item>
+              <a-menu-divider />
+              <a-menu-item key="properties" @click="showProperties">
+                <InfoCircleOutlined /> {{ t('sftp.properties') }}
+              </a-menu-item>
+            </a-menu>
+          </template>
+        </a-dropdown>
       </div>
       <!-- 面包屑 / 路径输入框 切换 -->
       <template v-if="!pathInputVisible">
@@ -73,7 +104,7 @@
     </div>
 
     <!-- 文件列表（非编辑模式时显示） -->
-    <div v-show="!editorVisible" ref="browserContentRef" class="browser-content">
+    <div v-show="!editorVisible" ref="browserContentRef" class="browser-content" @drop="handleDrop" @dragover="handleDragOver" @dragleave="handleDragLeave">
       <a-table
         :loading="loading"
         :columns="columns"
@@ -222,7 +253,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch, h, reactive, nextTick } from 'vue'
 import axios from 'axios'
-import { message, notification, Progress, Button, Spin } from 'ant-design-vue'
+import { message, notification, Progress, Button, Spin, Modal } from 'ant-design-vue'
 import { 
   FolderFilled, 
   FileOutlined, 
@@ -242,7 +273,11 @@ import {
   CloudDownloadOutlined,
   EyeOutlined,
   SwapOutlined,
-  AimOutlined
+  AimOutlined,
+  DownOutlined,
+  CheckSquareOutlined,
+  CloseOutlined,
+  InfoCircleOutlined
 } from '@ant-design/icons-vue'
 import { listFiles, uploadFile, downloadFile, deleteFile, renameFile, pasteFile, createDirectory, createFile, getDirSize, transferFile } from '../api/sftp'
 import { useI18n } from 'vue-i18n'
@@ -659,7 +694,10 @@ const handleUpload = async ({ file, onSuccess, onError }) => {
     })
     
     loadFiles()
-    onSuccess()
+    // 安全调用回调函数
+    if (typeof onSuccess === 'function') {
+      onSuccess()
+    }
   } catch (error) {
     uploadControllers.delete(key)
     if (axios.isCancel(error) || error.name === 'CanceledError' || error.code === 'ERR_CANCELED') {
@@ -670,7 +708,9 @@ const handleUpload = async ({ file, onSuccess, onError }) => {
             duration: 3,
             placement: 'bottomRight'
         })
-        onError(error)
+        if (typeof onError === 'function') {
+          onError(error)
+        }
         return
     }
     notification.error({
@@ -680,7 +720,9 @@ const handleUpload = async ({ file, onSuccess, onError }) => {
         duration: 4.5,
         placement: 'bottomRight'
     })
-    onError(error)
+    if (typeof onError === 'function') {
+      onError(error)
+    }
   }
 }
 
@@ -949,6 +991,12 @@ onMounted(() => {
   if (props.visible) {
     loadFiles()
   }
+  // Add keyboard event listener
+  window.addEventListener('keydown', handleKeyDown)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeyDown)
 })
 
 const handleTransfer = (record) => {
@@ -958,6 +1006,203 @@ const handleTransfer = (record) => {
         fullPath,
         isDir: record.is_dir
     })
+}
+
+// Selection Management Functions
+const selectAll = () => {
+  selectedRowKeys.value = files.value.map(f => f.name)
+}
+
+const invertSelection = () => {
+  const allKeys = files.value.map(f => f.name)
+  selectedRowKeys.value = allKeys.filter(key => !selectedRowKeys.value.includes(key))
+}
+
+const clearSelection = () => {
+  selectedRowKeys.value = []
+}
+
+// Bulk Download
+const handleBulkDownload = async () => {
+  if (selectedRowKeys.value.length === 0) return
+  
+  // For multiple files, download as zip would be better
+  // For now, download sequentially with notifications
+  for (const name of selectedRowKeys.value) {
+    const record = files.value.find(f => f.name === name)
+    if (record) {
+      await download(record.name)
+    }
+  }
+}
+
+// Bulk Delete
+const handleBulkDelete = async () => {
+  if (selectedRowKeys.value.length === 0) return
+  
+  Modal.confirm({
+    title: t('sftp.deleteConfirm'),
+    content: t('sftp.deleteSelectedConfirm', { count: selectedRowKeys.value.length }),
+    okText: t('common.ok'),
+    cancelText: t('common.cancel'),
+    onOk: async () => {
+      try {
+        for (const name of selectedRowKeys.value) {
+          const fullPath = currentPath.value === '.' ? name : `${currentPath.value}/${name}`
+          await deleteFile(props.hostId, fullPath)
+        }
+        message.success(t('sftp.deleted'))
+        selectedRowKeys.value = []
+        loadFiles()
+      } catch (error) {
+        message.error(t('sftp.failedToDelete') + ': ' + (error.response?.data?.error || error.message))
+      }
+    }
+  })
+}
+
+// Show Properties
+const showProperties = async () => {
+  if (selectedRowKeys.value.length === 0) return
+  
+  // Calculate total size and count
+  let totalSize = 0
+  let fileCount = 0
+  let dirCount = 0
+  
+  for (const name of selectedRowKeys.value) {
+    const record = files.value.find(f => f.name === name)
+    if (record) {
+      if (record.is_dir) {
+        dirCount++
+        if (record.size && record.size > 0) {
+          totalSize += record.size
+        }
+      } else {
+        fileCount++
+        totalSize += record.size || 0
+      }
+    }
+  }
+  
+  const selectedNames = selectedRowKeys.value.join(', ')
+  
+  Modal.info({
+    title: t('sftp.properties'),
+    content: h('div', { style: 'line-height: 2' }, [
+      h('div', [h('strong', t('sftp.selectedFiles')), h('span', `: ${selectedRowKeys.value.length}`)]),
+      h('div', [h('strong', t('sftp.files')), h('span', `: ${fileCount}`)]),
+      h('div', [h('strong', t('sftp.directories')), h('span', `: ${dirCount}`)]),
+      h('div', [h('strong', t('sftp.totalSize')), h('span', `: ${formatSize(totalSize)}`)]),
+      h('div', { style: 'margin-top: 12px, font-size: 12px, color: #888' }, [
+        h('div', { style: 'max-height: 100px, overflow-y: auto' }, [
+          selectedNames.split(', ').map(name => h('div', name))
+        ])
+      ])
+    ]),
+    okText: t('common.ok'),
+    width: 500
+  })
+}
+
+// Drag and Drop Upload Support
+const dragOverTimer = ref(null)
+
+const handleDrop = async (e) => {
+  e.preventDefault()
+  e.stopPropagation()
+  
+  // Remove drag over style
+  const browser = e.currentTarget
+  browser.classList.remove('drag-over')
+  
+  const files = e.dataTransfer.files
+  if (files.length === 0) return
+  
+  // Upload all dropped files
+  for (let i = 0; i < files.length; i++) {
+    await handleUpload({
+      file: files[i],
+      onProgress: (percent) => {
+        console.log(`Upload progress: ${percent}%`)
+      }
+    })
+  }
+}
+
+const handleDragOver = (e) => {
+  e.preventDefault()
+  e.stopPropagation()
+  
+  // Add drag over style
+  const browser = e.currentTarget
+  browser.classList.add('drag-over')
+  
+  // Clear any existing timer
+  if (dragOverTimer.value) {
+    clearTimeout(dragOverTimer.value)
+  }
+  
+  // Remove drag over style after a delay
+  dragOverTimer.value = setTimeout(() => {
+    browser.classList.remove('drag-over')
+  }, 500)
+}
+
+const handleDragLeave = (e) => {
+  e.preventDefault()
+  e.stopPropagation()
+  
+  const browser = e.currentTarget
+  browser.classList.remove('drag-over')
+  
+  if (dragOverTimer.value) {
+    clearTimeout(dragOverTimer.value)
+  }
+}
+
+// Keyboard Shortcuts
+const handleKeyDown = (e) => {
+  // Only handle shortcuts when not in input/edit mode
+  if (pathInputVisible.value || editorVisible.value || renameVisible.value || createVisible.value) {
+    return
+  }
+  
+  // Ctrl/Cmd + A: Select All
+  if ((e.ctrlKey || e.metaKey) && e.key === 'a') {
+    e.preventDefault()
+    selectAll()
+  }
+  
+  // Ctrl/Cmd + C: Copy
+  if ((e.ctrlKey || e.metaKey) && e.key === 'c' && selectedRowKeys.value.length > 0) {
+    e.preventDefault()
+    handleBulkCopy()
+  }
+  
+  // Ctrl/Cmd + X: Cut
+  if ((e.ctrlKey || e.metaKey) && e.key === 'x' && selectedRowKeys.value.length > 0) {
+    e.preventDefault()
+    handleBulkCut()
+  }
+  
+  // Ctrl/Cmd + V: Paste
+  if ((e.ctrlKey || e.metaKey) && e.key === 'v' && sftpStore.clipboard.paths.length > 0) {
+    e.preventDefault()
+    paste()
+  }
+  
+  // Delete: Delete selected files
+  if (e.key === 'Delete' && selectedRowKeys.value.length > 0) {
+    e.preventDefault()
+    handleBulkDelete()
+  }
+  
+  // Escape: Clear selection
+  if (e.key === 'Escape' && selectedRowKeys.value.length > 0) {
+    e.preventDefault()
+    clearSelection()
+  }
 }
 
 defineExpose({
@@ -971,6 +1216,16 @@ defineExpose({
   display: flex;
   flex-direction: column;
   height: 100%;
+  transition: all 0.3s ease;
+}
+
+.sftp-browser.drag-over {
+  background: rgba(24, 144, 255, 0.1);
+  border: 2px dashed #1890ff;
+}
+
+.sftp-browser.drag-over .browser-content {
+  pointer-events: none;
 }
 
 .browser-header {
@@ -1000,6 +1255,26 @@ defineExpose({
   flex: 1;
   overflow: hidden;
   min-height: 0; /* 关键：允许 flex 子元素收缩以正确显示滚动条 */
+  position: relative;
+}
+
+.browser-content.drag-over::after {
+  content: attr(data-drag-text);
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(24, 144, 255, 0.1);
+  border: 2px dashed #1890ff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  color: #1890ff;
+  font-weight: 500;
+  z-index: 10;
+  pointer-events: none;
 }
 
 .editor-inline-wrapper {
