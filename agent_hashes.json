@@ -1,0 +1,18 @@
+{
+  "termiscope-agent-linux-amd64": {
+    "sha256": "895a80855a80d3be353f04336654e6bc875bc40d0d2b5f805910d0919552d08b",
+    "size": 12801085
+  },
+  "termiscope-agent-linux-arm": {
+    "sha256": "5f8775f1d769e81ecda062b00d0d2926f736bb59a72fd8f410bb07bf76059142",
+    "size": 12197555
+  },
+  "termiscope-agent-linux-arm64": {
+    "sha256": "a6dcfbff5d52c678b5f6912c73a9b347ccbfb32568f0e379e3f39810bc239c36",
+    "size": 12010048
+  },
+  "termiscope-agent-windows-amd64.exe": {
+    "sha256": "f60f5e4486a3bceaeafa0f6b7077981bd9bc6ab310c2100477b13983dda0b0a5",
+    "size": 10279936
+  }
+}

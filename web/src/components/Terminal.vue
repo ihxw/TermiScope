@@ -301,9 +301,10 @@ const updateTerminalTheme = (isDark, terminalTheme = null) => {
   if (themeName !== 'auto' && terminalThemes[themeName]) {
     themeConfig = { ...terminalThemes[themeName].colors }
   } else {
-    // Auto mode
-    // Auto mode - Force Dark per user request
-    themeConfig = { ...terminalThemes.vscodeDark.colors }
+    // Auto mode - follow system theme
+    themeConfig = isDark 
+      ? { ...terminalThemes.vscodeDark.colors }
+      : { ...terminalThemes.vscodeLight.colors }
   }
 
   terminal.value.options.theme = themeConfig
