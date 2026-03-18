@@ -118,6 +118,35 @@
         </a-space>
         <a-divider type="vertical" class="status-divider" :style="{ background: themeStore.isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.1)' }" />
         
+        <!-- Theme Settings -->
+        <a-dropdown 
+          trigger="click" 
+          placement="topRight" 
+          :overlayClassName="`terminal-theme-dropdown ${themeStore.isDark ? 'dark' : ''}`"
+        >
+          <template #overlay>
+            <a-menu
+              :selectedKeys="[currentTerminalTheme]"
+              style="max-height: 400px; overflow-y: auto;"
+            >
+              <a-menu-item 
+                v-for="(theme, key) in availableThemes" 
+                :key="key"
+                @click="handleThemeChange(key)"
+              >
+                {{ theme.name }}
+                <span v-if="currentTerminalTheme === key" style="float: right; color: #1890ff">✓</span>
+              </a-menu-item>
+            </a-menu>
+          </template>
+          <a-button class="status-btn" :class="{ 'light-mode': !themeStore.isDark }" size="small" type="text">
+            <template #icon><BgColorsOutlined /></template>
+            {{ t('terminal.theme') }}
+          </a-button>
+        </a-dropdown>
+
+        <a-divider type="vertical" class="status-divider" :style="{ background: themeStore.isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.1)' }" />
+
         <!-- Font Settings -->
         <a-popover trigger="click" placement="topRight" overlayClassName="terminal-settings-popover">
           <template #content>
@@ -192,12 +221,12 @@
 </template>
 
 <script setup>
-import { ref, shallowRef, reactive, onMounted, onUnmounted, onActivated, nextTick, watch, h } from 'vue'
+import { ref, shallowRef, reactive, onMounted, onUnmounted, onActivated, nextTick, watch, h, computed } from 'vue'
 import { Terminal } from 'xterm'
 import { FitAddon } from 'xterm-addon-fit'
 import { WebLinksAddon } from 'xterm-addon-web-links'
 import { message, Modal } from 'ant-design-vue'
-import { ReloadOutlined, DisconnectOutlined, FolderOpenOutlined, ThunderboltOutlined, FontSizeOutlined } from '@ant-design/icons-vue'
+import { ReloadOutlined, DisconnectOutlined, FolderOpenOutlined, ThunderboltOutlined, FontSizeOutlined, BgColorsOutlined } from '@ant-design/icons-vue'
 import { getWSTicket } from '../api/auth'
 import { listCommandTemplates } from '../api/command'
 import { updateHostFingerprint } from '../api/ssh'
@@ -237,6 +266,24 @@ const terminalSize = ref('80x24')
 const showSftp = ref(false)
 const splitRatio = ref(parseFloat(localStorage.getItem('terminal_split_ratio')) || 0.5)
 const commandTemplates = ref([])
+
+// Current terminal theme (local state for popover)
+const currentTerminalTheme = ref(themeStore.terminalTheme || 'auto')
+
+// Available themes list
+const availableThemes = computed(() => {
+  const themes = {}
+  for (const [key, value] of Object.entries(terminalThemes)) {
+    if (key !== 'auto') {
+      themes[key] = value
+    }
+  }
+  // Add auto as first option
+  return {
+    auto: terminalThemes.auto,
+    ...themes
+  }
+})
 
 // Mobile device detection
 const isMobileDevice = ref(false)
@@ -288,6 +335,8 @@ watch([() => themeStore.isDark, () => themeStore.terminalTheme], ([isDark, termi
   if (terminal.value) {
     updateTerminalTheme(isDark, terminalTheme)
   }
+  // Sync local state with store
+  currentTerminalTheme.value = terminalTheme || 'auto'
 })
 
 // ... watchers for active/status ...
@@ -321,6 +370,10 @@ const handleQuickCommand = ({ key }) => {
   if (key && ws.value && ws.value.readyState === WebSocket.OPEN) {
     ws.value.send(JSON.stringify({ type: 'input', data: key + '\n' }))
   }
+}
+
+const handleThemeChange = (themeName) => {
+  themeStore.setTerminalTheme(themeName)
 }
 
 const loadCommands = async () => {
@@ -979,5 +1032,37 @@ watch(showSftp, () => {
   background: rgba(128, 128, 128, 0.4);
   margin: 0 4px;
   flex-shrink: 0;
+}
+
+/* Theme Dropdown Styles */
+:deep(.terminal-theme-dropdown .ant-dropdown-menu-item) {
+  padding: 8px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+:deep(.terminal-theme-dropdown .ant-dropdown-menu-item-selected) {
+  background-color: rgba(24, 144, 255, 0.1);
+  color: #1890ff;
+}
+
+:deep(.terminal-theme-dropdown .ant-dropdown-menu-item:hover) {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+:deep(.terminal-theme-dropdown .ant-dropdown-menu-item-active) {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+/* Dark mode adjustments */
+:deep(.terminal-theme-dropdown.dark .ant-dropdown-menu-item:hover),
+:deep(.terminal-theme-dropdown.dark .ant-dropdown-menu-item-active) {
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+:deep(.terminal-theme-dropdown.dark .ant-dropdown-menu-item-selected) {
+  background-color: rgba(24, 144, 255, 0.15);
+  color: #40a9ff;
 }
 </style>
