@@ -588,9 +588,10 @@ func (h *SftpHandler) GetDirSize(c *gin.Context) {
 	session, err := sshClient.GetRawClient().NewSession()
 	if err == nil {
 		defer session.Close()
-		// Attempt to get size in kilobytes.
+		// Attempt to get size in kilobytes with shell escaping
 		// Note: -k is widely supported (POSIX). -b is GNU specific.
-		output, err := session.Output(fmt.Sprintf("du -sk '%s'", targetPath))
+		escapedPath := utils.ShellEscape(targetPath)
+		output, err := session.Output("du -sk " + escapedPath)
 		if err == nil {
 			// Output format: "12345   /path/to/dir"
 			fields := strings.Fields(string(output))

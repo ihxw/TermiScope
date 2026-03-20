@@ -10,7 +10,7 @@ import (
 
 func main() {
 	// Use correct database path from config
-	db, err := database.InitDB("./data/termiscope.db")
+	db, err := database.InitDB("../../data/termiscope.db")
 	if err != nil {
 		log.Fatal(err)
 	}

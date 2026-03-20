@@ -853,7 +853,7 @@ func (h *MonitorHandler) Deploy(c *gin.Context) {
 	// Actually, if the user visits via IPv6, the browser sends Host: [::1]:8080.
 	serverURL := fmt.Sprintf("%s://%s", scheme, hostHeader)
 
-	// Connect SSH
+	// Connect SSH with host key verification
 	password, _ := utils.DecryptAES(host.PasswordEncrypted, h.Config.Security.EncryptionKey)
 	privateKey, _ := utils.DecryptAES(host.PrivateKeyEncrypted, h.Config.Security.EncryptionKey)
 
@@ -868,11 +868,24 @@ func (h *MonitorHandler) Deploy(c *gin.Context) {
 		authMethods = append(authMethods, ssh.Password(password))
 	}
 
-	sshConfig := &ssh.ClientConfig{
-		User:            host.Username,
-		Auth:            authMethods,
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(), // TODO: Use TOFU
-		Timeout:         10 * time.Second,
+	// Create SSH config with host key verification (TOFU)
+	sshConfig, err := utils.CreateSSHConfigWithVerification(
+		h.DB,
+		host.ID,
+		host.Username,
+		authMethods,
+		host.Fingerprint,
+		func(fp string) error {
+			// Save new fingerprint to database
+			host.Fingerprint = fp
+			return h.DB.Save(&host).Error
+		},
+		10*time.Second,
+	)
+	if err != nil {
+		log.Printf("Monitor Deploy: Failed to create SSH config: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("SSH configuration error: %v", err)})
+		return
 	}
 
 	// FIX: Handle IPv6 Host for SSH Dial
@@ -1445,7 +1458,7 @@ func (h *MonitorHandler) Stop(c *gin.Context) {
 	// Update DB immediately
 	h.DB.Model(&host).Update("monitor_enabled", false)
 
-	// Connect SSH to stop service
+	// Connect SSH to stop service with host key verification
 	password, _ := utils.DecryptAES(host.PasswordEncrypted, h.Config.Security.EncryptionKey)
 	privateKey, _ := utils.DecryptAES(host.PrivateKeyEncrypted, h.Config.Security.EncryptionKey)
 
@@ -1460,11 +1473,20 @@ func (h *MonitorHandler) Stop(c *gin.Context) {
 		authMethods = append(authMethods, ssh.Password(password))
 	}
 
-	sshConfig := &ssh.ClientConfig{
-		User:            host.Username,
-		Auth:            authMethods,
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-		Timeout:         10 * time.Second,
+	// Create SSH config with host key verification (TOFU)
+	sshConfig, err := utils.CreateSSHConfigWithVerification(
+		h.DB,
+		host.ID,
+		host.Username,
+		authMethods,
+		host.Fingerprint,
+		nil, // 不需要保存新指纹，因为已存在
+		10*time.Second,
+	)
+	if err != nil {
+		log.Printf("Monitor Stop: Failed to create SSH config: %v", err)
+		c.JSON(http.StatusOK, gin.H{"message": "Monitoring disabled (SSH configuration error)"})
+		return
 	}
 
 	client, err := ssh.Dial("tcp", fmt.Sprintf("%s:%d", host.Host, host.Port), sshConfig)
@@ -2045,7 +2067,7 @@ func (h *MonitorHandler) stopMonitorOnHost(host *models.SSHHost) error {
 	// Update DB first
 	h.DB.Model(host).Update("monitor_enabled", false)
 
-	// Try to cleanup on remote host
+	// Try to cleanup on remote host with host key verification
 	password, _ := utils.DecryptAES(host.PasswordEncrypted, h.Config.Security.EncryptionKey)
 	privateKey, _ := utils.DecryptAES(host.PrivateKeyEncrypted, h.Config.Security.EncryptionKey)
 
@@ -2060,11 +2082,19 @@ func (h *MonitorHandler) stopMonitorOnHost(host *models.SSHHost) error {
 		authMethods = append(authMethods, ssh.Password(password))
 	}
 
-	sshConfig := &ssh.ClientConfig{
-		User:            host.Username,
-		Auth:            authMethods,
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
-		Timeout:         10 * time.Second,
+	// Create SSH config with host key verification (TOFU)
+	sshConfig, err := utils.CreateSSHConfigWithVerification(
+		h.DB,
+		host.ID,
+		host.Username,
+		authMethods,
+		host.Fingerprint,
+		nil,
+		10*time.Second,
+	)
+	if err != nil {
+		log.Printf("Monitor BatchStop: SSH configuration error: %v", err)
+		return nil
 	}
 
 	client, err := ssh.Dial("tcp", fmt.Sprintf("%s:%d", host.Host, host.Port), sshConfig)

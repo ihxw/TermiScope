@@ -115,6 +115,33 @@ func (h *SSHWebSocketHandler) HandleWebSocket(c *gin.Context) {
 		return
 	}
 
+	// 检查是否有更新指纹的请求
+	if c.Query("update_fingerprint") == "true" {
+		// 用户确认更新，保存新指纹
+		newFp := c.Query("fingerprint")
+		if newFp != "" {
+			host.Fingerprint = newFp
+			if err := h.db.Save(&host).Error; err != nil {
+				utils.ErrorResponse(c, http.StatusInternalServerError, "failed to update fingerprint")
+				return
+			}
+			
+			// 记录安全事件
+			models.SecurityEventLog(h.db, models.ConfigChanged, models.SeverityLow,
+				userID, ticket.Username, c.ClientIP(), c.Request.UserAgent(),
+				fmt.Sprintf("Updated SSH host fingerprint for %s", host.Name),
+				map[string]interface{}{
+					"host_id":     host.ID,
+					"host_name":   host.Name,
+					"new_fp":      newFp,
+					"old_fp":      host.Fingerprint,
+				})
+			
+			log.Printf("✅ Updated fingerprint for host %s (%s): %s", host.Name, host.Host, newFp)
+		}
+		// 继续执行，重新尝试连接
+	}
+
 	// Decrypt credentials
 	var password, privateKey string
 	if host.PasswordEncrypted != "" {
@@ -211,22 +238,25 @@ func (h *SSHWebSocketHandler) HandleWebSocket(c *gin.Context) {
 		connLog.ErrorMessage = err.Error()
 		h.db.Save(connLog)
 
-		// Check for host key mismatch - use Contains since error may be wrapped
+		// Check for host key mismatch
 		errMsg := err.Error()
 		if strings.Contains(errMsg, "host key fingerprint mismatch") {
-			// Extract the new fingerprint from the error or client
-			// The callback sets client.fingerprint = fp BEFORE returning error.
+			// 获取新指纹
 			newFp := sshClient.GetFingerprint()
+			
+			// 返回错误和确认选项给前端
 			writeJSON(gin.H{
 				"type": "error",
 				"code": "fingerprint_mismatch",
-				"data": fmt.Sprintf("Host key verification failed. The remote host identification has changed! New fingerprint: %s", newFp),
+				"data": fmt.Sprintf("远程主机身份标识已更改！这可能是 VPS 重装系统或中间人攻击。\n新指纹：%s", newFp),
 				"meta": gin.H{
 					"new_fingerprint": newFp,
+					"host_id": host.ID,
+					"action": "confirm_update",  // 提示用户可以确认更新
 				},
 			})
 		} else {
-			writeJSON(gin.H{"type": "error", "data": "Failed to connect (Host Verification Failed): " + err.Error()})
+			writeJSON(gin.H{"type": "error", "data": "SSH 连接失败：" + err.Error()})
 		}
 		return
 	}

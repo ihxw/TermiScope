@@ -63,11 +63,13 @@ func NewSSHClient(cfg *SSHConfig) (*SSHClient, error) {
 		client.fingerprint = fp
 
 		if cfg.Fingerprint == "" {
-			// TOFU: Trust On First Use
+			// TOFU: Trust On First Use (首次连接，自动保存)
 			return nil
 		}
 
 		if fp != cfg.Fingerprint {
+			// 指纹不匹配，返回错误让前端提示用户
+			// 用户确认后可以通过 API 更新指纹
 			return fmt.Errorf("host key fingerprint mismatch: anticipated %s, got %s", cfg.Fingerprint, fp)
 		}
 

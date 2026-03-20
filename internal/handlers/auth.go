@@ -93,6 +93,9 @@ func (h *AuthHandler) generateTokens(user *models.User) (string, string, error) 
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		// Record invalid request
+		models.SecurityEventLog(h.db, models.LoginFailed, models.SeverityLow,
+			0, "", c.ClientIP(), c.Request.UserAgent(), "Invalid request", nil)
 		utils.ErrorResponse(c, http.StatusBadRequest, "invalid request: "+err.Error())
 		return
 	}
@@ -103,18 +106,40 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	if result.Error != nil {
 		// Mitigate username enumeration
 		bcrypt.CompareHashAndPassword([]byte("$2a$10$X7...dummyhash..."), []byte(req.Password))
+		
+		// Record login failure (unknown user)
+		models.SecurityEventLog(h.db, models.LoginFailed, models.SeverityLow,
+			0, req.Username, c.ClientIP(), c.Request.UserAgent(), "Unknown user", nil)
+		
+		// Check for brute force
+		if models.CheckBruteForce(h.db, c.ClientIP(), 15*time.Minute, 10) {
+			models.SecurityEventLog(h.db, models.BruteForceDetected, models.SeverityHigh,
+				0, "", c.ClientIP(), c.Request.UserAgent(), "Brute force attack detected", nil)
+		}
+		
 		utils.ErrorResponse(c, http.StatusUnauthorized, "invalid credentials")
 		return
 	}
 
 	// Check if user is active
 	if !user.IsActive() {
+		models.SecurityEventLog(h.db, models.PermissionDenied, models.SeverityMedium,
+			user.ID, user.Username, c.ClientIP(), c.Request.UserAgent(), "Inactive user attempted login", nil)
 		utils.ErrorResponse(c, http.StatusForbidden, "account is disabled")
 		return
 	}
 
 	// Verify password
 	if !user.CheckPassword(req.Password) {
+		models.SecurityEventLog(h.db, models.LoginFailed, models.SeverityMedium,
+			user.ID, user.Username, c.ClientIP(), c.Request.UserAgent(), "Incorrect password", nil)
+		
+		// Check for brute force
+		if models.CheckBruteForce(h.db, c.ClientIP(), 15*time.Minute, 10) {
+			models.SecurityEventLog(h.db, models.BruteForceDetected, models.SeverityHigh,
+				user.ID, user.Username, c.ClientIP(), c.Request.UserAgent(), "Brute force attack detected", nil)
+		}
+		
 		utils.ErrorResponse(c, http.StatusUnauthorized, "invalid credentials")
 		return
 	}
@@ -124,9 +149,15 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		// Generate a temporary token for 2FA verification (short lived, e.g. 5 mins)
 		tempToken, err := utils.GenerateToken(user.ID, user.Username, user.Role, "2fa_temp", 5*time.Minute, h.config.Security.JWTSecret)
 		if err != nil {
+			models.SecurityEventLog(h.db, models.LoginFailed, models.SeverityHigh,
+				user.ID, user.Username, c.ClientIP(), c.Request.UserAgent(), "Failed to generate 2FA token", nil)
 			utils.ErrorResponse(c, http.StatusInternalServerError, "failed to generate token")
 			return
 		}
+
+		// Record 2FA required
+		models.SecurityEventLog(h.db, models.TwoFAEnabled, models.SeverityLow,
+			user.ID, user.Username, c.ClientIP(), c.Request.UserAgent(), "2FA verification required", nil)
 
 		utils.SuccessResponse(c, http.StatusOK, gin.H{
 			"requires_2fa": true,
@@ -138,6 +169,8 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	accessToken, refreshToken, err := h.generateTokens(&user)
 	if err != nil {
+		models.SecurityEventLog(h.db, models.LoginFailed, models.SeverityHigh,
+			user.ID, user.Username, c.ClientIP(), c.Request.UserAgent(), "Failed to generate tokens", nil)
 		utils.ErrorResponse(c, http.StatusInternalServerError, "failed to generate tokens")
 		return
 	}
@@ -146,6 +179,10 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	now := time.Now()
 	user.LastLoginAt = &now
 	h.db.Save(&user)
+
+	// Record successful login
+	models.SecurityEventLog(h.db, models.LoginSuccess, models.SeverityLow,
+		user.ID, user.Username, c.ClientIP(), c.Request.UserAgent(), "Login successful", nil)
 
 	// Auto-add origin if not already present (run in background)
 	// Security Risk: Disable TOFU (Trust on First Use) for CORS to prevent phishing attacks adding malicious origins

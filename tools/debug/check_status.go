@@ -9,7 +9,7 @@ import (
 )
 
 func main() {
-	db, err := database.InitDB("termiscope.db")
+	db, err := database.InitDB("../../data/termiscope.db")
 	if err != nil {
 		log.Fatal(err)
 	}
