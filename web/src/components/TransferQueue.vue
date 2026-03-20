@@ -14,7 +14,7 @@
     
     <div class="panel-body">
       <div v-if="tasks.length === 0" class="empty-tip">
-        <p>{{ t('sftp.transferQueue') }}为空</p>
+        <p>{{ t('sftp.transferQueueEmpty') }}</p>
       </div>
       
       <div v-else class="task-list">
@@ -25,14 +25,20 @@
               <span>{{ task.sourceHost }} → {{ task.destHost }}</span>
               <span v-if="task.speed" class="task-speed">{{ task.speed }}</span>
             </div>
+            <div v-if="task.eta" class="task-eta">⏱️ {{ task.eta }}</div>
           </div>
           
           <div class="task-progress">
             <a-progress 
+              v-if="task.status === 'active' || task.status === 'paused'"
               :percent="task.percent" 
               :status="task.status"
               :strokeColor="getProgressColor(task.status)"
+              :format="percent => task.status === 'active' ? `${percent}%` : ''"
             />
+            <a-tag v-else :color="getProgressColor(task.status)" size="small">
+              {{ getStatusText(task.status) }}
+            </a-tag>
           </div>
           
           <div class="task-actions">
@@ -115,6 +121,15 @@ const getProgressColor = (status) => {
   }
 }
 
+const getStatusText = (status) => {
+  switch(status) {
+    case 'success': return t('sftp.success')
+    case 'error': return t('sftp.error')
+    case 'paused': return t('sftp.paused')
+    default: return t('sftp.active')
+  }
+}
+
 const clearCompleted = () => {
   tasks.value = tasks.value.filter(t => t.status === 'active' || t.status === 'paused')
 }
@@ -124,11 +139,19 @@ const togglePanel = () => {
 }
 
 const pauseTask = (taskId) => {
-  emit('pause', taskId)
+  const task = tasks.value.find(t => t.id === taskId)
+  if (task) {
+    task.pausedAt = Date.now()
+    emit('pause', taskId)
+  }
 }
 
 const resumeTask = (taskId) => {
-  emit('resume', taskId)
+  const task = tasks.value.find(t => t.id === taskId)
+  if (task) {
+    delete task.pausedAt
+    emit('resume', taskId)
+  }
 }
 
 const cancelTask = (taskId) => {
@@ -139,24 +162,93 @@ const retryTask = (taskId) => {
   emit('retry', taskId)
 }
 
-// 暴露方法给父组件
+// Calculate ETA (Estimated Time of Arrival)
+const calculateETA = (task) => {
+  if (task.status !== 'active' || !task.speed || task.percent >= 100 || !task.total) return null
+  
+  // Try different speed formats
+  let bytesPerSec = 0
+  
+  // Try format: "1.2 MB/s"
+  let speedMatch = task.speed.match(/([\d.]+)\s*([KMGT]?B)\/s/)
+  if (speedMatch) {
+    const value = parseFloat(speedMatch[1])
+    const unit = speedMatch[2]
+    
+    if (unit === 'B/s') bytesPerSec = value
+    else if (unit === 'KB/s') bytesPerSec = value * 1024
+    else if (unit === 'MB/s') bytesPerSec = value * 1024 * 1024
+    else if (unit === 'GB/s') bytesPerSec = value * 1024 * 1024 * 1024
+    else if (unit === 'TB/s') bytesPerSec = value * 1024 * 1024 * 1024 * 1024
+  } else {
+    // Try format: "1234 KB/s" or "1234.5 KB/s"
+    speedMatch = task.speed.match(/([\d,.]+)\s*([KMGT]?B)\/s/)
+    if (speedMatch) {
+      const value = parseFloat(speedMatch[1].replace(',', ''))
+      const unit = speedMatch[2]
+      
+      if (unit === 'B/s') bytesPerSec = value
+      else if (unit === 'KB/s') bytesPerSec = value * 1024
+      else if (unit === 'MB/s') bytesPerSec = value * 1024 * 1024
+      else if (unit === 'GB/s') bytesPerSec = value * 1024 * 1024 * 1024
+    }
+  }
+  
+  if (bytesPerSec <= 0) return null
+  
+  const remainingBytes = task.total - (task.total * task.percent / 100)
+  const remainingSeconds = remainingBytes / bytesPerSec
+  
+  if (remainingSeconds <= 0) return null
+  
+  if (remainingSeconds < 60) {
+    return t('sftp.etaSeconds', { seconds: Math.round(remainingSeconds) })
+  } else if (remainingSeconds < 3600) {
+    return t('sftp.etaMinutes', { minutes: Math.round(remainingSeconds / 60) })
+  } else {
+    return t('sftp.etaHours', { hours: Math.round(remainingSeconds / 3600) })
+  }
+}
+
 defineExpose({
   addTask: (task) => {
-    tasks.value.push({
+    const taskId = task.id || `task-${Date.now()}-${Math.random()}`
+    const newTask = {
       ...task,
-      id: `task-${Date.now()}-${Math.random()}`,
-      status: 'active'
-    })
+      id: taskId,
+      status: 'active',
+      createdAt: Date.now(),
+      total: task.total || 0,
+    }
+    tasks.value.push(newTask)
+    console.log('✅ Task added:', taskId, newTask)
+    return taskId
   },
   updateTask: (taskId, updates) => {
-    const task = tasks.value.find(t => t.id === taskId)
-    if (task) {
+    const taskIndex = tasks.value.findIndex(t => t.id === taskId)
+    console.log(`🔄 Updating task ${taskId}, found index: ${taskIndex}`, updates)
+    if (taskIndex !== -1) {
+      const task = tasks.value[taskIndex]
+      
+      // Update fields
       Object.assign(task, updates)
+      
+      // Update ETA if speed or percent changed
+      if ((updates.speed !== undefined || updates.percent !== undefined) && task.status === 'active') {
+        if (task.percent >= 100) {
+          task.eta = null
+        } else if (task.speed && task.total) {
+          const eta = calculateETA(task)
+          task.eta = eta
+          console.log(`⏰ ETA for task ${taskId}:`, eta)
+        }
+      }
     }
   },
   removeTask: (taskId) => {
     tasks.value = tasks.value.filter(t => t.id !== taskId)
-  }
+  },
+  getTasks: () => tasks.value
 })
 </script>
 

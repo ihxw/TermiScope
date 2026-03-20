@@ -613,6 +613,7 @@ export default {
         unsavedLeave: '离开',
         bulkTransfer: '批量传输',
         transferQueue: '传输队列',
+        transferQueueEmpty: '传输队列为空',
         cancel: '取消',
         retry: '重试',
         clearCompleted: '清除已完成',
@@ -623,6 +624,9 @@ export default {
         confirmBulkTransfer: '确定要传输选中的 {count} 个文件/文件夹吗？',
         transferPaused: '传输已暂停',
         transferResumed: '传输已继续',
+        etaSeconds: '约{seconds}秒',
+        etaMinutes: '约{minutes}分钟',
+        etaHours: '约{hours}小时',
         // New file management features
         selected: '已选 {count}',
         selectAll: '全选',

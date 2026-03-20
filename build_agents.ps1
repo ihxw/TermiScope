@@ -48,7 +48,7 @@ foreach ($t in $targets) {
         go build -ldflags $LdFlags -o $outfile ./cmd/agent
         Write-Host "Built: $outfile"
     } catch {
-        Write-Warning "Build failed for $goos/$goarch: $($_.Exception.Message)"
+        Write-Warning "Build failed for $goos/$goarch : $($_.Exception.Message)"
     }
 }
 

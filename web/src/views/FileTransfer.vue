@@ -107,7 +107,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, h } from 'vue'
+import { ref, computed, onMounted, h, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { notification, Progress, Spin, Modal } from 'ant-design-vue'
 import { SwapOutlined } from '@ant-design/icons-vue'
@@ -181,38 +181,66 @@ const handleTransfer = async (side, data) => {
   const destPath = destBrowser?.currentPath || '.'
   const key = `transfer-${Date.now()}`
 
-  notification.open({
-    key,
-    message: t('sftp.transferring'),
-    description: h('div', [
-      h(Progress, { percent: 0, status: 'active', size: 'small' }),
-      h('div', { style: 'display: flex; justify-content: space-between; align-items: center; margin-top: 8px' }, [
-        h('span', { style: 'color: #8c8c8c; font-size: 12px' }, `${data.name} → ${destHostName}`),
-        h(Spin, { size: 'small' })
-      ])
-    ]),
-    duration: 0,
-    placement: 'bottomRight'
-  })
+  // ✅ 确保队列面板打开
+  if (!showQueuePanel.value) {
+    showQueuePanel.value = true
+    // 延迟一小段时间确保TransferQueue已挂载
+    await nextTick()
+  }
+  
+  // Add to queue with initial state and get taskId
+  let taskId = null
+  if (transferQueueRef.value) {
+    taskId = transferQueueRef.value.addTask({
+      name: data.name,
+      sourceHost: side === 'left' ? leftHostName.value : rightHostName.value,
+      destHost: destHostName,
+      percent: 0,
+      status: 'active',
+      speed: '',
+      total: data.size || 0,
+      isDir: data.isDir
+    })
+  }
 
   try {
+    // ✅ 立即更新进度为0，让任务立即可见
+    if (transferQueueRef.value && taskId) {
+      transferQueueRef.value.updateTask(taskId, {
+        percent: 0,
+        speed: ''
+      })
+    }
     await transferFile(sourceHostId, destHostId, data.fullPath, destPath, (event) => {
-      if (event.type === 'progress') {
-        notification.open({
-          key,
-          message: t('sftp.transferring'),
-          description: h('div', [
-            h(Progress, { percent: event.percent || 0, status: 'active', size: 'small' }),
-            h('div', { style: 'display: flex; justify-content: space-between; align-items: center; margin-top: 8px' }, [
-              h('span', { style: 'color: #8c8c8c; font-size: 12px' }, `${data.name} → ${destHostName}`),
-              h('span', { style: 'color: #1890ff; font-weight: 500; font-size: 12px' }, event.speed || '')
-            ])
-          ]),
-          duration: 0,
-          placement: 'bottomRight'
-        })
+      console.log('💾 Transfer event:', event)
+      
+      if (event.type === 'start') {
+        if (transferQueueRef.value && taskId) {
+          transferQueueRef.value.updateTask(taskId, {
+            total: event.total_size || 0,
+            isDir: event.is_dir
+          })
+        }
+      } else if (event.type === 'progress') {
+        if (transferQueueRef.value && taskId) {
+          transferQueueRef.value.updateTask(taskId, {
+            percent: event.percent || 0,
+            speed: event.speed || '',
+            transferred: event.transferred,
+            total: event.total
+          })
+        }
+      } else if (event.type === 'info') {
+        console.log('ℹ️ Transfer info:', event.message)
       }
-    })
+    }, 'copy')
+
+    if (transferQueueRef.value && taskId) {
+      transferQueueRef.value.updateTask(taskId, {
+        status: 'success',
+        percent: 100
+      })
+    }
 
     notification.success({
       key,
@@ -226,6 +254,14 @@ const handleTransfer = async (side, data) => {
       destBrowser.refresh()
     }
   } catch (error) {
+    console.error('Transfer error:', error)
+    
+    if (transferQueueRef.value) {
+      transferQueueRef.value.updateTask(taskId, {
+        status: 'error'
+      })
+    }
+    
     notification.error({
       key,
       message: t('sftp.transferFailed'),
@@ -257,16 +293,21 @@ const handleBulkTransfer = async (side) => {
     cancelText: t('common.cancel'),
     onOk: async () => {
       // 显示队列面板
-      showQueuePanel.value = true
+      if (!showQueuePanel.value) {
+        showQueuePanel.value = true
+        await nextTick()
+      }
       const destPath = destBrowser?.currentPath || '.'
 
       // 并发控制：最多同时传输 3 个文件
       const concurrencyLimit = 3
       const runningTransfers = ref(0)
+      const transferPromises = []
 
       for (const key of selectedKeys) {
         const fileName = key.split('/').pop()
         const fullPath = key
+        const fileRecord = sourceBrowser?.files?.find(f => f.name === fileName)
 
         // 等待有可用槽位
         while (runningTransfers.value >= concurrencyLimit) {
@@ -275,32 +316,45 @@ const handleBulkTransfer = async (side) => {
 
         runningTransfers.value++
         
-        // 在队列中添加任务
-        const taskId = `task-${Date.now()}-${Math.random()}`
+        // 在队列中添加任务并获取 taskId
+        let taskId = null
         if (transferQueueRef.value) {
-          transferQueueRef.value.addTask({
+          taskId = transferQueueRef.value.addTask({
             name: fileName,
             sourceHost: side === 'left' ? leftHostName.value : rightHostName.value,
             destHost: destHostName,
             percent: 0,
             status: 'active',
-            speed: ''
+            speed: '',
+            total: fileRecord?.size || 0,
+            isDir: fileRecord?.is_dir || false
           })
         }
 
-        // 启动传输（不等待完成）
-        transferFile(sourceHostId, destHostId, fullPath, destPath, (event) => {
-          if (event.type === 'progress') {
-            if (transferQueueRef.value) {
+        // 启动传输
+        const promise = transferFile(sourceHostId, destHostId, fullPath, destPath, (event) => {
+          console.log(`📦 Bulk [${fileName}] event:`, event)
+          
+          if (event.type === 'start') {
+            if (transferQueueRef.value && taskId) {
+              transferQueueRef.value.updateTask(taskId, {
+                total: event.total_size || 0,
+                isDir: event.is_dir
+              })
+            }
+          } else if (event.type === 'progress') {
+            if (transferQueueRef.value && taskId) {
               transferQueueRef.value.updateTask(taskId, {
                 percent: event.percent || 0,
-                speed: event.speed || ''
+                speed: event.speed || '',
+                transferred: event.transferred,
+                total: event.total
               })
             }
           }
-        })
+        }, 'copy')
           .then(() => {
-            if (transferQueueRef.value) {
+            if (transferQueueRef.value && taskId) {
               transferQueueRef.value.updateTask(taskId, {
                 status: 'success',
                 percent: 100
@@ -317,7 +371,8 @@ const handleBulkTransfer = async (side) => {
             })
           })
           .catch((error) => {
-            if (transferQueueRef.value) {
+            console.error(`Bulk transfer [${fileName}] error:`, error)
+            if (transferQueueRef.value && taskId) {
               transferQueueRef.value.updateTask(taskId, {
                 status: 'error'
               })
@@ -332,6 +387,8 @@ const handleBulkTransfer = async (side) => {
           .finally(() => {
             runningTransfers.value--
           })
+        
+        transferPromises.push(promise)
       }
 
       // 清空选择
@@ -340,6 +397,9 @@ const handleBulkTransfer = async (side) => {
       } else {
         rightSelectedKeys.value = []
       }
+      
+      // 等待所有传输完成
+      await Promise.all(transferPromises)
     }
   })
 }

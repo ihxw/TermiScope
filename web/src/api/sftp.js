@@ -57,7 +57,7 @@ export const createFile = async (hostId, path) => {
     return await api.post(`/sftp/create/${hostId}`, { path })
 }
 
-export const transferFile = async (sourceHostId, destHostId, sourcePath, destPath, type = 'copy', onProgress) => {
+export const transferFile = async (sourceHostId, destHostId, sourcePath, destPath, onProgress, type = 'copy') => {
     const token = localStorage.getItem('token')
     const response = await fetch('/api/sftp/transfer', {
         method: 'POST',
@@ -87,10 +87,12 @@ export const transferFile = async (sourceHostId, destHostId, sourcePath, destPat
     const decoder = new TextDecoder()
     let buffer = ''
     let lastError = null
+    let lastProgress = null
 
     while (true) {
         const { done, value } = await reader.read()
         if (done) break
+        
         buffer += decoder.decode(value, { stream: true })
         const lines = buffer.split('\n')
         buffer = lines.pop()
@@ -99,12 +101,17 @@ export const transferFile = async (sourceHostId, destHostId, sourcePath, destPat
             if (line.trim()) {
                 try {
                     const event = JSON.parse(line)
+                    console.log('📥 Received event:', event.type, event)
                     if (event.type === 'error') {
                         lastError = event.message
                     }
+                    // Track last progress for error scenarios
+                    if (event.type === 'progress') {
+                        lastProgress = event
+                    }
                     if (onProgress) onProgress(event)
                 } catch (e) {
-                    console.error('JSON parse error:', e)
+                    console.error('JSON parse error:', e, 'line:', line)
                 }
             }
         }

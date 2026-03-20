@@ -868,7 +868,7 @@ const paste = async () => {
                 })
 
                 try {
-                    await transferFile(srcHostId, props.hostId, source, currentPath.value, type, (event) => {
+                    await transferFile(srcHostId, props.hostId, source, currentPath.value, (event) => {
                         if (event.type === 'progress') {
                             notification.open({
                                 key,
@@ -884,7 +884,7 @@ const paste = async () => {
                                 placement: 'bottomRight'
                             })
                         }
-                    })
+                    }, type)
                     notification.success({
                         key,
                         message: t('sftp.transferComplete'),
@@ -1004,7 +1004,8 @@ const handleTransfer = (record) => {
     emit('transfer', {
         name: record.name,
         fullPath,
-        isDir: record.is_dir
+        isDir: record.is_dir,
+        size: record.is_dir ? null : record.size
     })
 }
 

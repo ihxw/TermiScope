@@ -875,13 +875,31 @@ func (h *SftpHandler) transferViaRelay(c *gin.Context, userID uint, srcHostID, d
 
 	var transferred int64
 	var lastPct int
+	startTime := time.Now()
+	var lastSpeed float64
+	
 	onProgress := func(n int64) {
 		transferred += n
+		elapsed := time.Since(startTime).Seconds()
+		
+		// Calculate speed (bytes per second)
+		currentSpeed := float64(transferred) / elapsed
+		// Smooth speed calculation
+		lastSpeed = lastSpeed*0.7 + currentSpeed*0.3
+		
 		if totalSize > 0 {
 			pct := int(transferred * 100 / totalSize)
 			if pct != lastPct {
 				lastPct = pct
-				sendTransferEvent(c, map[string]interface{}{"type": "progress", "percent": pct})
+				// Format speed
+				speedStr := formatSpeed(lastSpeed)
+				sendTransferEvent(c, map[string]interface{}{
+					"type": "progress", 
+					"percent": pct,
+					"speed": speedStr,
+					"transferred": transferred,
+					"total": totalSize,
+				})
 			}
 		}
 	}
@@ -901,6 +919,18 @@ func (h *SftpHandler) transferViaRelay(c *gin.Context, userID uint, srcHostID, d
 	return nil
 }
 
+// formatSpeed formats bytes per second to human readable string
+func formatSpeed(bytesPerSec float64) string {
+	if bytesPerSec < 1024 {
+		return fmt.Sprintf("%.1f B/s", bytesPerSec)
+	} else if bytesPerSec < 1024*1024 {
+		return fmt.Sprintf("%.1f KB/s", bytesPerSec/1024)
+	} else if bytesPerSec < 1024*1024*1024 {
+		return fmt.Sprintf("%.1f MB/s", bytesPerSec/(1024*1024))
+	}
+	return fmt.Sprintf("%.1f GB/s", bytesPerSec/(1024*1024*1024))
+}
+
 func (h *SftpHandler) relaySingleFile(src, dst *sftp.Client, srcPath, dstPath string, onProgress func(int64)) error {
 	srcFile, err := src.Open(srcPath)
 	if err != nil {
@@ -914,15 +944,20 @@ func (h *SftpHandler) relaySingleFile(src, dst *sftp.Client, srcPath, dstPath st
 	}
 	defer dstFile.Close()
 
-	buf := make([]byte, 32*1024)
+	// Use larger buffer for better performance (256KB)
+	buf := make([]byte, 256*1024)
+	totalWritten := int64(0)
+	
 	for {
 		n, readErr := srcFile.Read(buf)
 		if n > 0 {
-			if _, wErr := dstFile.Write(buf[:n]); wErr != nil {
+			written, wErr := dstFile.Write(buf[:n])
+			if wErr != nil {
 				return wErr
 			}
+			totalWritten += int64(written)
 			if onProgress != nil {
-				onProgress(int64(n))
+				onProgress(int64(written))
 			}
 		}
 		if readErr == io.EOF {
@@ -942,17 +977,18 @@ func (h *SftpHandler) relaySingleFile(src, dst *sftp.Client, srcPath, dstPath st
 func (h *SftpHandler) relayRecursive(src, dst *sftp.Client, srcPath, dstPath string, onProgress func(int64)) error {
 	stat, err := src.Stat(srcPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("stat failed: %w", err)
 	}
+	
 	if stat.IsDir() {
 		if err := dst.MkdirAll(dstPath); err != nil {
 			if _, e := dst.Stat(dstPath); e != nil {
-				return err
+				return fmt.Errorf("mkdir failed: %w", err)
 			}
 		}
 		entries, err := src.ReadDir(srcPath)
 		if err != nil {
-			return err
+			return fmt.Errorf("readdir failed: %w", err)
 		}
 		for _, entry := range entries {
 			s := filepath.ToSlash(filepath.Join(srcPath, entry.Name()))
@@ -962,7 +998,20 @@ func (h *SftpHandler) relayRecursive(src, dst *sftp.Client, srcPath, dstPath str
 			}
 		}
 	} else {
-		return h.relaySingleFile(src, dst, srcPath, dstPath, onProgress)
+		// Retry logic for single file transfer
+		maxRetries := 3
+		var lastErr error
+		for attempt := 0; attempt < maxRetries; attempt++ {
+			lastErr = h.relaySingleFile(src, dst, srcPath, dstPath, onProgress)
+			if lastErr == nil {
+				return nil
+			}
+			// Wait before retry (exponential backoff)
+			if attempt < maxRetries-1 {
+				time.Sleep(time.Duration(attempt+1) * time.Second)
+			}
+		}
+		return fmt.Errorf("transfer failed after %d attempts: %w", maxRetries, lastErr)
 	}
 	return nil
 }

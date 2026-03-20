@@ -570,6 +570,7 @@ export default {
         unsavedLeave: 'Leave',
         bulkTransfer: 'Bulk Transfer',
         transferQueue: 'Transfer Queue',
+        transferQueueEmpty: 'Transfer queue is empty',
         cancel: 'Cancel',
         retry: 'Retry',
         clearCompleted: 'Clear Completed',
@@ -580,6 +581,9 @@ export default {
         confirmBulkTransfer: 'Are you sure to transfer {count} selected items?',
         transferPaused: 'Transfer paused',
         transferResumed: 'Transfer resumed',
+        etaSeconds: '{seconds}s',
+        etaMinutes: '{minutes}m',
+        etaHours: '{hours}h',
         // New file management features
         selected: 'Selected {count}',
         selectAll: 'Select All',
