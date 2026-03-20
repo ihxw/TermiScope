@@ -11,6 +11,12 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
+# Check if we're on Alpine
+IS_ALPINE=false
+if [ -f "/etc/alpine-release" ]; then
+    IS_ALPINE=true
+fi
+
 # Check root
 if [ "$EUID" -ne 0 ]; then
   echo -e "${RED}Please run as root${NC}"
@@ -34,9 +40,12 @@ fi
 echo -e "Installing to: ${GREEN}$INSTALL_DIR${NC}"
 
 # 3. Stop Service if running
-if systemctl is-active --quiet $SERVICE_NAME; then
+if systemctl is-active --quiet $SERVICE_NAME 2>/dev/null; then
     echo -e "${YELLOW}Stopping existing service...${NC}"
-    systemctl stop $SERVICE_NAME
+    systemctl stop $SERVICE_NAME 2>/dev/null || true
+    if [ "$IS_ALPINE" = true ]; then
+        rc-service $SERVICE_NAME stop 2>/dev/null || true
+    fi
 fi
 
 # 4. Create Directories
@@ -270,8 +279,34 @@ EOF
 fi
 
 # 7. Systemd Service
-echo "Configuring systemd service..."
-cat > "/etc/systemd/system/$SERVICE_NAME.service" <<EOF
+echo "Configuring service..."
+if [ "$IS_ALPINE" = true ]; then
+    # Alpine using OpenRC
+    echo "Detected Alpine Linux, using OpenRC..."
+    cat > "/etc/init.d/$SERVICE_NAME" <<EOF
+#!/sbin/openrc-run
+
+name="TermiScope Server"
+description="$name - Universal monitoring and SSH management platform"
+command="$INSTALL_DIR/TermiScope"
+pidfile="/var/run/$SERVICE_NAME.pid"
+command_background=true
+
+depend() {
+    use dns
+    need net
+}
+
+start_pre() {
+    checkpath -d -o root:root 755 /var/run
+}
+EOF
+    chmod +x "/etc/init.d/$SERVICE_NAME"
+    rc-service $SERVICE_NAME start
+    rc-service $SERVICE_NAME add
+else
+    # systemd
+    cat > "/etc/systemd/system/$SERVICE_NAME.service" <<EOF
 [Unit]
 Description=TermiScope Server
 After=network.target
@@ -288,10 +323,11 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 
-systemctl daemon-reload
-systemctl enable $SERVICE_NAME
-echo -e "${GREEN}Starting service...${NC}"
-systemctl start $SERVICE_NAME
+    systemctl daemon-reload
+    systemctl enable $SERVICE_NAME
+    echo -e "${GREEN}Starting service...${NC}"
+    systemctl start $SERVICE_NAME
+fi
 
 echo -e "${GREEN}=== Installation Complete ===${NC}"
 echo -e "Dashboard: http://<your-ip>:${PORT:-8080}"
