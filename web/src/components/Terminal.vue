@@ -183,7 +183,7 @@
         </a-popover>
 
         <a-divider type="vertical" class="status-divider" :style="{ background: themeStore.isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.1)' }" />
-        <a-button class="status-btn" :class="{ 'light-mode': !themeStore.isDark }" size="small" type="text" @click="showSftp = true" :disabled="connectionStatus !== 'Connected'">
+        <a-button class="status-btn" :class="{ 'light-mode': !themeStore.isDark, 'sftp-active': showSftp }" size="small" type="text" @click="showSftp = !showSftp" :disabled="connectionStatus !== 'Connected'">
           <template #icon><FolderOpenOutlined /></template>
           {{ t('terminal.sftp') }}
         </a-button>
@@ -861,12 +861,17 @@ watch(showSftp, () => {
 }
 
 .terminal-container {
-  padding: 0;
+  padding: 0 0 0 4px;
   margin: 0;
 }
 
 :deep(.xterm) {
   padding: 0;
+}
+
+.sftp-active {
+  color: #1890ff !important;
+  background: rgba(24, 144, 255, 0.1) !important;
 }
 
 .status-btn {
