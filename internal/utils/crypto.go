@@ -96,6 +96,38 @@ func Decrypt(ciphertext string, key string) (string, error) {
 	return DecryptAES(ciphertext, key)
 }
 
+// EncryptedPrefix is the prefix used to identify encrypted system config values
+const EncryptedPrefix = "ENC:"
+
+// EncryptSystemConfig encrypts a config value and prepends the ENC: prefix.
+// Returns the original value if encryption fails or value is empty.
+func EncryptSystemConfig(value, encKey string) string {
+	if value == "" {
+		return ""
+	}
+	// Already encrypted - don't double-encrypt
+	if len(value) > len(EncryptedPrefix) && value[:len(EncryptedPrefix)] == EncryptedPrefix {
+		return value
+	}
+	encrypted, err := EncryptAES(value, encKey)
+	if err != nil {
+		return value // Fallback to plaintext on error
+	}
+	return EncryptedPrefix + encrypted
+}
+
+// DecryptSystemConfig decrypts a config value that may have the ENC: prefix.
+// Returns the value as-is if it is not prefixed (backward compatibility with old plaintext values).
+func DecryptSystemConfig(value, encKey string) string {
+	if len(value) > len(EncryptedPrefix) && value[:len(EncryptedPrefix)] == EncryptedPrefix {
+		decrypted, err := DecryptAES(value[len(EncryptedPrefix):], encKey)
+		if err == nil {
+			return decrypted
+		}
+	}
+	return value // Return as-is if no prefix or decryption fails (backward compat)
+}
+
 // DeriveKey derives a 32-byte key from password and salt using PBKDF2
 func DeriveKey(password string, salt []byte) []byte {
 	return pbkdf2.Key([]byte(password), salt, 600000, 32, sha256.New)

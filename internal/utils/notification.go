@@ -22,8 +22,9 @@ Clients: {{client}}
 Message: {{message}}
 Time: {{time}}`
 
-// SendNotification routes the notification to enabled channels
-func SendNotification(db *gorm.DB, host models.SSHHost, subject, message string) {
+// SendNotification routes the notification to enabled channels.
+// encryptionKey is used to decrypt stored smtp/telegram credentials.
+func SendNotification(db *gorm.DB, host models.SSHHost, subject, message, encryptionKey string) {
 	channels := strings.ToLower(host.NotifyChannels)
 
 	// Determine Emoji based on subject content (Hack, better to pass event type)
@@ -46,6 +47,13 @@ func SendNotification(db *gorm.DB, host models.SSHHost, subject, message string)
 	configMap := make(map[string]string)
 	for _, c := range configs {
 		configMap[c.ConfigKey] = c.ConfigValue
+	}
+
+	// Decrypt sensitive fields that are stored encrypted in DB
+	for _, key := range []string{"smtp_password", "telegram_bot_token"} {
+		if v, ok := configMap[key]; ok && v != "" {
+			configMap[key] = DecryptSystemConfig(v, encryptionKey)
+		}
 	}
 
 	// Prepare Template

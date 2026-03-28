@@ -633,7 +633,7 @@ func (h *MonitorHandler) Pulse(c *gin.Context) {
 					host.Name, host.ID, percent,
 					utils.FormatBytes(totalUsed), utils.FormatBytes(host.NetTrafficLimit))
 
-				utils.SendNotification(h.DB, host, fmt.Sprintf("Traffic Warning: %s", host.Name), msg)
+				utils.SendNotification(h.DB, host, fmt.Sprintf("Traffic Warning: %s", host.Name), msg, "")
 			}
 		}
 	}
@@ -678,6 +678,7 @@ func (h *MonitorHandler) Pulse(c *gin.Context) {
 			utils.SendNotification(h.DB, host,
 				fmt.Sprintf("Host Back Online: %s", host.Name),
 				fmt.Sprintf("Host '%s' (ID: %d) is back online.", host.Name, host.ID),
+				"",
 			)
 		}
 

@@ -11,16 +11,16 @@ import (
 )
 
 // StartMonitorChecker starts a background goroutine to check for offline hosts
-func StartMonitorChecker(db *gorm.DB) {
+func StartMonitorChecker(db *gorm.DB, encryptionKey string) {
 	ticker := time.NewTicker(10 * time.Second)
 	go func() {
 		for range ticker.C {
-			checkOfflineHosts(db)
+			checkOfflineHosts(db, encryptionKey)
 		}
 	}()
 }
 
-func checkOfflineHosts(db *gorm.DB) {
+func checkOfflineHosts(db *gorm.DB, encryptionKey string) {
 	now := time.Now()
 
 	// === Phase 1: Mark online hosts as offline (NO notification yet) ===
@@ -79,6 +79,7 @@ func checkOfflineHosts(db *gorm.DB) {
 			utils.SendNotification(db, host,
 				fmt.Sprintf("Host Offline Alert: %s", host.Name),
 				fmt.Sprintf("Host '%s' (ID: %d) has gone offline.\nLast Pulse: %s", host.Name, host.ID, host.LastPulse.Format("2006-01-02 15:04:05")),
+				encryptionKey,
 			)
 		}
 	}

@@ -1014,6 +1014,13 @@ func (h *AuthHandler) ForgotPassword(c *gin.Context) {
 		configMap[conf.ConfigKey] = conf.ConfigValue
 	}
 
+	// Decrypt sensitive config fields (smtp_password may be stored encrypted)
+	for _, key := range []string{"smtp_password"} {
+		if v, ok := configMap[key]; ok && v != "" {
+			configMap[key] = utils.DecryptSystemConfig(v, h.config.Security.EncryptionKey)
+		}
+	}
+
 	if configMap["smtp_server"] == "" || configMap["smtp_from"] == "" {
 		utils.ErrorResponse(c, http.StatusServiceUnavailable, "未配置邮件服务器，请联系管理员或使用服务器终端(CLI)进行重置")
 		return

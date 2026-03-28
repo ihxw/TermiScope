@@ -456,8 +456,8 @@ func (h *MonitorHandler) Pulse(c *gin.Context) {
 		return
 	}
 
-	// 验证 Secret
-	if host.MonitorSecret != secret {
+	// 验证 Secret（使用时间恒定比较防止时序攻击）
+	if !hmac.Equal([]byte(host.MonitorSecret), []byte(secret)) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Invalid secret"})
 		return
 	}
@@ -633,7 +633,7 @@ func (h *MonitorHandler) Pulse(c *gin.Context) {
 					host.Name, host.ID, percent,
 					utils.FormatBytes(totalUsed), utils.FormatBytes(host.NetTrafficLimit))
 
-				utils.SendNotification(h.DB, host, fmt.Sprintf("Traffic Warning: %s", host.Name), msg)
+				utils.SendNotification(h.DB, host, fmt.Sprintf("Traffic Warning: %s", host.Name), msg, h.Config.Security.EncryptionKey)
 			}
 		}
 	}
@@ -678,6 +678,7 @@ func (h *MonitorHandler) Pulse(c *gin.Context) {
 			utils.SendNotification(h.DB, host,
 				fmt.Sprintf("Host Back Online: %s", host.Name),
 				fmt.Sprintf("Host '%s' (ID: %d) is back online.", host.Name, host.ID),
+				h.Config.Security.EncryptionKey,
 			)
 		}
 
@@ -712,9 +713,6 @@ func (h *MonitorHandler) Pulse(c *gin.Context) {
 	data.NetTrafficUsedAdjustment = host.NetTrafficUsedAdjustment
 	data.NetTrafficCounterMode = host.NetTrafficCounterMode
 
-	// DEBUG: Print values to verify logic
-	log.Printf("VERIFY_ME HOST %d: MonthlyRx=%d (DeltaRx=%d), LastRawRx=%d, CurrentRx=%d", host.ID, host.NetMonthlyRx, deltaRx, host.NetLastRawRx, currentRx)
-	log.Printf("VERIFY_ME DATA TO HUB: NetMonthlyRx=%d", data.NetMonthlyRx)
 	// Debug Log - Commented out to reduce noise
 	// for _, iface := range data.Interfaces {
 	// 	if len(iface.IPs) > 0 || iface.Mac != "" {
@@ -772,7 +770,7 @@ func (h *MonitorHandler) AgentEvent(c *gin.Context) {
 		return
 	}
 
-	if host.MonitorSecret != secret {
+	if !hmac.Equal([]byte(host.MonitorSecret), []byte(secret)) {
 		c.JSON(http.StatusForbidden, gin.H{"error": "Invalid secret"})
 		return
 	}

@@ -48,6 +48,31 @@ func NewSystemHandler(db *gorm.DB, cfg *config.Config, version string) *SystemHa
 	}
 }
 
+// sqliteMagic is the required magic header for valid SQLite3 database files
+var sqliteMagic = []byte("SQLite format 3\x00")
+
+// validateSQLiteFile checks that the given file begins with the SQLite3 magic header.
+// This prevents arbitrary files from being accepted as database backups.
+func validateSQLiteFile(path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("cannot open file for validation: %w", err)
+	}
+	defer f.Close()
+
+	header := make([]byte, 16)
+	if _, err := io.ReadFull(f, header); err != nil {
+		return fmt.Errorf("file too small to be a valid SQLite database")
+	}
+
+	for i, b := range sqliteMagic {
+		if header[i] != b {
+			return fmt.Errorf("file is not a valid SQLite database (invalid header)")
+		}
+	}
+	return nil
+}
+
 // isValidPath validates that a path contains only safe characters
 // and doesn't contain path traversal sequences
 func isValidPath(path string) bool {
@@ -195,6 +220,12 @@ func (h *SystemHandler) Restore(c *gin.Context) {
 	}
 	defer os.Remove(tmpFile)
 
+	// Validate SQLite file integrity (check magic header before accepting)
+	if err := validateSQLiteFile(tmpFile); err != nil {
+		utils.ErrorResponse(c, http.StatusBadRequest, "invalid database file: "+err.Error())
+		return
+	}
+
 	targetFile := tmpFile
 
 	// If password provided, attempt decryption
@@ -277,8 +308,18 @@ func (h *SystemHandler) GetSettings(c *gin.Context) {
 		"refresh_expiration":       h.config.Security.RefreshExpiration,
 	}
 
+	// Sensitive keys that are stored encrypted in DB
+	sensitiveKeys := map[string]bool{
+		"smtp_password":       true,
+		"telegram_bot_token": true,
+	}
+
 	for _, cfg := range configs {
-		settings[cfg.ConfigKey] = cfg.ConfigValue
+		value := cfg.ConfigValue
+		if sensitiveKeys[cfg.ConfigKey] {
+			value = utils.DecryptSystemConfig(value, h.config.Security.EncryptionKey)
+		}
+		settings[cfg.ConfigKey] = value
 	}
 
 	utils.SuccessResponse(c, http.StatusOK, settings)
@@ -349,11 +390,11 @@ func (h *SystemHandler) UpdateSettings(c *gin.Context) {
 			"smtp_server":           req.SMTPServer,
 			"smtp_port":             req.SMTPPort,
 			"smtp_user":             req.SMTPUser,
-			"smtp_password":         req.SMTPPassword,
+			"smtp_password":         utils.EncryptSystemConfig(req.SMTPPassword, h.config.Security.EncryptionKey),
 			"smtp_from":             req.SMTPFrom,
 			"smtp_to":               req.SMTPTo,
 			"smtp_tls_skip_verify":  fmt.Sprintf("%v", req.SMTPSkipVerify),
-			"telegram_bot_token":    req.TelegramBotToken,
+			"telegram_bot_token":    utils.EncryptSystemConfig(req.TelegramBotToken, h.config.Security.EncryptionKey),
 			"telegram_chat_id":      req.TelegramChatID,
 			"notification_template": req.NotificationTemplate,
 		}

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime/debug"
 	"strings"
 	"sync"
@@ -110,6 +111,13 @@ func (h *SSHWebSocketHandler) HandleWebSocket(c *gin.Context) {
 		// 用户确认更新，保存新指纹
 		newFp := c.Query("fingerprint")
 		if newFp != "" {
+			// Security: validate fingerprint format to prevent arbitrary string injection.
+			// Accepts SHA256:base64... or MD5 colon-separated hex format.
+			validFp := regexp.MustCompile(`^(SHA256:[A-Za-z0-9+/=]{43,44}|([0-9a-fA-F]{2}:){15}[0-9a-fA-F]{2})$`)
+			if !validFp.MatchString(newFp) {
+				utils.ErrorResponse(c, http.StatusBadRequest, "invalid fingerprint format")
+				return
+			}
 			host.Fingerprint = newFp
 			if err := h.db.Save(&host).Error; err != nil {
 				utils.ErrorResponse(c, http.StatusInternalServerError, "failed to update fingerprint")

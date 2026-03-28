@@ -118,7 +118,7 @@ func main() {
 	utils.InitErrorLogger("logs/error.log")
 
 	// Start Monitor Background Checker
-	monitor.StartMonitorChecker(db)
+	monitor.StartMonitorChecker(db, cfg.Security.EncryptionKey)
 
 	// Create Gin router
 	if cfg.Server.Mode == "release" {
@@ -140,6 +140,9 @@ func main() {
 	// Auth rate limiter (10 attempts per minute per IP)
 	loginRateLimiter := middleware.NewRateLimiter(10, 1*time.Minute)
 
+	// Agent rate limiter (500 requests per minute per IP — generous for multi-agent NAT setups)
+	agentRateLimiter := middleware.NewRateLimiter(500, 1*time.Minute)
+
 	// Public routes
 	authHandler := handlers.NewAuthHandler(db, cfg)
 	handlers.LoginRateLimiter = loginRateLimiter // Set global reference for hot-reloading
@@ -159,19 +162,19 @@ func main() {
 
 	// Monitor routes
 	monitorHandler := handlers.NewMonitorHandler(db, cfg)
-	router.POST("/api/monitor/pulse", monitorHandler.Pulse)                          // Agent reports here using Secret Header
-	router.POST("/api/monitor/agent-event", monitorHandler.AgentEvent)               // Agent reports status events here
-    router.GET("/api/monitor/agent-commands", monitorHandler.GetAgentCommands)     // Agent polls for server-issued commands
+	router.POST("/api/monitor/pulse", agentRateLimiter.RateLimitMiddleware(), monitorHandler.Pulse)                          // Agent reports here using Secret Header
+	router.POST("/api/monitor/agent-event", agentRateLimiter.RateLimitMiddleware(), monitorHandler.AgentEvent)               // Agent reports status events here
+    router.GET("/api/monitor/agent-commands", agentRateLimiter.RateLimitMiddleware(), monitorHandler.GetAgentCommands)     // Agent polls for server-issued commands
 	router.GET("/api/monitor/install", monitorHandler.GetInstallScript)              // Public install script (verified by host secret)
 	router.GET("/api/monitor/uninstall", monitorHandler.GetUninstallScript)          // Public uninstall script
-	router.POST("/api/monitor/uninstall/callback", monitorHandler.UninstallCallback) // Callback from uninstall script
+	router.POST("/api/monitor/uninstall/callback", agentRateLimiter.RateLimitMiddleware(), monitorHandler.UninstallCallback) // Callback from uninstall script
 	router.GET("/api/monitor/agent-manifest", monitorHandler.GetAgentManifest)       // Agent manifest for secure self-update
 	router.GET("/api/monitor/agent/:filename", monitorHandler.DownloadAgent)         // Public agent download (verified by host secret)
 
 	// Network Monitor Agent Routes
 	netMonitorHandler := handlers.NewNetworkMonitorHandler(db)
-	router.GET("/api/monitor/network/tasks", netMonitorHandler.GetNetworkTasks)
-	router.POST("/api/monitor/network/report", netMonitorHandler.ReportNetworkResults)
+	router.GET("/api/monitor/network/tasks", agentRateLimiter.RateLimitMiddleware(), netMonitorHandler.GetNetworkTasks)
+	router.POST("/api/monitor/network/report", agentRateLimiter.RateLimitMiddleware(), netMonitorHandler.ReportNetworkResults)
 
 	// Protected routes
 	protected := router.Group("/api")
@@ -308,10 +311,12 @@ func main() {
 	router.StaticFile("/logo.png", "./web/dist/logo.png")
 	router.StaticFile("/", "./web/dist/index.html")
 
-	// Swagger UI (Protected)
-	swaggerGroup := router.Group("/swagger")
-	swaggerGroup.Use(middleware.AuthMiddleware(cfg.Security.JWTSecret, db))
-	swaggerGroup.GET("/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	// Swagger UI (Protected, only enabled in non-release mode for security)
+	if cfg.Server.Mode != "release" {
+		swaggerGroup := router.Group("/swagger")
+		swaggerGroup.Use(middleware.AuthMiddleware(cfg.Security.JWTSecret, db))
+		swaggerGroup.GET("/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	}
 
 	router.NoRoute(func(c *gin.Context) {
 		// If the request is for an API route, return 404
@@ -322,6 +327,20 @@ func main() {
 		// Otherwise serve the index.html for SPA routing
 		c.File("./web/dist/index.html")
 	})
+
+	// Start Login History Auto-Cleanup (retain 90 days, check daily)
+	go func() {
+		for {
+			// Run immediately once, then every 24 hours
+			time.Sleep(24 * time.Hour)
+			cutoff := time.Now().AddDate(0, 0, -90)
+			if result := db.Where("login_at < ?", cutoff).Delete(&models.LoginHistory{}); result.Error != nil {
+				log.Printf("Login history cleanup failed: %v", result.Error)
+			} else if result.RowsAffected > 0 {
+				log.Printf("Login history cleanup: removed %d records older than 90 days", result.RowsAffected)
+			}
+		}
+	}()
 
 	// Start server
 	addr := fmt.Sprintf(":%d", cfg.Server.Port)

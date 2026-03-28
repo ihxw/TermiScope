@@ -17,7 +17,7 @@ COPY --from=frontend-builder /web/dist /app/web/dist
 RUN CGO_ENABLED=0 GOOS=linux go build -o main ./cmd/server/main.go
 
 # Stage 3: Final Image
-FROM alpine:latest
+FROM alpine:3.21
 RUN apk --no-cache add ca-certificates tzdata
 WORKDIR /app
 COPY --from=backend-builder /app/main .
