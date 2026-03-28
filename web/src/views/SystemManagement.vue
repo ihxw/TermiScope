@@ -128,7 +128,12 @@
                   </a-col>
                   <a-col :span="3">
                     <a-form-item :label="t('system.smtpTo')" name="smtp_to">
-                      <a-input v-model:value="settingsForm.smtp_to" placeholder="admin@example.com" />
+                      <a-input v-model:value="settingsForm.smtp_to" :placeholder="t('system.smtpToPlaceholder')" />
+                    </a-form-item>
+                    <a-form-item name="smtp_tls_skip_verify">
+                      <a-checkbox v-model:checked="settingsForm.smtp_tls_skip_verify">
+                        {{ t('system.smtpTlsSkipVerify') }}
+                      </a-checkbox>
                     </a-form-item>
                   </a-col>
                   <a-col :span="2" style="text-align: right;">
@@ -338,7 +343,7 @@ const settingsForm = reactive({
   smtp_password: '',
   smtp_from: '',
   smtp_to: '',
-  smtp_to: '',
+  smtp_tls_skip_verify: false,
   telegram_bot_token: '',
   telegram_chat_id: '',
   notification_template: ''
@@ -350,29 +355,16 @@ const sendingTestTelegram = ref(false)
 const handleTestEmail = async () => {
   sendingTestEmail.value = true
   try {
-    await api.post('/system/settings/test-email', {
-        smtp_server: settingsForm.smtp_server,
-        smtp_port: settingsForm.smtp_port,
-        smtp_user: settingsForm.smtp_user,
-        smtp_password: settingsForm.smtp_password,
-        smtp_from: settingsForm.smtp_from,
-        smtp_to: settingsForm.smtp_to,
-        // The backend expects smtp_tls_skip_verify as a boolean if using JSON binding
-        // But settingsForm loads strings from DB usually?
-        // Wait, DB stores strings. 
-        // Backend `TestEmail` binds JSON to struct with `bool`.
-        // Frontend need to ensure it sends boolean or backend handles string.
-        // Let's check `View File` of `system.go` again...
-        // ... `SMTPSkipVerify bool ...`
-        // So frontend must send boolean. 
-        // We don't have a checkbox for this in the UI form yet?
-        // Let's check the UI form...
-        // ... I don't see a checkbox for skip verify in the form I read earlier.
-        // If it's missing from UI, maybe we just default false or ignored?
-        // The original code in `notification.go` reads `config["smtp_tls_skip_verify"] == "true"`.
-        // So if I send nothing, it is false.
-        smtp_tls_skip_verify: false // Default to false as UI doesn't have it yet
-    })
+    const payload = {
+      smtp_server: settingsForm.smtp_server,
+      smtp_port: settingsForm.smtp_port,
+      smtp_user: settingsForm.smtp_user,
+      smtp_password: settingsForm.smtp_password,
+      smtp_from: settingsForm.smtp_from,
+      smtp_to: settingsForm.smtp_to,
+      smtp_tls_skip_verify: settingsForm.smtp_tls_skip_verify
+    }
+    await api.post('/system/settings/test-email', payload)
     message.success(t('system.testEmailSuccess'))
   } catch (err) {
     message.error(t('system.testEmailFailed') + ': ' + (err.response?.data?.error || err.message))

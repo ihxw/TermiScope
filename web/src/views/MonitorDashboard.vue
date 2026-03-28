@@ -29,6 +29,18 @@
         <template #icon><FileTextOutlined /></template>
         {{ t('monitor.trafficResetLogs') }}
       </a-button>
+
+      <a-button 
+        v-if="outdatedHostsCount > 0" 
+        size="small" 
+        type="primary" 
+        ghost 
+        @click="handleBatchUpdate"
+        :loading="batchUpdating"
+      >
+        <template #icon><SyncOutlined /></template>
+        {{ t('monitor.batchUpdate', { count: outdatedHostsCount }) }}
+      </a-button>
     </div>
 
     <!-- Card View -->
@@ -84,9 +96,15 @@
                   {{ host.agent_update_status }}
                 </a-tag>
                 <template v-else-if="isAgentOutdated(host)">
-                  <a-button size="small" type="primary" @click.stop.prevent="triggerAgentUpdate(host)">
-                    {{ t('common.updateNow') }}
-                  </a-button>
+                  <a-tooltip :title="t('monitor.agentOutdated') + ': v' + serverAgentVersion">
+                    <a-tag color="warning" style="cursor: pointer; margin: 0" @click.stop="triggerAgentUpdate(host)">
+                      <template #icon><ArrowUpOutlined /></template>
+                      {{ t('common.update') }}
+                    </a-tag>
+                  </a-tooltip>
+                </template>
+                <template v-else>
+                   <a-tag color="success" size="small" style="margin: 0">{{ t('monitor.agentLatest') }}</a-tag>
                 </template>
               </template>
             </div>
@@ -408,10 +426,10 @@
 import { ref, onMounted, onUnmounted, computed, h, watch, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSSHStore } from '../stores/ssh'
-import { ArrowDownOutlined, ArrowUpOutlined, AppleOutlined, WindowsOutlined, DesktopOutlined, LineChartOutlined, HistoryOutlined, SettingOutlined, CodeOutlined, AppstoreOutlined, UnorderedListOutlined, InfoCircleOutlined, FileTextOutlined } from '@ant-design/icons-vue'
+import { ArrowDownOutlined, ArrowUpOutlined, AppleOutlined, WindowsOutlined, DesktopOutlined, LineChartOutlined, HistoryOutlined, SettingOutlined, CodeOutlined, AppstoreOutlined, UnorderedListOutlined, InfoCircleOutlined, FileTextOutlined, SyncOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { getWSTicket } from '../api/auth'
-import { getMonitorLogs, getTrafficResetLogs } from '../api/ssh'
+import { getMonitorLogs, getTrafficResetLogs, updateAgent } from '../api/ssh'
 import { message } from 'ant-design-vue'
 import api from '../api/index'
 import dayjs from 'dayjs'
@@ -476,10 +494,39 @@ const isAgentOutdated = (host) => {
 
   const triggerAgentUpdate = async (host) => {
     try {
-      await api.post(`/ssh-hosts/${host.host_id}/monitor/update`)
+      await updateAgent(host.host_id)
       message.success(t('monitor.updating'))
     } catch (err) {
       message.error(t('common.updateFailed'))
+    }
+  }
+
+  const batchUpdating = ref(false)
+  const outdatedHostsCount = computed(() => sortedHosts.value.filter(h => isAgentOutdated(h)).length)
+  
+  const handleBatchUpdate = async () => {
+    const outdated = sortedHosts.value.filter(h => isAgentOutdated(h))
+    if (outdated.length === 0) return
+    
+    batchUpdating.value = true
+    try {
+        let success = 0
+        let fail = 0
+        for (const h of outdated) {
+            try {
+                await updateAgent(h.host_id)
+                success++
+            } catch (e) {
+                fail++
+            }
+        }
+        if (fail === 0) {
+            message.success(t('monitor.batchUpdateSuccess', { count: success }))
+        } else {
+            message.warning(t('monitor.batchUpdatePartial', { success, fail }))
+        }
+    } finally {
+        batchUpdating.value = false
     }
   }
 

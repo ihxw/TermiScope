@@ -300,6 +300,7 @@ type UpdateSettingsRequest struct {
 	SMTPPassword         string `json:"smtp_password"`
 	SMTPFrom             string `json:"smtp_from"`
 	SMTPTo               string `json:"smtp_to"`
+	SMTPSkipVerify       bool   `json:"smtp_tls_skip_verify"`
 	TelegramBotToken     string `json:"telegram_bot_token"`
 	TelegramChatID       string `json:"telegram_chat_id"`
 	NotificationTemplate string `json:"notification_template"`
@@ -351,6 +352,7 @@ func (h *SystemHandler) UpdateSettings(c *gin.Context) {
 			"smtp_password":         req.SMTPPassword,
 			"smtp_from":             req.SMTPFrom,
 			"smtp_to":               req.SMTPTo,
+			"smtp_tls_skip_verify":  fmt.Sprintf("%v", req.SMTPSkipVerify),
 			"telegram_bot_token":    req.TelegramBotToken,
 			"telegram_chat_id":      req.TelegramChatID,
 			"notification_template": req.NotificationTemplate,

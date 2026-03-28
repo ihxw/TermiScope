@@ -12,6 +12,18 @@ export const initialize = async (username, password) => {
     return await api.post('/auth/initialize', { username, password })
 }
 
+export const forgotPassword = async (email) => {
+    return await api.post('/auth/forgot-password', { email })
+}
+
+export const getLoginHistory = async (page = 1, pageSize = 10) => {
+    return await api.get('/auth/login-history', { params: { page, page_size: pageSize } })
+}
+
+export const revokeSession = async (jti) => {
+    return await api.post('/auth/sessions/revoke', { jti })
+}
+
 export const logout = async () => {
     return await api.post('/auth/logout')
 }

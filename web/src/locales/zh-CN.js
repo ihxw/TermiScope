@@ -259,7 +259,22 @@ export default {
         revokeSuccess: '会话已注销',
         revokeFailed: '注销失败',
         loadSshFailed: '加载 SSH 记录失败',
-        loadWebFailed: '加载 Web 记录失败'
+        loadWebFailed: '加载 Web 记录失败',
+        sessions: '活跃会话',
+        loginHistory: '登录历史',
+        activeSessions: '当前活跃会话',
+        noActiveSessions: '无其他活跃会话',
+        revoke: '下线',
+        revoking: '正在下线...',
+        revokeConfirm: '确定要将该设备强制下线吗？',
+        current: '当前会话',
+        browser: '浏览器',
+        os: '操作系统',
+        lastActive: '最后活动',
+        location: '地点',
+        statusActive: '活动中',
+        statusRevoked: '已撤销',
+        statusExpired: '已过期'
     },
     command: {
         title: '命令管理',

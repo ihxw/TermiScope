@@ -250,7 +250,22 @@ export default {
         revokeSuccess: 'Session revoked successfully',
         revokeFailed: 'Failed to revoke session',
         loadSshFailed: 'Failed to load SSH logs',
-        loadWebFailed: 'Failed to load Web login logs'
+        loadWebFailed: 'Failed to load web logs',
+        sessions: 'Active Sessions',
+        loginHistory: 'Login History',
+        activeSessions: 'Currently Active Sessions',
+        noActiveSessions: 'No other active sessions',
+        revoke: 'Log Out',
+        revoking: 'Logging out...',
+        revokeConfirm: 'Are you sure you want to force this session to log out?',
+        current: 'Current Session',
+        browser: 'Browser',
+        os: 'OS',
+        lastActive: 'Last Active',
+        location: 'Location',
+        statusActive: 'Active',
+        statusRevoked: 'Revoked',
+        statusExpired: 'Expired'
     },
     command: {
         title: 'Command Management',

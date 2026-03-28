@@ -1,69 +1,149 @@
 <template>
   <div class="profile-container">
-    <a-card :title="t('nav.profile')" :bordered="false">
-      <a-descriptions bordered :column="1" size="small">
-        <a-descriptions-item :label="t('user.username')">
-          {{ authStore.user?.username }}
-        </a-descriptions-item>
-        <a-descriptions-item :label="t('user.email')">
-          {{ authStore.user?.email }}
-        </a-descriptions-item>
-        <a-descriptions-item :label="t('user.displayName')">
-          {{ authStore.user?.display_name || '-' }}
-        </a-descriptions-item>
-        <a-descriptions-item :label="t('user.role')">
-          <a-tag :color="authStore.user?.role === 'admin' ? 'red' : 'blue'">
-            {{ authStore.user?.role }}
-          </a-tag>
-        </a-descriptions-item>
-        <a-descriptions-item :label="t('user.status')">
-          <a-tag :color="authStore.user?.status === 'active' ? 'success' : 'default'">
-            {{ authStore.user?.status }}
-          </a-tag>
-        </a-descriptions-item>
-        <a-descriptions-item :label="t('user.lastLogin')">
-          {{ formatDate(authStore.user?.last_login_at) }}
-        </a-descriptions-item>
-        <a-descriptions-item :label="t('twofa.title')">
-          <a-tag :color="authStore.user?.two_factor_enabled ? 'success' : 'default'">
-            {{ authStore.user?.two_factor_enabled ? t('twofa.enabled') : t('twofa.disabled') }}
-          </a-tag>
-        </a-descriptions-item>
-      </a-descriptions>
+    <a-card :bordered="false" :body-style="{ padding: '0 24px 24px' }">
+      <a-tabs v-model:activeKey="activeTab">
+        <!-- Basic Info Tab -->
+        <a-tab-pane key="basic" :tab="t('nav.profile')">
+          <div style="padding-top: 16px">
+            <a-descriptions bordered :column="1" size="small">
+              <a-descriptions-item :label="t('user.username')">
+                {{ authStore.user?.username }}
+              </a-descriptions-item>
+              <a-descriptions-item :label="t('user.email')">
+                {{ authStore.user?.email }}
+              </a-descriptions-item>
+              <a-descriptions-item :label="t('user.displayName')">
+                {{ authStore.user?.display_name || '-' }}
+              </a-descriptions-item>
+              <a-descriptions-item :label="t('user.role')">
+                <a-tag :color="authStore.user?.role === 'admin' ? 'red' : 'blue'">
+                  {{ authStore.user?.role }}
+                </a-tag>
+              </a-descriptions-item>
+              <a-descriptions-item :label="t('user.status')">
+                <a-tag :color="authStore.user?.status === 'active' ? 'success' : 'default'">
+                  {{ authStore.user?.status }}
+                </a-tag>
+              </a-descriptions-item>
+              <a-descriptions-item :label="t('user.lastLogin')">
+                {{ formatDate(authStore.user?.last_login_at) }}
+              </a-descriptions-item>
+              <a-descriptions-item :label="t('twofa.title')">
+                <a-tag :color="authStore.user?.two_factor_enabled ? 'success' : 'default'">
+                  {{ authStore.user?.two_factor_enabled ? t('twofa.enabled') : t('twofa.disabled') }}
+                </a-tag>
+              </a-descriptions-item>
+            </a-descriptions>
 
-      <a-divider />
+            <a-divider />
 
-      <a-space>
-        <a-button type="primary" size="small" @click="showPasswordModal = true">
-          {{ t('auth.changePassword') }}
-        </a-button>
+            <a-space>
+              <a-button type="primary" size="small" @click="showPasswordModal = true">
+                {{ t('auth.changePassword') }}
+              </a-button>
 
-        <a-button 
-          v-if="!authStore.user?.two_factor_enabled"
-          type="primary" 
-          size="small" 
-          @click="handleSetup2FA"
-        >
-          {{ t('twofa.enable') }}
-        </a-button>
+              <a-button 
+                v-if="!authStore.user?.two_factor_enabled"
+                type="primary" 
+                size="small" 
+                @click="handleSetup2FA"
+              >
+                {{ t('twofa.enable') }}
+              </a-button>
 
-        <a-button 
-          v-else
-          danger 
-          size="small" 
-          @click="showDisable2FAModal = true"
-        >
-          {{ t('twofa.disable') }}
-        </a-button>
+              <a-button 
+                v-else
+                danger 
+                size="small" 
+                @click="showDisable2FAModal = true"
+              >
+                {{ t('twofa.disable') }}
+              </a-button>
 
-        <a-button 
-          v-if="authStore.user?.two_factor_enabled"
-          size="small" 
-          @click="handleRegenerateBackupCodes"
-        >
-          {{ t('twofa.regenerateBackupCodes') }}
-        </a-button>
-      </a-space>
+              <a-button 
+                v-if="authStore.user?.two_factor_enabled"
+                size="small" 
+                @click="handleRegenerateBackupCodes"
+              >
+                {{ t('twofa.regenerateBackupCodes') }}
+              </a-button>
+            </a-space>
+          </div>
+        </a-tab-pane>
+
+        <!-- Login History Tab -->
+        <a-tab-pane key="history" :tab="t('history.loginHistory')">
+          <div style="padding-top: 16px">
+            <a-table
+              :columns="historyColumns"
+              :data-source="loginHistory"
+              :loading="historyLoading"
+              :pagination="pagination"
+              row-key="id"
+              size="small"
+              @change="handleTableChange"
+            >
+              <template #bodyCell="{ column, record }">
+                <template v-if="column.key === 'status'">
+                  <a-tag :color="getStatusColor(record.status)">
+                    {{ getStatusText(record.status) }}
+                  </a-tag>
+                </template>
+                <template v-else-if="column.key === 'login_at'">
+                  {{ formatDate(record.login_at) }}
+                </template>
+                <template v-else-if="column.key === 'user_agent'">
+                  <a-tooltip :title="record.user_agent">
+                    <span class="user-agent-text">{{ record.user_agent }}</span>
+                  </a-tooltip>
+                </template>
+                <template v-else-if="column.key === 'is_current'">
+                  <a-tag v-if="record.is_current" color="green">{{ t('history.current') }}</a-tag>
+                </template>
+              </template>
+            </a-table>
+          </div>
+        </a-tab-pane>
+
+        <!-- Active Sessions Tab -->
+        <a-tab-pane key="sessions" :tab="t('history.sessions')">
+          <div style="padding-top: 16px">
+            <a-list :data-source="activeSessions" :loading="historyLoading">
+              <template #renderItem="{ item }">
+                <a-list-item>
+                  <a-list-item-meta
+                    :title="item.is_current ? t('history.current') : item.ip_address"
+                    :description="item.user_agent"
+                  >
+                    <template #avatar>
+                      <a-avatar style="background-color: #f56a00" v-if="item.is_current">
+                        <template #icon><UserOutlined /></template>
+                      </a-avatar>
+                      <a-avatar style="background-color: #87d068" v-else>
+                        <template #icon><LaptopOutlined /></template>
+                      </a-avatar>
+                    </template>
+                  </a-list-item-meta>
+                  <template #actions>
+                    <a-button 
+                      v-if="!item.is_current" 
+                      type="link" 
+                      danger 
+                      @click="confirmRevoke(item.jti)"
+                    >
+                      {{ t('history.revoke') }}
+                    </a-button>
+                    <span v-else style="color: #52c41a; font-weight: bold">{{ t('history.statusActive') }}</span>
+                  </template>
+                </a-list-item>
+              </template>
+            </a-list>
+            <div v-if="activeSessions.length === 0 && !historyLoading" style="text-align: center; padding: 20px; color: #999">
+              {{ t('history.noActiveSessions') }}
+            </div>
+          </div>
+        </a-tab-pane>
+      </a-tabs>
     </a-card>
 
     <!-- Change Password Modal -->
@@ -171,21 +251,44 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { message, Modal } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
+import { UserOutlined, LaptopOutlined } from '@ant-design/icons-vue'
 import { useAuthStore } from '../stores/auth'
-import { changePassword } from '../api/auth'
+import { changePassword, getLoginHistory, revokeSession } from '../api/auth'
 import { setup2FA, verifySetup2FA, disable2FA, regenerateBackupCodes } from '../api/twofa'
 
 const { t } = useI18n()
 const authStore = useAuthStore()
 
+const activeTab = ref('basic')
 const showPasswordModal = ref(false)
 const show2FASetupModal = ref(false)
 const showDisable2FAModal = ref(false)
 const showBackupCodesModal = ref(false)
 const loading = ref(false)
+
+const loginHistory = ref([])
+const historyLoading = ref(false)
+const pagination = reactive({
+  current: 1,
+  pageSize: 10,
+  total: 0,
+  showSizeChanger: true
+})
+
+const historyColumns = [
+  { title: t('history.ipAddress'), dataIndex: 'ip_address', key: 'ip_address' },
+  { title: t('history.browser'), dataIndex: 'user_agent', key: 'user_agent', ellipsis: true },
+  { title: t('history.loginTime'), dataIndex: 'login_at', key: 'login_at' },
+  { title: t('history.status'), dataIndex: 'status', key: 'status' },
+  { title: '', key: 'is_current', width: 80 }
+]
+
+const activeSessions = computed(() => {
+  return loginHistory.value.filter(s => s.status === 'Active')
+})
 
 const passwordForm = ref({
   current: '',
@@ -198,6 +301,69 @@ const secretKey = ref('')
 const verificationCode = ref('')
 const disableVerificationCode = ref('')
 const backupCodes = ref([])
+
+onMounted(() => {
+  fetchHistory()
+})
+
+watch(activeTab, (val) => {
+  if (val === 'history' || val === 'sessions') {
+    fetchHistory()
+  }
+})
+
+const fetchHistory = async () => {
+  historyLoading.value = true
+  try {
+    const res = await getLoginHistory(pagination.current, pagination.pageSize)
+    loginHistory.value = res.data
+    pagination.total = res.pagination.total
+  } catch (error) {
+    message.error(t('history.loadWebFailed'))
+  } finally {
+    historyLoading.value = false
+  }
+}
+
+const handleTableChange = (pag) => {
+  pagination.current = pag.current
+  pagination.pageSize = pag.pageSize
+  fetchHistory()
+}
+
+const confirmRevoke = (jti) => {
+  Modal.confirm({
+    title: t('history.revokeConfirm'),
+    okText: t('common.ok'),
+    cancelText: t('common.cancel'),
+    onOk: async () => {
+      try {
+        await revokeSession(jti)
+        message.success(t('history.revokeSuccess'))
+        fetchHistory()
+      } catch (error) {
+        message.error(t('history.revokeFailed'))
+      }
+    }
+  })
+}
+
+const getStatusColor = (status) => {
+  switch (status) {
+    case 'Active': return 'green'
+    case 'Revoked': return 'red'
+    default: return 'gray'
+  }
+}
+
+const getStatusText = (status) => {
+  switch (status) {
+    case 'Active': return t('history.statusActive')
+    case 'Revoked': return t('history.statusRevoked')
+    case 'Expired': return t('history.statusExpired')
+    default: return status
+  }
+}
 
 const formatDate = (dateString) => {
   if (!dateString) return '-'
@@ -340,6 +506,11 @@ const downloadBackupCodes = () => {
 <style scoped>
 .profile-container {
   padding: 16px;
+}
+
+.user-agent-text {
+  font-size: 12px;
+  color: #888;
 }
 
 @media (max-width: 768px) {
