@@ -1,13 +1,8 @@
-# TermiScope
-
-# 本项目所有代码由AI编写，包括 README.md 。
-
-
 <div align="center">
   <img src="./web/public/logo.png" width="100" />
   <h1>TermiScope</h1>
   <p>
-    <strong>Modern, Lightweight Server Management & Monitoring Platform</strong>
+    <strong>现代化、轻量级的服务器管理与监控平台</strong>
   </p>
   <p>
     <a href="https://go.dev/"><img src="https://img.shields.io/badge/Backend-Go_1.25+-blue.svg" alt="Go"></a>
@@ -17,124 +12,149 @@
   </p>
 </div>
 
-TermiScope is a powerful, self-hosted server management tool designed to simplify your DevOps workflow. It combines a fully-featured web SSH terminal with comprehensive server monitoring and network traffic management.
-
-## ✨ Features / 功能特性
-
-### 🖥️ Web Terminal (Web 终端)
-- **Full SSH Client**: Built on `xterm.js`, supporting all standard SSH interactions.
-- **Theme Support**: Includes 100+ VS Code-like themes (Dracula, One Dark, Monokai, etc.) with transparent background support.
-- **SFTP Integration**: Drag-and-drop file uploads/downloads via Zmodem or built-in SFTP browser.
-- **Session Recording**: Automatic session recording for audit and playback.
-
-### 📊 Server Monitoring (系统监控)
-- **Multi-Platform Agent**: Lightweight agents for **Linux**, **Windows**, **macOS**, and **FreeBSD**.
-- **Real-time Metrics**: Dashboards for CPU, RAM, Disk, and Network usage.
-- **One-Click Deploy**: Automatically deploy monitoring agents to your SSH hosts via the dashboard.
-- **Batch Operations**: Bulk deploy, stop, and manage monitoring agents across hundreds of hosts.
-
-### 📉 Network Latency Monitor (网络延迟监控)
-- **Connectivity Tracking**: Monitor network latency and packet loss in real-time.
-- **Multi-Protocol Support**: Support for both **ICMP Ping** and **TCP Ping** to detect network quality.
-- **Visual Analytics**: Interactive charts with zoom capability and historical data playback.
-
-### 🚦 Traffic Management (流量管理)
-- **Traffic Limits**: Set monthly data caps (e.g., 1TB) for your servers.
-- **Billing Cycle**: Configure billing reset days.
-- **Visual Tracking**: Progress bars and alerts for traffic usage.
-
-### 🔒 Security & Management (安全与管理)
-- **Two-Factor Authentication (2FA)**: Secure your account with TOTP (Google Authenticator, Authy).
-- **Role-Based Access**: Granular permission control (Admin/User).
-- **Encryption**: Sensitive credentials (passwords, private keys) are AES-encrypted.
-- **Audit Logs**: Detailed login and connection history.
+TermiScope 是一个功能强大且支持自托管的服务器管理工具(**代码完全由AI编写**)，旨在简化 DevOps 工作流。它结合了全功能的 Web SSH 终端、全面的服务器状态监控、网络连通性监控和安全审计流程，支持多语言、多主题以及高度自定义。
 
 ---
 
-## 🚀 Quick Start / 快速开始
+## ✨ 功能特性
 
-### Installation
+### 🖥️ Web 终端与 SFTP
+- **全功能 SSH 客户端**：基于 `xterm.js`，支持所有标准 SSH 交互，提供与本地终端一致的体验。
+- **自定义主题**：支持透明背景及 100+ 款类似 VS Code 的主题（Dracula, One Dark, Monokai 等）。
+- **文件管理 (SFTP)**：支持 Zmodem 协议和内置可视化的 SFTP 浏览器，支持拖拽上传/下载。
+- **凭据管理与自动填充**：安全存储 SSH 密码和密钥，支持编辑主机时自动填充已存密码。
+- **终端界面优化**：自适应拉伸与动态调整展示区域，确保输出不被遮挡。
 
-**Script Install (Linux/macOS):**
+### 📊 服务器与网络监控
+- **轻量级跨平台 Agent**：支持 Linux, Windows, macOS, 和 FreeBSD，一键下发和管理。
+- **实时系统性能监控**：直观展示 CPU、内存、磁盘和网络 I/O 实时状态。
+- **网络延迟监控**：支持 ICMP Ping 和 TCP Ping 协议的节点连通性检测，交互式图表展示历史数据和丢包率。
+- **流量限制预警**：支持为主机配置月度流量配额（如 1TB）以及账单结算日，超限直观展示。
+
+### 🛡️ 安全与审计管理
+- **动态审批工作流应用**：支持可配置的动态安全审计与审批工作流管理，细致追踪每一个操作环节 (如安全工单审批)。
+- **操作录像回放 (Session Recording)**：自动进行 SSH 终端会话录像，支持管理员事后审计和关键操作回放。
+- **多语言与本地化 (i18n)**：全界面支持国际化（中英切换等），涵盖通知、仪表盘与配置组件。
+- **全局时区设置**：支持自定义全局时区，统一日志与会话记录的时间戳展示。
+- **身份验证与鉴权**：
+  - 双重身份验证 (2FA / TOTP，例如 Google Authenticator, Authy)。
+  - 基于角色 (Admin/User) 的访问权限控制。
+  - 核心敏感配置与凭据 (如密码、私钥) 使用 AES-256 高强度加密。
+  - API 与 Agent 通信频率限制 (Rate Limiting) 抵御暴力破解风险并在底层防御恶意流量。
+
+---
+
+## ⚙️ 系统配置项 (config.yaml)
+
+启动系统前，可以通过修改 `configs/config.yaml` 灵活调整后端服务和安全策略：
+
+### Server（服务器配置）
+| 配置项 | 默认值 | 说明 |
+| --- | --- | --- |
+| `server.port` | `3000` | 后端服务监听绑定的端口号 |
+| `server.mode` | `debug` | 运行模式：`debug` (输出更多日志) 或 `release` (生产环境精简日志) |
+| `server.allowed_origins` | `["http://localhost:5173", ...]` | 允许的跨域请求源（CORS）。生产环境建议只保留实际域名，若前后端同源可清空 |
+| `server.max_upload_size` | `1048576000` | 允许的最大文件上传尺寸（默认约 1000MB） |
+
+### Database（数据库配置）
+| 配置项 | 默认值 | 说明 |
+| --- | --- | --- |
+| `database.path` | `./data/termiscope.db` | 本地 SQLite 数据库文件存放路径 |
+
+### Security（安全配置）
+| 配置项 | 默认值 | 说明 |
+| --- | --- | --- |
+| `security.jwt_secret` | `""` | JWT Token 签名密钥。留空则首次启动自动生成。建议通过 `TERMISCOPE_JWT_SECRET` 环境变量注入 |
+| `security.encryption_key` | `""` | 数据加密密钥（AES-256，需要正好 32 字节大小）。建议通过 `TERMISCOPE_ENCRYPTION_KEY` 环境变量注入 |
+| `security.smtp_tls_skip_verify` | `false` | 是否跳过 SMTP TLS 验证。生产环境务必为 `false`，仅在测试环境下允许配置以覆盖安全验证 |
+*(注：由于系统安全更新，登录频率限制等配置由代码底层防御层默认进行强制保护)*
+
+### Log（日志配置）
+| 配置项 | 默认值 | 说明 |
+| --- | --- | --- |
+| `log.level` | `info` | 记录日志的等级限制，如 `debug`, `info`, `warn`, `error` |
+| `log.file` | `./logs/app.log` | 输出的日志文件绝对或相对路径 |
+
+---
+
+## 🚀 快速开始
+
+### 方式一：一键安装脚本 (推荐 Linux/macOS)
 ```bash
 curl -fsSL https://raw.githubusercontent.com/ihxw/TermiScope/main/scripts/install.sh | bash
 ```
 
-**Manual Install:**
-1. Download the latest release from the [Releases](https://github.com/ihxw/TermiScope/releases) page.
-2. **Unzip** the archive.
-3. **Run** the server:
+### 方式二：手动运行二进制包
+1. 从 [Releases 页面](https://github.com/ihxw/TermiScope/releases) 下载适合您操作系统的最新压缩包。
+2. 解压文件并运行服务端核心程序：
    ```bash
-   # Linux/macOS
+   # Linux / macOS
    chmod +x TermiScope
    ./TermiScope
    
    # Windows
    ./server.exe
    ```
-4. Access the dashboard at `http://localhost:8080`.
+3. 在浏览器中访问 `http://localhost:3000`（或您修改的端口） 即可加载控制台。
 
 ---
 
-## 🛠️ Development / 开发指南
+## 🛠️ 开发与构建指南
 
-### Prerequisites
-- **Go 1.25+**
-- **Node.js 20+**
-- **PowerShell** (Recommended for build scripts)
+### 依赖环境
+- **Go 1.25+** (基于最新语言特性开发后端)
+- **Node.js 20+** (依赖现代化的 Vite 和 Vue 3 生态开发前端)
+- **PowerShell** (便于运行各端自动化脚本)
 
-### Setup
+### 本地调试
+安装并克隆项目到本地方向：
+```bash
+git clone https://github.com/ihxw/TermiScope.git
+cd TermiScope
+```
 
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/ihxw/TermiScope.git
-   cd TermiScope
-   ```
+同时启动前后端热更新调试（支持 Windows PowerShell 环境）：
+```powershell
+./dev_run.ps1
+```
+*(脚本会自动启动多进程：Go API 绑定3000，Vue 前端 5173，并持续追踪修改动作)*
 
-2. **Run Development Server** (Windows):
-   ```powershell
-   ./dev_run.ps1
-   ```
-   This will start both the Go backend (port 8080) and Vue frontend (port 5173).
-
-3. **Build Release**:
-   ```powershell
-   ./build_release.ps1
-   ```
-   Artifacts will be generated in the `release/` directory.
+### 构建发布架构
+一键构建完整的对应多平台架构的可执行文件：
+```powershell
+./build_release.ps1
+```
+构建成功后的压缩包、二进制文件将被统一储存在 `release/` 目录中。
 
 ---
 
-## 📦 Agent Deployment
+## 📦 监控节点 (Agent) 部署
 
-To monitor a server, you need to install the TermiScope Agent.
+若希望在管理面板看到完整的服务器真实性能曲线图，需要在目标机器上安装 TermiScope Agent。提供如下方法：
 
-**Automatic Deployment**:
-1. Go to the **Dashboard** -> **Hosts**.
-2. Click the **Deploy Monitor** button (or use Batch Deploy for multiple hosts).
-3. TermiScope will upload and install the agent automatically via SSH.
+**控制面板推送部署 (自动推荐)**：
+1. 在 TermiScope 前端登录，点击 **Dashboard** -> **主机管理**。
+2. 选择待监控的主机（可以勾选多台批量部署），点击界面的 **部署监控** 按钮。
+3. 系统将复用配置好的 SSH 凭据自动化下发 Agent 安装包并将其设定为系统守护进程。
 
-**Manual Deployment**:
-1. Download the agent binary for your OS.
-2. Run it on the target machine:
+**手工推送部署**：
+1. 下载适配目标平台架构的 `agent` 二进制执行文件。
+2. 将文件推向服务器后运行注册指令并传递密钥参数：
    ```bash
-   # Linux/macOS
    chmod +x agent
-   ./agent -server http://YOUR_TERMISCOPE_IP:8080 -secret YOUR_APP_SECRET -id HOST_ID
+   ./agent -server http://YOUR_TERMISCOPE_IP:3000 -secret YOUR_APP_SECRET -id HOST_ID
    ```
 
 ---
 
-## 📝 License
+## 📚 API 与开发接口文档
+TermiScope 内置 Swagger API 在线交互文档服务。在 debug 开发模式下，可访问：
+`http://localhost:3000/swagger/index.html`
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-
-
-
-
-# 访问文档
-在浏览器中访问： http://localhost:8080/swagger/index.html
-常用命令
-如果将来修改了 API，需要重新生成文档：
+如果后续在项目内部修改或扩展了 Go API 服务层面的接口参数逻辑与注释模型，请重新生成该文档结构规范：
+```bash
 swag init -g cmd/server/main.go --parseDependency
+```
+
+## 📝 许可协议与版权声明
+本项目基于 [MIT License](LICENSE) 授权开源发布，受相应的开放源代码共识约束。详细声明和版权条文请参见源代码根目录下的 LICENSE 许可证文件。
