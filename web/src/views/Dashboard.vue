@@ -87,9 +87,11 @@
             </div>
             
             <!-- Language Toggle -->
-            <a-button size="small" @click="localeStore.toggleLocale">
-              {{ localeStore.isZhCN ? 'EN' : '中' }}
-            </a-button>
+            <div class="lang-switch">
+              <a-button type="link" @click="localeStore.toggleLocale">
+                {{ t('language.nextLanguage') }}
+              </a-button>
+            </div>
             
             <!-- Theme Toggle -->
             <a-button size="small" @click="themeStore.toggleTheme" :icon="themeStore.isDark ? h(BulbOutlined) : h(BulbFilled)">

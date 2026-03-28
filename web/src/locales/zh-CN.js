@@ -28,6 +28,9 @@ export default {
         backendVersion: '后端版本',
         fe: '前端',
         be: '后端',
+        folder: '文件夹',
+        active: '活跃',
+        paused: '暂停',
         name: '名称',
         label: '标签',
         actions: '操作',
@@ -41,7 +44,8 @@ export default {
         disabled: '已禁用',
         saveSuccess: '保存成功',
         saveFailed: '保存失败',
-        saveFailed: '保存失败',
+        updateSuccess: '更新成功',
+        updateFailed: '更新失败',
         settings: '设置',
         hostSettings: '主机设置',
         update: '更新',
@@ -54,8 +58,6 @@ export default {
         monitor: '监控',
         history: '状态历史',
         statusHistory: '主机在线状态记录',
-        statusHistory: '主机在线状态记录',
-        commands: '命令',
         commands: '命令',
         recordings: '录制',
         users: '用户',
@@ -90,7 +92,13 @@ export default {
         emailRequired: '请输入邮箱',
         emailInvalid: '请输入有效的邮箱地址',
         sendResetEmail: '发送重置邮件',
-        resetEmailSent: '重置邮件已发送，如果账号存在，您将收到包含临时密码的邮件。'
+        resetEmailSent: '重置邮件已发送，如果账号存在，您将收到包含临时密码的邮件。',
+        invalidToken: '无效的令牌',
+        newPasswordPlaceholder: '请输入新密码',
+        confirmPasswordPlaceholder: '请确认新密码',
+        passwordResetSuccess: '密码重置成功',
+        logout: '退出登录',
+        logoutConfirm: '确定要退出登录吗？'
     },
     terminal: {
         title: '终端',
@@ -113,7 +121,6 @@ export default {
         onetimeSession: '一次性会话',
         theme: '主题',
         themeAuto: '自动 (跟随系统)',
-        // Fingerprint mismatch dialog
         fingerprintMismatchTitle: '主机身份已变更',
         fingerprintMismatchWarning1: '远程主机标识已发生变化！',
         fingerprintMismatchWarning2: '这可能意味着有人正在窃听您的连接，或者主机密钥刚刚更改。',
@@ -123,7 +130,6 @@ export default {
         fingerprintUpdated: '指纹已更新',
         fingerprintUpdateFailed: '更新指纹失败',
         fingerprintRejected: '连接已被用户取消',
-        // Terminal toolbar
         reconnect: '重新连接',
         disconnect: '断开连接',
         font: '字体',
@@ -131,7 +137,6 @@ export default {
         commands: '命令',
         manageTemplates: '管理模板',
         fileExplorer: '文件浏览器',
-        // Font settings
         fontFamily: '字体',
         fontSize: '字体大小'
     },
@@ -180,8 +185,9 @@ export default {
         type: '类型',
         controlAndMonitor: '控制+监控',
         monitorOnly: '仅监控',
+        failUpdateOrder: '更新主机顺序失败',
         controlAndMonitorDesc: 'SSH 控制 + 监控代理（可远程连接并监控）',
-        monitorOnlyDesc: '仅安装监控代理（只监控，不可 SSH 连接）',
+        monitorOnlyDesc: '仅进行性能监控，不启用 SSH 控制台',
         monitorOnlyNoConnect: '仅监控类型的主机无法进行 SSH 连接',
         financialManagement: '财务管理',
         expirationDate: '到期日期',
@@ -231,7 +237,6 @@ export default {
         flagYellow: '黄色',
         flagGreen: '绿色',
         flagBlue: '蓝色',
-        flagPurple: '紫色',
         flagPurple: '紫色',
         flagGray: '灰色',
         revealPassword: '显示已保存的密码',
@@ -340,7 +345,8 @@ export default {
         createdSuccess: '用户创建成功',
         updatedSuccess: '用户更新成功',
         saveFailed: '保存用户失败',
-        deleteFailed: '删除用户失败'
+        deleteFailed: '删除用户失败',
+        action: '操作'
     },
     theme: {
         light: '浅色',
@@ -350,7 +356,8 @@ export default {
     language: {
         zhCN: '简体中文',
         enUS: 'English',
-        toggle: '切换语言'
+        toggle: '切换语言',
+        nextLanguage: 'EN'
     },
     twofa: {
         title: '双因素认证',
@@ -424,7 +431,6 @@ export default {
         restoreUploading: '正在上传文件... {percent}%',
         restoreProcessing: '正在恢复数据库，请稍候...',
         restoreRestarting: '还原成功，正在重启服务...',
-
         notificationTitle: '通知设置',
         smtpServer: 'SMTP 服务器',
         smtpPort: 'SMTP 端口',
@@ -432,7 +438,8 @@ export default {
         smtpPassword: 'SMTP 密码',
         smtpFrom: '发件人邮箱',
         smtpTo: '接收通知邮箱',
-        telegramToken: 'Telegram Bot Token',
+        smtpToPlaceholder: 'admin@example.com',
+        smtpTlsSkipVerify: '跳过 TLS 验证 (自签名证书)',
         telegramToken: 'Telegram Bot Token',
         telegramChatId: 'Telegram Chat ID',
         notificationTemplate: '通知模板',
@@ -441,7 +448,7 @@ export default {
         updateAvailable: '发现新版本: v{version}',
         updateDesc: '更新内容:',
         updating: '正在更新中...',
-        updateSuccess: '更新成功',
+        updateSuccess: '更新成功误差',
         restartDesc: '更新已完成，系统将自动重启以应用更改。',
         updateFailed: '更新失败',
         testEmail: '发送测试邮件',
@@ -460,7 +467,9 @@ export default {
         restarting: '正在重启服务...',
         updateSuccessText: '更新完成！',
         updateFailedText: '更新失败',
-        resetTemplate: '恢复默认模板'
+        starting: '正在启动...',
+        timezone: '时区',
+        restorePasswordDesc: '重置该用户的密码'
     },
     network: {
         title: '网络详情',
@@ -508,7 +517,12 @@ export default {
         deployTemplate: '部署模板',
         selectHostsToDeploy: '选择要部署的主机: ',
         sharp: '实时',
-        smooth: '平滑'
+        smooth: '平滑',
+        loadFailed: '加载网络列表失败',
+        requiredNameAndTarget: '请填入目标地址和名称',
+        selectHostsFallback: '请至少选择一个主机进行部署',
+        deploySuccess: '网格加速部署命令已下发',
+        deployFailed: '网格加速部署失败'
     },
     monitor: {
         title: '监控',
@@ -525,9 +539,10 @@ export default {
         batchOfflineNotify: '批量设置上下线通知',
         enable: '开启',
         disable: '关闭',
-        batchUpdateSuccess: '批量设置成功',
-        batchUpdatePartial: '设置完成: {success} 成功, {fail} 失败',
-        batchUpdateFailed: '批量设置失败',
+        batchUpdate: '批量更新 Agent ({count})',
+        batchUpdateSuccess: '成功更新 {count} 个 Agent',
+        batchUpdatePartial: '更新完成: {success} 成功, {fail} 失败',
+        batchUpdateFailed: '批量更新失败',
         updating: '正在更新...',
         willRedeploy: '将自动部署',
         batchDeploySuccess: '成功部署监控到 {count} 个主机',
@@ -673,7 +688,6 @@ export default {
         etaSeconds: '约{seconds}秒',
         etaMinutes: '约{minutes}分钟',
         etaHours: '约{hours}小时',
-        // New file management features
         selected: '已选 {count}',
         selectAll: '全选',
         invertSelection: '反选',
@@ -687,7 +701,11 @@ export default {
         files: '文件',
         directories: '文件夹',
         totalSize: '总大小',
-        dragDropUpload: '拖拽文件到此处上传'
+        dragDropUpload: '拖拽文件到此处上传',
+        active: '处于活跃状态',
+        error: '发生错误',
+        paused: '已暂停',
+        success: '操作成功'
     },
     setup: {
         title: '初始化设置',

@@ -2,7 +2,7 @@
   <div class="login-container">
     <div style="position: absolute; top: 20px; right: 20px; display: flex; gap: 12px">
       <a-button size="small" @click="localeStore.toggleLocale">
-        {{ localeStore.isZhCN ? 'EN' : '中' }}
+        {{ t('language.nextLanguage') }}
       </a-button>
       <a-button size="small" @click="themeStore.toggleTheme" :icon="themeStore.isDark ? h(BulbOutlined) : h(BulbFilled)">
         {{ t(themeStore.isDark ? 'theme.light' : 'theme.dark') }}

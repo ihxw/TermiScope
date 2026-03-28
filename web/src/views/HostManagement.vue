@@ -1457,7 +1457,7 @@ const handleBatchDeploy = async () => {
       message.warning(t('monitor.batchDeployPartial', { success: successCount, fail: failCount }))
     }
   } catch (error) {
-    console.error('批量部署错误:', error)
+    console.error('Batch deploy error:', error)
     
     // Mark remaining waiting hosts as error
     validHostIds.forEach(id => {
@@ -1642,18 +1642,18 @@ const handleBatchStop = async () => {
       message.warning(t('monitor.batchStopPartial', { success: successCount, fail: failCount }))
     }
   } catch (error) {
-    console.error('批量停止错误:', error)
+    console.error('Batch stop error:', error)
     
      selectedRowKeys.value.forEach(id => {
       if (stopStatus.value[id].status === 'waiting') {
           stopStatus.value[id] = {
             status: 'error',
-            message: error.message || '停止失败'
+            message: error.message || t('monitor.stopFailed')
           }
       }
     })
     
-    message.error(t('monitor.batchStopFailed') + ': ' + (error.message || 'Error'))
+    message.error(t('monitor.batchStopFailed') + ': ' + (error.message || t('common.error')))
   } finally {
     batchStopping.value = false
   }
