@@ -71,7 +71,7 @@
       v-model:open="showPasswordModal"
       :title="t('auth.changePassword')"
       :confirmLoading="loading"
-      @ok="handleChangePassword"
+      @ok="handlePasswordSubmit"
     >
       <a-form layout="vertical">
         <a-form-item :label="t('auth.oldPassword')">
@@ -177,7 +177,6 @@ import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '../stores/auth'
 import { changePassword } from '../api/auth'
 import { setup2FA, verifySetup2FA, disable2FA, regenerateBackupCodes } from '../api/twofa'
-import SparkMD5 from 'spark-md5'
 
 const { t } = useI18n()
 const authStore = useAuthStore()
@@ -205,7 +204,7 @@ const formatDate = (dateString) => {
   return new Date(dateString).toLocaleString()
 }
 
-const handleChangePassword = async () => {
+const handlePasswordSubmit = async () => {
   if (!passwordForm.value.current || !passwordForm.value.new || !passwordForm.value.confirm) {
     message.error(t('auth.invalidCredentials'))
     return
@@ -223,9 +222,8 @@ const handleChangePassword = async () => {
 
   loading.value = true
   try {
-    // Hash passwords with MD5 before sending, to match login logic
-    const currentHash = SparkMD5.hash(passwordForm.value.current)
-    const newHash = SparkMD5.hash(passwordForm.value.new)
+    const currentHash = passwordForm.value.current
+    const newHash = passwordForm.value.new
     
     await changePassword(currentHash, newHash)
     message.success(t('auth.passwordChanged'))
@@ -233,6 +231,12 @@ const handleChangePassword = async () => {
     passwordForm.value = { current: '', new: '', confirm: '' }
   } catch (error) {
     console.error('Password change failed:', error)
+    if (error.response?.data?.error) {
+      // Don't show generic error if there's a specific message
+      message.error(error.response.data.error)
+    } else {
+      message.error(t('common.error'))
+    }
   } finally {
     loading.value = false
   }

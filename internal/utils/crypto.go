@@ -98,7 +98,7 @@ func Decrypt(ciphertext string, key string) (string, error) {
 
 // DeriveKey derives a 32-byte key from password and salt using PBKDF2
 func DeriveKey(password string, salt []byte) []byte {
-	return pbkdf2.Key([]byte(password), salt, 4096, 32, sha256.New)
+	return pbkdf2.Key([]byte(password), salt, 600000, 32, sha256.New)
 }
 
 // EncryptFile encrypts a file using AES-GCM with a password-derived key

@@ -1,8 +1,6 @@
 package handlers
 
 import (
-	"crypto/md5"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -20,6 +18,20 @@ import (
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
+
+// setAccessTokenCookie sets the access_token cookie with proper security flags
+func setAccessTokenCookie(c *gin.Context, token string, maxAge int) {
+	isSecure := c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https"
+	http.SetCookie(c.Writer, &http.Cookie{
+		Name:     "access_token",
+		Value:    token,
+		MaxAge:   maxAge,
+		Path:     "/",
+		Secure:   isSecure,
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
 
 type AuthHandler struct {
 	db     *gorm.DB
@@ -45,9 +57,9 @@ type ChangePasswordRequest struct {
 }
 
 type LoginResponse struct {
-	Token        string       `json:"token"`
-	RefreshToken string       `json:"refresh_token"`
-	User         *models.User `json:"user"`
+	Token        string         `json:"token"`
+	RefreshToken string         `json:"refresh_token"`
+	User         *models.UserDTO `json:"user"`
 }
 
 type RefreshTokenRequest struct {
@@ -55,7 +67,6 @@ type RefreshTokenRequest struct {
 }
 
 func (h *AuthHandler) generateTokens(user *models.User) (string, string, error) {
-	log.Printf("DEBUG: Generating tokens with AccessExpiration config: %s", h.config.Security.AccessExpiration)
 	accessExp, err := time.ParseDuration(h.config.Security.AccessExpiration)
 	if err != nil {
 		accessExp = 60 * time.Minute
@@ -130,7 +141,8 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	// Verify password
-	if !user.CheckPassword(req.Password) {
+	isValid, needsUpgrade := user.CheckPasswordWithMigration(req.Password)
+	if !isValid {
 		models.SecurityEventLog(h.db, models.LoginFailed, models.SeverityMedium,
 			user.ID, user.Username, c.ClientIP(), c.Request.UserAgent(), "Incorrect password", nil)
 		
@@ -142,6 +154,13 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		
 		utils.ErrorResponse(c, http.StatusUnauthorized, "invalid credentials")
 		return
+	}
+
+	if needsUpgrade {
+		// Silently update password to direct bcrypt hashing
+		if err := user.SetPassword(req.Password); err == nil {
+			h.db.Save(&user)
+		}
 	}
 
 	// Check if 2FA is enabled
@@ -235,12 +254,13 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	if accessDuration == 0 {
 		accessDuration = 60 * time.Minute
 	}
-	c.SetCookie("access_token", accessToken, int(accessDuration.Seconds()), "/", "", false, true)
+	setAccessTokenCookie(c, accessToken, int(accessDuration.Seconds()))
 
+	dto := user.ToDTO()
 	utils.SuccessResponse(c, http.StatusOK, LoginResponse{
 		Token:        accessToken,
 		RefreshToken: refreshToken,
-		User:         &user,
+		User:         &dto,
 	})
 }
 
@@ -325,17 +345,36 @@ func (h *AuthHandler) RefreshToken(c *gin.Context) {
 		return
 	}
 
-	// Note: We are NOT rotating the Refresh token here (it stays valid until expiration or revocation).
-	// If we wanted to rotate, we would declare the old one revoked and issue a new one.
+	// Generate new refresh token
+	refreshExp, err := time.ParseDuration(h.config.Security.RefreshExpiration)
+	if err != nil {
+		refreshExp = 168 * time.Hour
+	}
+
+	newRefreshToken, err := utils.GenerateToken(user.ID, user.Username, user.Role, "refresh", refreshExp, h.config.Security.JWTSecret)
+	if err != nil {
+		utils.LogError("Failed to generate refresh token for user %d: %v", user.ID, err)
+		utils.ErrorResponse(c, http.StatusInternalServerError, "failed to generate token")
+		return
+	}
+
+	// Revoke the old refresh token to achieve rotation
+	if claims.ID != "" {
+		h.db.Create(&models.RevokedToken{
+			JTI:       claims.ID,
+			ExpiresAt: time.Unix(claims.ExpiresAt.Unix(), 0).Add(24 * time.Hour), // Keep slightly longer
+		})
+	}
 
 	log.Printf("Token refreshed successfully for user %d (%s) | IP: %s | New expiration: %s",
 		user.ID, user.Username, c.ClientIP(), time.Now().Add(accessExp).Format(time.RFC3339))
 
 	// Update cookie
-	c.SetCookie("access_token", accessToken, int(accessExp.Seconds()), "/", "", false, true)
+	setAccessTokenCookie(c, accessToken, int(accessExp.Seconds()))
 
 	utils.SuccessResponse(c, http.StatusOK, gin.H{
 		"token": accessToken,
+		"refresh_token": newRefreshToken,
 	})
 }
 
@@ -379,7 +418,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	}
 
 	// Clear cookie
-	c.SetCookie("access_token", "", -1, "/", "", false, true)
+	setAccessTokenCookie(c, "", -1)
 
 	utils.SuccessResponse(c, http.StatusOK, gin.H{
 		"message": "logged out successfully",
@@ -561,7 +600,8 @@ func (h *AuthHandler) GetCurrentUser(c *gin.Context) {
 		return
 	}
 
-	utils.SuccessResponse(c, http.StatusOK, &user)
+	dto := user.ToDTO()
+	utils.SuccessResponse(c, http.StatusOK, &dto)
 }
 
 // GetWSTicket generates a one-time ticket for WebSocket connection
@@ -747,13 +787,14 @@ func (h *AuthHandler) Verify2FALogin(c *gin.Context) {
 	if accessDuration == 0 {
 		accessDuration = 60 * time.Minute
 	}
-	c.SetCookie("access_token", accessToken, int(accessDuration.Seconds()), "/", "", false, true)
+	setAccessTokenCookie(c, accessToken, int(accessDuration.Seconds()))
 
 	// Return response
+	dto := user.ToDTO()
 	utils.SuccessResponse(c, http.StatusOK, LoginResponse{
 		Token:        accessToken,
 		RefreshToken: refreshToken,
-		User:         &user,
+		User:         &dto,
 	})
 }
 
@@ -900,12 +941,13 @@ func (h *AuthHandler) Initialize(c *gin.Context) {
 	if accessDuration == 0 {
 		accessDuration = 60 * time.Minute
 	}
-	c.SetCookie("access_token", accessToken, int(accessDuration.Seconds()), "/", "", false, true)
+	setAccessTokenCookie(c, accessToken, int(accessDuration.Seconds()))
 
+	dto := user.ToDTO()
 	utils.SuccessResponse(c, http.StatusOK, LoginResponse{
 		Token:        accessToken,
 		RefreshToken: refreshToken,
-		User:         user,
+		User:         &dto,
 	})
 }
 
@@ -961,73 +1003,120 @@ func (h *AuthHandler) ForgotPassword(c *gin.Context) {
 		return
 	}
 
-	var user models.User
-	if err := h.db.Where("email = ?", req.Email).First(&user).Error; err != nil {
-		// For security, do not return 404 if email not found, just success.
-		// But for UX (specifically asked by user "处理忘记密码"), let's be explicit for now or just generic.
-		// User requirement "用户可以通过邮箱获得一个随机的密码".
-		// If email not found, we can't send email.
-		// Let's use standard ambiguous response or just return error if internal.
-		// For this project, clear feedback is likely preferred by the user unless specified.
-		utils.ErrorResponse(c, http.StatusNotFound, "user not found")
-		return
-	}
-
-	// Generate temp password
-	// 8 chars: 4 random bytes -> hex = 8 chars? No.
-	// Simple random alphanumeric.
-	tempPassword := utils.GenerateRandomString(8)
-
-	// Hash it: MD5 -> Bcrypt
-	// Client usually sends MD5. So we must treat this tempPassword as if client sent MD5(tempPassword).
-	// So we compute MD5(tempPassword), then pass to SetPassword which does Bcrypt.
-	md5Hash := md5.Sum([]byte(tempPassword))
-	md5String := hex.EncodeToString(md5Hash[:])
-
-	if err := user.SetPassword(md5String); err != nil {
-		utils.ErrorResponse(c, http.StatusInternalServerError, "failed to set password")
-		return
-	}
-
-	if err := h.db.Save(&user).Error; err != nil {
-		utils.ErrorResponse(c, http.StatusInternalServerError, "failed to update user")
-		return
-	}
-
-	// Send notification (Email / Telegram) based on system settings
 	var configs []models.SystemConfig
 	if err := h.db.Find(&configs).Error; err != nil {
-		// Log error but generally return success to user so they don't know it failed internally?
-		// Actually, if we can't send email, they can't reset.
 		utils.ErrorResponse(c, http.StatusInternalServerError, "failed to load system configuration")
 		return
 	}
 
 	configMap := make(map[string]string)
-	for _, c := range configs {
-		configMap[c.ConfigKey] = c.ConfigValue
+	for _, conf := range configs {
+		configMap[conf.ConfigKey] = conf.ConfigValue
 	}
 
-	message := fmt.Sprintf("Hello,\n\n"+
-		"You requested a password reset. Your temporary password is:\n\n"+
+	if configMap["smtp_server"] == "" || configMap["smtp_from"] == "" {
+		utils.ErrorResponse(c, http.StatusServiceUnavailable, "未配置邮件服务器，请联系管理员或使用服务器终端(CLI)进行重置")
+		return
+	}
+
+	var user models.User
+	if err := h.db.Where("email = ?", req.Email).First(&user).Error; err != nil {
+		// Security: Return generic success to prevent email enumeration
+		log.Printf("ForgotPassword: email not found: %s (IP: %s)", req.Email, c.ClientIP())
+		utils.SuccessResponse(c, http.StatusOK, gin.H{
+			"message": "If the email exists in our system, a reset link will be sent.",
+		})
+		return
+	}
+
+	// Generate and save token
+	tokenStr := utils.GenerateRandomString(32)
+	resetToken := models.PasswordResetToken{
+		UserID: user.ID,
+		Token: tokenStr,
+		ExpiresAt: time.Now().Add(1 * time.Hour),
+	}
+	if err := h.db.Create(&resetToken).Error; err != nil {
+		utils.ErrorResponse(c, http.StatusInternalServerError, "failed to create reset token")
+		return
+	}
+
+	// Send email with reset link
+	origin := c.Request.Header.Get("Origin")
+	if origin == "" {
+		host := c.Request.Header.Get("X-Forwarded-Host")
+		if host == "" {
+			host = c.Request.Host
+		}
+		proto := c.Request.Header.Get("X-Forwarded-Proto")
+		if proto == "" {
+			proto = "http"
+		}
+		origin = proto + "://" + host
+	}
+
+	resetLink := origin + "/reset-password?token=" + tokenStr
+
+	message := fmt.Sprintf("Hello %s,\n\n"+
+		"You requested a password reset. Please click the link below to reset your password:\n\n"+
 		"%s\n\n"+
-		"Please login with this password and change it immediately using the 'Change Password' feature.\n\n"+
-		"Best regards,\nTermiScope Team", tempPassword)
+		"This link will expire in 1 hour.\n\n"+
+		"Best regards,\nTermiScope Team", user.Username, resetLink)
 
 	subject := "TermiScope Password Reset"
 
-	// Send Email if configured
-	// Check minimal config presence
-	// We use the system SMTP settings (Host, Port, User, Pass) but send TO the user's email (req.Email)
-	if configMap["smtp_server"] != "" && configMap["smtp_from"] != "" {
-		go func() {
-			if err := utils.SendEmail(configMap, req.Email, subject, message); err != nil {
-				log.Printf("Failed to send password reset email: %v", err)
-			}
-		}()
-	}
+	go func() {
+		if err := utils.SendEmail(configMap, req.Email, subject, message); err != nil {
+			log.Printf("Failed to send password reset email: %v", err)
+		}
+	}()
 
 	utils.SuccessResponse(c, http.StatusOK, gin.H{
-		"message": "Password reset processed. If the email exists and notifications are configured, you will receive a message.",
+		"message": "If the email exists in our system, a reset link will be sent.",
 	})
+}
+
+// ResetPassword handles actual password reset via token
+// @Summary Reset Password
+// @Description Sets a new password using a reset token
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param request body struct{Token string; Password string} true "Reset Payload"
+// @Success 200 {object} map[string]string "Success message"
+// @Router /auth/reset-password [post]
+func (h *AuthHandler) ResetPassword(c *gin.Context) {
+	var req struct {
+		Token    string `json:"token" binding:"required"`
+		Password string `json:"password" binding:"required,min=6"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		utils.ErrorResponse(c, http.StatusBadRequest, "invalid request")
+		return
+	}
+
+	var resetToken models.PasswordResetToken
+	if err := h.db.Where("token = ? AND used = ? AND expires_at > ?", req.Token, false, time.Now()).First(&resetToken).Error; err != nil {
+		utils.ErrorResponse(c, http.StatusBadRequest, "Invalid or expired token")
+		return
+	}
+
+	var user models.User
+	if err := h.db.First(&user, resetToken.UserID).Error; err != nil {
+		utils.ErrorResponse(c, http.StatusBadRequest, "User not found")
+		return
+	}
+
+	// Update password directly using raw password since frontend sends it unhashed now
+	if err := user.SetPassword(req.Password); err != nil {
+		utils.ErrorResponse(c, http.StatusInternalServerError, "Failed to set password")
+		return
+	}
+
+	// Mark token as used
+	resetToken.Used = true
+	h.db.Save(&resetToken)
+	h.db.Save(&user)
+
+	utils.SuccessResponse(c, http.StatusOK, gin.H{"message": "Password reset successfully. You can now login."})
 }

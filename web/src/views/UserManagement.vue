@@ -1,10 +1,10 @@
 <template>
   <div class="user-management-container">
-    <a-card title="User Management" :bordered="false">
+    <a-card :title="t('user.title')" :bordered="false">
       <template #extra>
         <a-button type="primary" size="small" @click="handleAdd">
           <PlusOutlined />
-          Add User
+          {{ t('user.addUser') }}
         </a-button>
       </template>
 
@@ -18,12 +18,12 @@
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'role'">
             <a-tag :color="record.role === 'admin' ? 'red' : 'blue'">
-              {{ record.role }}
+              {{ t(`user.${record.role}`) }}
             </a-tag>
           </template>
           <template v-if="column.key === 'status'">
             <a-tag :color="record.status === 'active' ? 'success' : 'default'">
-              {{ record.status }}
+              {{ t(`user.${record.status}`) }}
             </a-tag>
           </template>
           <template v-if="column.key === 'action'">
@@ -32,7 +32,7 @@
                 <EditOutlined />
               </a-button>
               <a-popconfirm
-                title="Are you sure you want to delete this user?"
+                :title="t('user.deleteConfirm')"
                 @confirm="handleDelete(record.id)"
               >
                 <a-button size="small" danger>
@@ -48,45 +48,45 @@
     <!-- User Modal -->
     <a-modal
       v-model:open="showModal"
-      :title="editingUser ? 'Edit User' : 'Add User'"
+      :title="editingUser ? t('user.editUser') : t('user.addUser')"
       @ok="handleSave"
       :confirmLoading="saving"
     >
       <a-form :model="form" layout="vertical" ref="formRef">
         <a-form-item
-          label="Username"
+          :label="t('user.username')"
           name="username"
-          :rules="[{ required: true, message: 'Please enter username' }]"
+          :rules="[{ required: true, message: t('user.enterUsername') }]"
         >
           <a-input v-model:value="form.username" :disabled="!!editingUser" />
         </a-form-item>
         <a-form-item
-          label="Email"
+          :label="t('user.email')"
           name="email"
-          :rules="[{ required: true, type: 'email', message: 'Please enter a valid email' }]"
+          :rules="[{ required: true, type: 'email', message: t('user.enterValidEmail') }]"
         >
           <a-input v-model:value="form.email" />
         </a-form-item>
-        <a-form-item label="Display Name" name="display_name">
+        <a-form-item :label="t('user.displayName')" name="display_name">
           <a-input v-model:value="form.display_name" />
         </a-form-item>
         <a-form-item
-          label="Password"
+          :label="t('auth.password')"
           name="password"
-          :rules="[{ required: !editingUser, message: 'Please enter password', min: 8 }]"
+          :rules="[{ required: !editingUser, message: t('user.enterPassword'), min: 8 }]"
         >
-          <a-input-password v-model:value="form.password" :placeholder="editingUser ? 'Leave blank to keep current' : ''" />
+          <a-input-password v-model:value="form.password" :placeholder="editingUser ? t('user.leaveBlankKeepCurrent') : ''" />
         </a-form-item>
-        <a-form-item label="Role" name="role" :rules="[{ required: true }]">
+        <a-form-item :label="t('user.role')" name="role" :rules="[{ required: true }]">
           <a-select v-model:value="form.role">
-            <a-select-option value="user">User</a-select-option>
-            <a-select-option value="admin">Admin</a-select-option>
+            <a-select-option value="user">{{ t('user.user') }}</a-select-option>
+            <a-select-option value="admin">{{ t('user.admin') }}</a-select-option>
           </a-select>
         </a-form-item>
-        <a-form-item label="Status" name="status" v-if="editingUser">
+        <a-form-item :label="t('user.status')" name="status" v-if="editingUser">
           <a-select v-model:value="form.status">
-            <a-select-option value="active">Active</a-select-option>
-            <a-select-option value="disabled">Disabled</a-select-option>
+            <a-select-option value="active">{{ t('user.active') }}</a-select-option>
+            <a-select-option value="disabled">{{ t('user.disabled') }}</a-select-option>
           </a-select>
         </a-form-item>
       </a-form>
@@ -95,11 +95,13 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { message } from 'ant-design-vue'
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons-vue'
 import { getUsers, createUser, updateUser, deleteUser } from '../api/users'
-import SparkMD5 from 'spark-md5'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const loading = ref(false)
 const saving = ref(false)
@@ -117,14 +119,14 @@ const form = reactive({
   status: 'active'
 })
 
-const columns = [
-  { title: 'Username', dataIndex: 'username', key: 'username' },
-  { title: 'Email', dataIndex: 'email', key: 'email' },
-  { title: 'Display Name', dataIndex: 'display_name', key: 'display_name' },
-  { title: 'Role', dataIndex: 'role', key: 'role' },
-  { title: 'Status', dataIndex: 'status', key: 'status' },
-  { title: 'Action', key: 'action', width: 150 }
-]
+const columns = computed(() => [
+  { title: t('user.username'), dataIndex: 'username', key: 'username' },
+  { title: t('user.email'), dataIndex: 'email', key: 'email' },
+  { title: t('user.displayName'), dataIndex: 'display_name', key: 'display_name' },
+  { title: t('user.role'), dataIndex: 'role', key: 'role' },
+  { title: t('user.status'), dataIndex: 'status', key: 'status' },
+  { title: t('user.action'), key: 'action', width: 150 }
+])
 
 onMounted(() => {
   loadUsers()
@@ -136,7 +138,7 @@ const loadUsers = async () => {
     const response = await getUsers()
     users.value = response.data || response
   } catch (error) {
-    message.error('Failed to load users')
+    message.error(t('user.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -178,7 +180,7 @@ const handleSave = async () => {
     
     // Hash password if present
     if (submitData.password) {
-      submitData.password = SparkMD5.hash(submitData.password)
+      submitData.password = submitData.password
     } else if (!editingUser.value) {
         // Should be caught by validation, but just in case
         return
@@ -189,17 +191,17 @@ const handleSave = async () => {
 
     if (editingUser.value) {
       await updateUser(editingUser.value.id, submitData)
-      message.success('User updated successfully')
+      message.success(t('user.updatedSuccess'))
     } else {
       await createUser(submitData)
-      message.success('User created successfully')
+      message.success(t('user.createdSuccess'))
     }
     
     showModal.value = false
     loadUsers()
   } catch (error) {
     if (error.errorFields) return // Validation failed
-    message.error(error.response?.data?.error || 'Failed to save user')
+    message.error(error.response?.data?.error || t('user.saveFailed'))
   } finally {
     saving.value = false
   }
@@ -208,10 +210,10 @@ const handleSave = async () => {
 const handleDelete = async (id) => {
   try {
     await deleteUser(id)
-    message.success('User deleted successfully')
+    message.success(t('user.userDeleted'))
     loadUsers()
   } catch (error) {
-    message.error(error.response?.data?.error || 'Failed to delete user')
+    message.error(error.response?.data?.error || t('user.deleteFailed'))
   }
 }
 </script>

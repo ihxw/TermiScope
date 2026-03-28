@@ -271,10 +271,21 @@ export default {
         deleteCommand: '删除命令',
         deleteConfirm: '确定要删除这个命令吗？',
         commandSaved: '命令保存成功',
-        commandDeleted: '命令删除成功'
+        commandDeleted: '命令删除成功',
+        addTemplate: '添加模板',
+        editTemplate: '编辑模板',
+        nameRequired: '名称和命令不能为空',
+        loadFailed: '加载模板失败',
+        saveFailed: '保存模板失败',
+        deleteFailed: '删除模板失败',
+        templateUpdated: '模板更新成功',
+        templateCreated: '模板创建成功',
+        templateDeleted: '模板删除成功'
     },
     recording: {
         title: '录制管理',
+        terminalRecordings: '终端录像',
+        playerTitle: '录像播放器',
         filename: '文件名',
         createdAt: '创建时间',
         size: '大小',
@@ -305,7 +316,16 @@ export default {
         userSaved: '用户保存成功',
         userDeleted: '用户删除成功',
         cannotDeleteSelf: '不能删除自己的账户',
-        lastLogin: '上次登录'
+        lastLogin: '上次登录',
+        enterUsername: '请输入用户名',
+        enterValidEmail: '请输入有效的邮箱',
+        enterPassword: '请输入密码',
+        leaveBlankKeepCurrent: '留空以保持当前密码',
+        loadFailed: '加载用户失败',
+        createdSuccess: '用户创建成功',
+        updatedSuccess: '用户更新成功',
+        saveFailed: '保存用户失败',
+        deleteFailed: '删除用户失败'
     },
     theme: {
         light: '浅色',
@@ -414,7 +434,18 @@ export default {
         testEmailSuccess: '测试邮件发送成功',
         testTelegramSuccess: '测试消息发送成功',
         testEmailFailed: '测试邮件发送失败',
-        testTelegramFailed: '测试消息发送失败'
+        testTelegramFailed: '测试消息发送失败',
+        chartColor: '图表颜色',
+        chartColorDesc: '仪表盘监控图表线条颜色',
+        smooth: '平滑',
+        sharp: '生硬',
+        downloading: '正在下载更新...',
+        extracting: '正在解压文件...',
+        installing: '正在安装...',
+        restarting: '正在重启服务...',
+        updateSuccessText: '更新完成！',
+        updateFailedText: '更新失败',
+        resetTemplate: '恢复默认模板'
     },
     network: {
         title: '网络详情',

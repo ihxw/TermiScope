@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -444,6 +446,29 @@ func (h *SystemHandler) PerformUpdate(c *gin.Context) {
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		utils.ErrorResponse(c, http.StatusBadRequest, "Invalid request: "+err.Error())
+		return
+	}
+
+	// Security: Validate download URL against trusted domains
+	allowedDomains := []string{
+		"github.com",
+		"objects.githubusercontent.com",
+		"github-releases.githubusercontent.com",
+	}
+	parsedURL, err := url.Parse(req.DownloadURL)
+	if err != nil || parsedURL.Scheme != "https" {
+		utils.ErrorResponse(c, http.StatusBadRequest, "Invalid or non-HTTPS download URL")
+		return
+	}
+	trusted := false
+	for _, domain := range allowedDomains {
+		if parsedURL.Host == domain || strings.HasSuffix(parsedURL.Host, "."+domain) {
+			trusted = true
+			break
+		}
+	}
+	if !trusted {
+		utils.ErrorResponse(c, http.StatusBadRequest, "Download URL must be from a trusted source (github.com)")
 		return
 	}
 

@@ -169,7 +169,6 @@ import { useI18n } from 'vue-i18n'
 import api from '../api'
 import { getSystemInfo } from '../api/system'
 import packageJson from '../../package.json'
-import SparkMD5 from 'spark-md5'
 
 const { t } = useI18n()
 const router = useRouter()
@@ -213,7 +212,7 @@ const handleLogin = async () => {
   try {
     const response = await authStore.login(
       formState.username,
-      SparkMD5.hash(formState.password),
+      formState.password,
       formState.remember
     )
 

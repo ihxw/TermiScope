@@ -1,10 +1,12 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -13,6 +15,7 @@ import (
 	"github.com/ihxw/termiscope/internal/database"
 	"github.com/ihxw/termiscope/internal/handlers"
 	"github.com/ihxw/termiscope/internal/middleware"
+	"github.com/ihxw/termiscope/internal/models"
 	"github.com/ihxw/termiscope/internal/monitor"
 	"github.com/ihxw/termiscope/internal/utils"
 	"gopkg.in/natefinch/lumberjack.v2"
@@ -40,7 +43,13 @@ import (
 // @in header
 // @name Authorization
 
+// @name Authorization
+
 func main() {
+	var resetPwdUser string
+	flag.StringVar(&resetPwdUser, "reset-pwd", "", "Reset password for specified username and exit")
+	flag.Parse()
+
 	// Load configuration
 	cfg, err := config.LoadConfig()
 	if err != nil {
@@ -56,6 +65,28 @@ func main() {
 	// Run migrations
 	if err := database.RunMigrations(db); err != nil {
 		log.Fatalf("Failed to run migrations: %v", err)
+	}
+
+	// Handle CLI password reset BEFORE entering web server mode
+	if resetPwdUser != "" {
+		var user models.User
+		if err := db.Where("username = ?", resetPwdUser).First(&user).Error; err != nil {
+			log.Fatalf("Error: user '%s' not found", resetPwdUser)
+		}
+		newPwd := utils.GenerateRandomString(16)
+		if err := user.SetPassword(newPwd); err != nil {
+			log.Fatalf("Error generating password hash: %v", err)
+		}
+		if err := db.Save(&user).Error; err != nil {
+			log.Fatalf("Error saving new password: %v", err)
+		}
+		log.Printf("\n========================================\n" +
+			"PASSWORD RESET SUCCESSFUL\n" +
+			"User: %s\n" +
+			"New Password: %s\n" +
+			"========================================\n" +
+			"Please login with this password and change it immediately.\n", resetPwdUser, newPwd)
+		os.Exit(0)
 	}
 
 	// Cleanup stale logs from previous run
@@ -106,20 +137,21 @@ func main() {
 	// Global Middlewares
 	router.Use(middleware.SecurityMiddleware())
 
-	// Auth rate limiter (20 attempts per minute per IP)
-	loginRateLimiter := middleware.NewRateLimiter(20, 1*time.Minute)
+	// Auth rate limiter (10 attempts per minute per IP)
+	loginRateLimiter := middleware.NewRateLimiter(10, 1*time.Minute)
 
 	// Public routes
 	authHandler := handlers.NewAuthHandler(db, cfg)
 	handlers.LoginRateLimiter = loginRateLimiter // Set global reference for hot-reloading
 	router.POST("/api/auth/login", loginRateLimiter.RateLimitMiddleware(), authHandler.Login)
-	router.POST("/api/auth/verify-2fa-login", authHandler.Verify2FALogin)
-	router.POST("/api/auth/forgot-password", authHandler.ForgotPassword)
+	router.POST("/api/auth/verify-2fa-login", loginRateLimiter.RateLimitMiddleware(), authHandler.Verify2FALogin)
+	router.POST("/api/auth/forgot-password", loginRateLimiter.RateLimitMiddleware(), authHandler.ForgotPassword)
+	router.POST("/api/auth/reset-password", loginRateLimiter.RateLimitMiddleware(), authHandler.ResetPassword)
 	router.POST("/api/auth/logout", authHandler.Logout)
 	router.POST("/api/auth/refresh", authHandler.RefreshToken)
 	router.GET("/api/system/info", authHandler.GetSystemInfo)
 	router.GET("/api/auth/check-init", authHandler.CheckInit)
-	router.POST("/api/auth/initialize", authHandler.Initialize)
+	router.POST("/api/auth/initialize", loginRateLimiter.RateLimitMiddleware(), authHandler.Initialize)
 
 	// WebSocket SSH route (authenticated via one-time ticket in handler)
 	sshWSHandler := handlers.NewSSHWebSocketHandler(db, cfg)

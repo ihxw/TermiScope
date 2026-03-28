@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/gorilla/websocket"
+
 	"github.com/ihxw/termiscope/internal/config"
 	"github.com/ihxw/termiscope/internal/models"
 	"github.com/ihxw/termiscope/internal/monitor"
@@ -783,9 +783,7 @@ func (h *MonitorHandler) AgentEvent(c *gin.Context) {
 
 // Stream WebSocket for Dashboard
 func (h *MonitorHandler) Stream(c *gin.Context) {
-	upgrader := websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool { return true },
-	}
+	upgrader := createUpgrader(h.Config.Server.AllowedOrigins)
 
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {

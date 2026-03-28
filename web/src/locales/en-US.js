@@ -262,10 +262,21 @@ export default {
         deleteCommand: 'Delete Command',
         deleteConfirm: 'Are you sure you want to delete this command?',
         commandSaved: 'Command saved successfully',
-        commandDeleted: 'Command deleted successfully'
+        commandDeleted: 'Command deleted successfully',
+        addTemplate: 'Add Template',
+        editTemplate: 'Edit Template',
+        nameRequired: 'Name and Command are required',
+        loadFailed: 'Failed to load templates',
+        saveFailed: 'Failed to save template',
+        deleteFailed: 'Failed to delete template',
+        templateUpdated: 'Template updated',
+        templateCreated: 'Template created',
+        templateDeleted: 'Template deleted'
     },
     recording: {
         title: 'Recording Management',
+        terminalRecordings: 'Terminal Recordings',
+        playerTitle: 'Recording Player',
         filename: 'Filename',
         createdAt: 'Created At',
         size: 'Size',
@@ -296,7 +307,16 @@ export default {
         userSaved: 'User saved successfully',
         userDeleted: 'User deleted successfully',
         cannotDeleteSelf: 'Cannot delete your own account',
-        lastLogin: 'Last Login'
+        lastLogin: 'Last Login',
+        enterUsername: 'Please enter username',
+        enterValidEmail: 'Please enter a valid email',
+        enterPassword: 'Please enter password',
+        leaveBlankKeepCurrent: 'Leave blank to keep current',
+        loadFailed: 'Failed to load users',
+        createdSuccess: 'User created successfully',
+        updatedSuccess: 'User updated successfully',
+        saveFailed: 'Failed to save user',
+        deleteFailed: 'Failed to delete user'
     },
     theme: {
         light: 'Light',
@@ -402,7 +422,20 @@ export default {
         updating: 'Updating...',
         updateSuccess: 'Update Successful',
         restartDesc: 'Update completed. The system will restart to apply changes.',
-        updateFailed: 'Update Failed'
+        updateFailed: 'Update Failed',
+        chartColor: 'Chart Color',
+        chartColorDesc: 'Dashboard monitor chart line color',
+        smooth: 'Smooth',
+        sharp: 'Sharp',
+        downloading: 'Downloading update...',
+        extracting: 'Extracting files...',
+        installing: 'Installing...',
+        restarting: 'Restarting services...',
+        updateSuccessText: 'Update completed!',
+        updateFailedText: 'Update failed',
+        testEmail: 'Test Email',
+        testTelegram: 'Test Telegram',
+        resetTemplate: 'Reset Template'
     },
     network: {
         title: 'Network Detail',

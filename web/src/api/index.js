@@ -108,8 +108,12 @@ api.interceptors.response.use(
 
                         if (response.data.success) {
                             const newToken = response.data.data.token
+                            const newRefreshToken = response.data.data.refresh_token
                             localStorage.setItem('token', newToken)
-                            console.log('[Auth] Token refresh successful, new token saved')
+                            if (newRefreshToken) {
+                                localStorage.setItem('refresh_token', newRefreshToken)
+                            }
+                            console.log('[Auth] Token refresh successful, new tokens saved')
 
                             // Also update store if possible, but here we just update localStorage
                             // The store will read from localStorage on reload, or we rely on the fact that we use localStorage in requests

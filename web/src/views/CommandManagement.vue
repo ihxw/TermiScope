@@ -1,10 +1,10 @@
 <template>
   <div class="command-management">
-    <a-card title="Command Templates" :bordered="false" size="small">
+    <a-card :title="t('command.title')" :bordered="false" size="small">
       <template #extra>
         <a-button type="primary" size="small" @click="showAddModal">
           <template #icon><PlusOutlined /></template>
-          Add Template
+          {{ t('command.addTemplate') }}
         </a-button>
       </template>
 
@@ -21,12 +21,12 @@
           </template>
           <template v-else-if="column.key === 'action'">
             <a-space size="small">
-              <a-button size="small" type="link" @click="editTemplate(record)">Edit</a-button>
+              <a-button size="small" type="link" @click="editTemplate(record)">{{ t('common.edit') }}</a-button>
               <a-popconfirm
-                title="Are you sure to delete this template?"
+                :title="t('command.deleteConfirm')"
                 @confirm="handleDelete(record.id)"
               >
-                <a-button size="small" type="link" danger>Delete</a-button>
+                <a-button size="small" type="link" danger>{{ t('common.delete') }}</a-button>
               </a-popconfirm>
             </a-space>
           </template>
@@ -37,19 +37,19 @@
     <!-- Add/Edit Modal -->
     <a-modal
       v-model:open="modalVisible"
-      :title="editingId ? 'Edit Template' : 'Add Template'"
+      :title="editingId ? t('command.editTemplate') : t('command.addTemplate')"
       @ok="handleModalOk"
       :confirmLoading="modalLoading"
       size="small"
     >
       <a-form layout="vertical" :model="formState">
-        <a-form-item label="Name" required>
+        <a-form-item :label="t('command.name')" required>
           <a-input v-model:value="formState.name" placeholder="e.g. Check Disk Space" />
         </a-form-item>
-        <a-form-item label="Command" required>
+        <a-form-item :label="t('command.command')" required>
           <a-textarea v-model:value="formState.command" placeholder="df -h" :rows="3" />
         </a-form-item>
-        <a-form-item label="Description">
+        <a-form-item :label="t('command.description')">
           <a-input v-model:value="formState.description" placeholder="Optional description" />
         </a-form-item>
       </a-form>
@@ -58,10 +58,13 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import { listCommandTemplates, createCommandTemplate, updateCommandTemplate, deleteCommandTemplate } from '../api/command'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const templates = ref([])
 const loading = ref(false)
@@ -75,12 +78,12 @@ const formState = reactive({
   description: ''
 })
 
-const columns = [
-  { title: 'Name', dataIndex: 'name', key: 'name', sorter: (a, b) => a.name.localeCompare(b.name) },
-  { title: 'Command', dataIndex: 'command', key: 'command' },
-  { title: 'Description', dataIndex: 'description', key: 'description' },
-  { title: 'Action', key: 'action', width: 120 }
-]
+const columns = computed(() => [
+  { title: t('command.name'), dataIndex: 'name', key: 'name', sorter: (a, b) => a.name.localeCompare(b.name) },
+  { title: t('command.command'), dataIndex: 'command', key: 'command' },
+  { title: t('command.description'), dataIndex: 'description', key: 'description' },
+  { title: t('common.actions'), key: 'action', width: 120 }
+])
 
 const loadTemplates = async () => {
   loading.value = true
@@ -89,6 +92,7 @@ const loadTemplates = async () => {
     templates.value = data || []
   } catch (error) {
     console.error('Failed to load templates:', error)
+    message.error(t('command.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -112,7 +116,7 @@ const editTemplate = (record) => {
 
 const handleModalOk = async () => {
   if (!formState.name || !formState.command) {
-    message.error('Name and Command are required')
+    message.error(t('command.nameRequired'))
     return
   }
 
@@ -120,15 +124,16 @@ const handleModalOk = async () => {
   try {
     if (editingId.value) {
       await updateCommandTemplate(editingId.value, formState)
-      message.success('Template updated')
+      message.success(t('command.templateUpdated'))
     } else {
       await createCommandTemplate(formState)
-      message.success('Template created')
+      message.success(t('command.templateCreated'))
     }
     modalVisible.value = false
     loadTemplates()
   } catch (error) {
     console.error('Failed to save template:', error)
+    message.error(t('command.saveFailed'))
   } finally {
     modalLoading.value = false
   }
@@ -137,10 +142,11 @@ const handleModalOk = async () => {
 const handleDelete = async (id) => {
   try {
     await deleteCommandTemplate(id)
-    message.success('Template deleted')
+    message.success(t('command.templateDeleted'))
     loadTemplates()
   } catch (error) {
     console.error('Failed to delete template:', error)
+    message.error(t('command.deleteFailed'))
   }
 }
 

@@ -7,6 +7,15 @@ import (
 // CORS middleware for handling Cross-Origin Resource Sharing
 // Uses a whitelist of allowed origins for security
 func CORS(allowedOrigins []string) gin.HandlerFunc {
+	// Pre-compute whether wildcard is configured
+	hasWildcard := false
+	for _, o := range allowedOrigins {
+		if o == "*" {
+			hasWildcard = true
+			break
+		}
+	}
+
 	return func(c *gin.Context) {
 		origin := c.Request.Header.Get("Origin")
 
@@ -46,7 +55,10 @@ func CORS(allowedOrigins []string) gin.HandlerFunc {
 
 		if allowed {
 			c.Writer.Header().Set("Access-Control-Allow-Origin", origin)
-			c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+			// Security: Do NOT send Allow-Credentials with wildcard origin
+			if !hasWildcard {
+				c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
+			}
 			c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
 			c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE, PATCH")
 		}
@@ -57,6 +69,16 @@ func CORS(allowedOrigins []string) gin.HandlerFunc {
 			} else {
 				c.AbortWithStatus(403)
 			}
+			return
+		}
+
+		// Security: Block non-whitelisted origins for state-changing requests
+		if !allowed && c.Request.Method != "GET" && c.Request.Method != "HEAD" {
+			c.JSON(403, gin.H{
+				"success": false,
+				"error":   "origin not allowed",
+			})
+			c.Abort()
 			return
 		}
 

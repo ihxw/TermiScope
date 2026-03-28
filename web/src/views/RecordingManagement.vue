@@ -1,6 +1,6 @@
 <template>
   <div class="recording-management">
-    <a-card title="Terminal Recordings" :bordered="false" size="small">
+    <a-card :title="t('recording.terminalRecordings')" :bordered="false" size="small">
       <a-table
         :columns="columns"
         :data-source="recordings"
@@ -19,13 +19,13 @@
             <a-space size="small">
               <a-button size="small" type="link" @click="playRecording(record)">
                 <template #icon><PlayCircleOutlined /></template>
-                Play
+                {{ t('recording.play') }}
               </a-button>
               <a-popconfirm
-                title="Are you sure to delete this recording?"
+                :title="t('recording.deleteConfirm')"
                 @confirm="handleDelete(record.id)"
               >
-                <a-button size="small" type="link" danger>Delete</a-button>
+                <a-button size="small" type="link" danger>{{ t('common.delete') }}</a-button>
               </a-popconfirm>
             </a-space>
           </template>
@@ -36,7 +36,7 @@
     <!-- Player Modal -->
     <a-modal
       v-model:open="playerVisible"
-      title="Recording Player"
+      :title="t('recording.playerTitle')"
       :footer="null"
       :width="850"
       @cancel="stopPlayer"
@@ -64,13 +64,16 @@
 </template>
 
 <script setup>
-import { ref, shallowRef, onMounted, nextTick } from 'vue'
+import { ref, shallowRef, onMounted, nextTick, computed } from 'vue'
 import { message } from 'ant-design-vue'
 import { PlayCircleOutlined, PauseOutlined } from '@ant-design/icons-vue'
 import { Terminal } from 'xterm'
 import { FitAddon } from 'xterm-addon-fit'
 import { listRecordings, deleteRecording, getRecordingStreamUrl } from '../api/recording'
+import { useI18n } from 'vue-i18n'
 import 'xterm/css/xterm.css'
+
+const { t } = useI18n()
 
 const recordings = ref([])
 const loading = ref(false)
@@ -87,13 +90,13 @@ const isPlaying = ref(false)
 let recordingData = []
 let playInterval = null
 
-const columns = [
-  { title: 'Host', dataIndex: 'host', key: 'host' },
-  { title: 'User', dataIndex: 'username', key: 'username' },
-  { title: 'Start Time', dataIndex: 'start_time', key: 'start_time', sorter: (a, b) => new Date(a.start_time) - new Date(b.start_time) },
-  { title: 'Duration', dataIndex: 'duration', key: 'duration' },
-  { title: 'Action', key: 'action', width: 140 }
-]
+const columns = computed(() => [
+  { title: t('host.host'), dataIndex: 'host', key: 'host' },
+  { title: t('auth.username'), dataIndex: 'username', key: 'username' },
+  { title: t('history.connectedAt'), dataIndex: 'start_time', key: 'start_time', sorter: (a, b) => new Date(a.start_time) - new Date(b.start_time) },
+  { title: t('history.duration'), dataIndex: 'duration', key: 'duration' },
+  { title: t('common.actions'), key: 'action', width: 140 }
+])
 
 const loadRecordings = async () => {
   loading.value = true
@@ -126,7 +129,7 @@ const playRecording = async (record) => {
     
     startPlayback()
   } catch (error) {
-    message.error('Failed to load recording data')
+    message.error(t('common.error', 'Failed to load recording data'))
     console.error(error)
   }
 }
@@ -198,7 +201,7 @@ const seek = (val) => {
 const handleDelete = async (id) => {
   try {
     await deleteRecording(id)
-    message.success('Recording deleted')
+    message.success(t('recording.recordingDeleted'))
     loadRecordings()
   } catch (error) {
     console.error('Failed to delete recording:', error)

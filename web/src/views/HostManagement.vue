@@ -1270,7 +1270,7 @@ const handleEdit = async (host) => {
   
   // Load full host details
   try {
-    const fullHost = await sshStore.fetchHost(host.id)
+    const fullHost = await sshStore.fetchHost(host.id, { reveal: true })
     hostForm.value = {
       name: fullHost.name,
       host: fullHost.host,

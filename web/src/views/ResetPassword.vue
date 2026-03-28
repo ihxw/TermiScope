@@ -14,44 +14,27 @@
         <CodeOutlined style="font-size: 32px; margin-bottom: 8px" />
         <div>TermiScope</div>
       </div>
-
+      
       <div style="margin-bottom: 24px; text-align: center">
-        <h3>{{ t('setup.title') }}</h3>
-        <p style="color: #666; font-size: 13px">{{ t('setup.description') }}</p>
+        <h3>{{ t('auth.resetPassword') }}</h3>
       </div>
 
       <a-form
         :model="formState"
-        @finish="handleSetup"
+        @finish="handleResetPassword"
         layout="vertical"
       >
         <a-form-item
-          :label="t('auth.username')"
-          name="username"
-          :rules="[{ required: true, message: t('auth.usernameRequired') }]"
-        >
-          <a-input
-            v-model:value="formState.username"
-            :placeholder="t('setup.usernamePlaceholder')"
-            size="middle"
-          >
-            <template #prefix>
-              <UserOutlined />
-            </template>
-          </a-input>
-        </a-form-item>
-
-        <a-form-item
-          :label="t('auth.password')"
+          :label="t('auth.newPassword')"
           name="password"
           :rules="[
             { required: true, message: t('auth.passwordRequired') },
-            { min: 6, message: t('auth.passwordMinLength') }
+            { min: 6, message: t('auth.passwordMinLength', { length: 6 }) }
           ]"
         >
           <a-input-password
             v-model:value="formState.password"
-            :placeholder="t('setup.passwordPlaceholder')"
+            :placeholder="t('auth.newPasswordPlaceholder')"
             size="middle"
           >
             <template #prefix>
@@ -64,13 +47,13 @@
           :label="t('auth.confirmPassword')"
           name="confirmPassword"
           :rules="[
-            { required: true, message: t('setup.confirmRequired') },
+            { required: true, message: t('auth.passwordRequired') },
             { validator: validateConfirmPassword }
           ]"
         >
           <a-input-password
             v-model:value="formState.confirmPassword"
-            :placeholder="t('setup.confirmPlaceholder')"
+            :placeholder="t('auth.confirmPasswordPlaceholder')"
             size="middle"
           >
             <template #prefix>
@@ -80,15 +63,22 @@
         </a-form-item>
 
         <a-form-item>
-          <a-button
-            type="primary"
-            html-type="submit"
-            size="middle"
-            block
-            :loading="loading"
-          >
-            {{ t('setup.submit') }}
-          </a-button>
+          <a-space style="width: 100%; display: flex; justify-content: space-between">
+            <a-button
+              type="primary"
+              html-type="submit"
+              :loading="loading"
+              style="flex: 1"
+            >
+              {{ t('auth.resetPassword') }}
+            </a-button>
+            <a-button
+              style="flex: 1"
+              @click="router.push('/login')"
+            >
+              {{ t('common.cancel') }}
+            </a-button>
+          </a-space>
         </a-form-item>
       </a-form>
 
@@ -106,29 +96,28 @@
 
 <script setup>
 import { reactive, ref, h } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
-import {
-  UserOutlined,
-  LockOutlined,
-  CodeOutlined,
+import { 
+  LockOutlined, 
+  CodeOutlined, 
   BulbOutlined,
   BulbFilled
 } from '@ant-design/icons-vue'
-import { useAuthStore } from '../stores/auth'
 import { useThemeStore } from '../stores/theme'
 import { useLocaleStore } from '../stores/locale'
 import { useI18n } from 'vue-i18n'
-import { initialize } from '../api/auth'
+import api from '../api'
 
 const { t } = useI18n()
 const router = useRouter()
-const authStore = useAuthStore()
+const route = useRoute()
 const themeStore = useThemeStore()
 const localeStore = useLocaleStore()
 
+const token = route.query.token
+
 const formState = reactive({
-  username: 'admin',
   password: '',
   confirmPassword: ''
 })
@@ -137,39 +126,32 @@ const loading = ref(false)
 const error = ref('')
 
 const validateConfirmPassword = async (_rule, value) => {
-  if (value && value !== formState.password) {
-    throw new Error(t('auth.passwordMismatch'))
+  if (value === '') {
+    return Promise.reject(t('auth.passwordRequired'))
+  } else if (value !== formState.password) {
+    return Promise.reject(t('auth.passwordMismatch'))
   }
+  return Promise.resolve()
 }
 
-const handleSetup = async () => {
+const handleResetPassword = async () => {
+  if (!token) {
+    error.value = t('auth.invalidToken') || 'Invalid token'
+    return
+  }
+
   loading.value = true
   error.value = ''
 
   try {
-    const response = await initialize(
-      formState.username,
-      formState.password
-    )
-
-    // Auto-login with returned tokens
-    authStore.token = response.token
-    authStore.refreshToken = response.refresh_token
-    authStore.user = response.user
-    localStorage.setItem('token', response.token)
-    if (response.refresh_token) {
-      localStorage.setItem('refresh_token', response.refresh_token)
-    }
-
-    message.success(t('setup.success'))
-    router.push({ name: 'MonitorDashboard' })
+    await api.post('/auth/reset-password', {
+      token: token,
+      password: formState.password
+    })
+    message.success(t('auth.passwordResetSuccess') || 'Password reset successfully')
+    router.push('/login')
   } catch (err) {
-    console.error('Setup error:', err)
-    if (err.response) {
-      error.value = err.response.data?.error || t('common.error')
-    } else {
-      error.value = t('common.error')
-    }
+    error.value = err.response?.data?.error || t('common.error')
   } finally {
     loading.value = false
   }
@@ -177,28 +159,33 @@ const handleSetup = async () => {
 </script>
 
 <style scoped>
+/* Inherits styling from Login.vue implicitly if common CSS is global, 
+   but just in case let's define them identically to Login.vue */
 .login-container {
+  height: 100vh;
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 100vh;
-  background-color: var(--bg-secondary);
+  background-color: var(--ant-layout-body-background);
 }
 
 .login-box {
-  background-color: var(--bg-primary);
-  padding: 40px;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   width: 100%;
   max-width: 400px;
+  padding: 40px;
+  background-color: var(--ant-component-background);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
 .login-title {
   text-align: center;
-  margin-bottom: 32px;
+  margin-bottom: 24px;
+}
+
+.login-title :deep(div) {
   font-size: 24px;
-  font-weight: bold;
-  color: var(--text-primary);
+  font-weight: 600;
+  color: var(--ant-text-color);
 }
 </style>

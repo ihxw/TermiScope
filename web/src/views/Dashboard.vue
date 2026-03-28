@@ -205,17 +205,17 @@
         <div style="text-align: center; padding: 20px 0;">
           <a-spin size="large" v-if="serverUpdateStatus !== 'error' && serverUpdateStatus !== 'finished'" />
           <div style="margin-top: 16px; font-size: 16px; font-weight: 500;">
-            <span v-if="serverUpdateStatus === 'downloading'">{{ t('system.downloading', '正在下载更新...') }}</span>
-            <span v-else-if="serverUpdateStatus === 'extracting'">{{ t('system.extracting', '正在解压文件...') }}</span>
-            <span v-else-if="serverUpdateStatus === 'installing'">{{ t('system.installing', '正在安装...') }}</span>
-            <span v-else-if="serverUpdateStatus === 'restarting'">{{ t('system.restarting', '正在重启服务...') }}</span>
+            <span v-if="serverUpdateStatus === 'downloading'">{{ t('system.downloading') }}</span>
+            <span v-else-if="serverUpdateStatus === 'extracting'">{{ t('system.extracting') }}</span>
+            <span v-else-if="serverUpdateStatus === 'installing'">{{ t('system.installing') }}</span>
+            <span v-else-if="serverUpdateStatus === 'restarting'">{{ t('system.restarting') }}</span>
             <span v-else-if="serverUpdateStatus === 'finished'" style="color: #52c41a;">
-              <check-circle-outlined style="margin-right: 8px" />{{ t('system.updateSuccess', '更新完成！') }}
+              <check-circle-outlined style="margin-right: 8px" />{{ t('system.updateSuccessText') }}
             </span>
             <span v-else-if="serverUpdateStatus === 'error'" style="color: #f5222d;">
-              <close-circle-outlined style="margin-right: 8px" />{{ t('system.updateFailed', '更新失败') }}
+              <close-circle-outlined style="margin-right: 8px" />{{ t('system.updateFailedText') }}
             </span>
-            <span v-else>{{ t('system.starting', '准备更新...') }}</span>
+            <span v-else>{{ t('system.starting', 'Starting update...') }}</span>
           </div>
           <div v-if="serverUpdateError" style="margin-top: 8px; color: #f5222d; font-size: 14px;">
             {{ serverUpdateError }}

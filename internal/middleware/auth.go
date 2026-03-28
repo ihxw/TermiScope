@@ -24,10 +24,9 @@ func AuthMiddleware(jwtSecret string, db *gorm.DB) gin.HandlerFunc {
 			}
 		}
 
-		// If no token from header, check query parameter (for WebSockets)
-		if token == "" {
-			token = c.Query("token")
-		}
+		// Security: Removed URL query parameter token support (c.Query("token"))
+		// Tokens in URLs leak via logs, referer headers, and browser history.
+		// WebSocket connections use ticket-based authentication instead.
 
 		// If still no token, check for access_token cookie (for Media Streaming)
 		if token == "" {

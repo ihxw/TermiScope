@@ -46,6 +46,8 @@ func RunMigrations(db *gorm.DB) error {
 		&models.NetworkMonitorTemplate{},
 		&models.RevokedToken{},
 		&models.LoginHistory{},
+		&models.PasswordResetToken{},
+		&models.SftpAuditLog{},
 	)
 	if err != nil {
 		return fmt.Errorf("failed to run migrations: %w", err)

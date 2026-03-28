@@ -33,9 +33,9 @@ export const useSSHStore = defineStore('ssh', {
             }
         },
 
-        async fetchHost(id) {
+        async fetchHost(id, options = {}) {
             try {
-                const host = await getHost(id)
+                const host = await getHost(id, options)
                 return host
             } catch (error) {
                 console.error('Failed to fetch host:', error)

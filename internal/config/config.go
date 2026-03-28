@@ -1,7 +1,10 @@
 package config
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
+	"log"
 	"net/url"
 	"os"
 	"strings"
@@ -62,7 +65,7 @@ func LoadConfig() (*Config, error) {
 	viper.SetDefault("server.port", 8080)
 	viper.SetDefault("server.mode", "debug")
 	viper.SetDefault("server.timezone", "Local")
-	viper.SetDefault("server.allowed_origins", []string{"*"}) // Allow all by default for dev
+	viper.SetDefault("server.allowed_origins", []string{}) // Empty = same-origin only (secure default)
 	viper.SetDefault("server.max_upload_size", 524288000)     // 500MB
 	viper.SetDefault("database.path", "./data/termiscope.db")
 	viper.SetDefault("ssh.timeout", "30s")
@@ -97,19 +100,29 @@ func LoadConfig() (*Config, error) {
 		return nil, fmt.Errorf("error unmarshaling config: %w", err)
 	}
 
-	// Generate secrets if not provided
+	// Auto-generate secrets if not provided (first-run experience)
 	if config.Security.JWTSecret == "" {
 		config.Security.JWTSecret = os.Getenv("TERMISCOPE_JWT_SECRET")
-		if config.Security.JWTSecret == "" {
-			return nil, fmt.Errorf("JWT secret is required (set TERMISCOPE_JWT_SECRET environment variable)")
+	}
+	if config.Security.JWTSecret == "" {
+		generated, err := generateRandomHex(32)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate JWT secret: %w", err)
 		}
+		config.Security.JWTSecret = generated
+		log.Printf("Security: Auto-generated JWT secret (first run). Set TERMISCOPE_JWT_SECRET env var for production.")
 	}
 
 	if config.Security.EncryptionKey == "" {
 		config.Security.EncryptionKey = os.Getenv("TERMISCOPE_ENCRYPTION_KEY")
-		if config.Security.EncryptionKey == "" {
-			return nil, fmt.Errorf("encryption key is required (set TERMISCOPE_ENCRYPTION_KEY environment variable)")
+	}
+	if config.Security.EncryptionKey == "" {
+		generated, err := generateRandomHex(16) // 16 bytes = 32 hex chars = 32 byte string for AES-256
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate encryption key: %w", err)
 		}
+		config.Security.EncryptionKey = generated
+		log.Printf("Security: Auto-generated encryption key (first run). Set TERMISCOPE_ENCRYPTION_KEY env var for production.")
 	}
 
 	// Validate encryption key length (must be 32 bytes for AES-256)
@@ -120,6 +133,16 @@ func LoadConfig() (*Config, error) {
 	// Validate JWT secret strength (minimum 32 bytes)
 	if len(config.Security.JWTSecret) < 32 {
 		return nil, fmt.Errorf("JWT secret must be at least 32 bytes for security, got %d bytes", len(config.Security.JWTSecret))
+	}
+
+	// Security: Warn about wildcard CORS in release mode
+	if config.Server.Mode == "release" {
+		for _, origin := range config.Server.AllowedOrigins {
+			if origin == "*" {
+				log.Printf("WARNING: CORS wildcard '*' is configured in release mode. This is a security risk!")
+				break
+			}
+		}
 	}
 
 	return &config, nil
@@ -198,4 +221,13 @@ func IsValidOrigin(origin string) bool {
 // ParseURL is a helper to parse URLs
 func (c *Config) ParseURL(rawURL string) (*url.URL, error) {
 	return url.Parse(rawURL)
+}
+
+// generateRandomHex generates a cryptographically secure random hex string
+func generateRandomHex(numBytes int) (string, error) {
+	b := make([]byte, numBytes)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
 }

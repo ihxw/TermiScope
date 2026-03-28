@@ -5,8 +5,9 @@ export const getHosts = async (filters = {}) => {
     return await api.get(`/ssh-hosts${params ? '?' + params : ''}`)
 }
 
-export const getHost = async (id) => {
-    return await api.get(`/ssh-hosts/${id}`)
+export const getHost = async (id, { reveal = false } = {}) => {
+    const params = reveal ? '?reveal=true' : ''
+    return await api.get(`/ssh-hosts/${id}${params}`)
 }
 
 export const createHost = async (hostData) => {

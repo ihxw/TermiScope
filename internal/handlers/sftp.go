@@ -9,6 +9,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -41,6 +42,29 @@ type FileInfo struct {
 	Mode    uint32    `json:"mode"`
 	ModTime time.Time `json:"mod_time"`
 	IsDir   bool      `json:"is_dir"`
+}
+
+// logAudit internal helper
+func (h *SftpHandler) logAudit(userID uint, hostID, action, srcPath, destPath, ip string, opErr error) {
+	hostIDUint, _ := strconv.ParseUint(hostID, 10, 32)
+	status := "success"
+	errMsg := ""
+	if opErr != nil {
+		status = "failed"
+		errMsg = opErr.Error()
+	}
+	
+	audit := models.SftpAuditLog{
+		UserID:     userID,
+		HostID:     uint(hostIDUint),
+		Action:     action,
+		SourcePath: srcPath,
+		DestPath:   destPath,
+		ClientIP:   ip,
+		Status:     status,
+		ErrorMsg:   errMsg,
+	}
+	h.db.Create(&audit)
 }
 
 // getSftpClient helper to create an SFTP client for a host
@@ -253,10 +277,13 @@ func (h *SftpHandler) Download(c *gin.Context) {
 	// File Download
 	file, err := sftpClient.Open(targetPath)
 	if err != nil {
+		h.logAudit(userID, hostID, "download", targetPath, "", c.ClientIP(), err)
 		utils.ErrorResponse(c, http.StatusInternalServerError, "failed to open file: "+err.Error())
 		return
 	}
 	defer file.Close()
+
+	h.logAudit(userID, hostID, "download", targetPath, "", c.ClientIP(), nil)
 
 	// Use ServeContent to handle Range requests and streaming
 	c.Header("Content-Disposition", "attachment; filename="+path.Base(targetPath))
@@ -307,10 +334,12 @@ func (h *SftpHandler) Upload(c *gin.Context) {
 	defer dst.Close()
 
 	if _, err := io.Copy(dst, file); err != nil {
+		h.logAudit(userID, hostID, "upload", fullPath, "", c.ClientIP(), err)
 		utils.ErrorResponse(c, http.StatusInternalServerError, "failed to copy file: "+err.Error())
 		return
 	}
 
+	h.logAudit(userID, hostID, "upload", fullPath, "", c.ClientIP(), nil)
 	utils.SuccessResponse(c, http.StatusOK, gin.H{"message": "file uploaded successfully"})
 }
 
@@ -365,10 +394,12 @@ func (h *SftpHandler) Delete(c *gin.Context) {
 	// Use recursive delete to handle both files and non-empty directories
 	err = h.deleteRecursive(sftpClient, path)
 	if err != nil {
+		h.logAudit(userID, hostID, "delete", path, "", c.ClientIP(), err)
 		utils.ErrorResponse(c, http.StatusInternalServerError, "failed to delete: "+err.Error())
 		return
 	}
 
+	h.logAudit(userID, hostID, "delete", path, "", c.ClientIP(), nil)
 	utils.SuccessResponse(c, http.StatusOK, gin.H{"message": "deleted successfully"})
 }
 
@@ -396,10 +427,12 @@ func (h *SftpHandler) Rename(c *gin.Context) {
 	defer sshClient.Close()
 
 	if err := sftpClient.Rename(req.OldPath, req.NewPath); err != nil {
+		h.logAudit(userID, hostID, "rename", req.OldPath, req.NewPath, c.ClientIP(), err)
 		utils.ErrorResponse(c, http.StatusInternalServerError, "failed to rename: "+err.Error())
 		return
 	}
 
+	h.logAudit(userID, hostID, "rename", req.OldPath, req.NewPath, c.ClientIP(), nil)
 	utils.SuccessResponse(c, http.StatusOK, gin.H{"message": "renamed successfully"})
 }
 
@@ -439,15 +472,19 @@ func (h *SftpHandler) Paste(c *gin.Context) {
 	if req.Type == "cut" {
 		// Move is simple rename
 		if err := sftpClient.Rename(req.Source, newPath); err != nil {
+			h.logAudit(userID, hostID, "move", req.Source, newPath, c.ClientIP(), err)
 			utils.ErrorResponse(c, http.StatusInternalServerError, "failed to move: "+err.Error())
 			return
 		}
+		h.logAudit(userID, hostID, "move", req.Source, newPath, c.ClientIP(), nil)
 	} else {
 		// Copy is recursive
 		if err := h.copyRecursive(sftpClient, req.Source, newPath); err != nil {
+			h.logAudit(userID, hostID, "copy", req.Source, newPath, c.ClientIP(), err)
 			utils.ErrorResponse(c, http.StatusInternalServerError, "failed to copy: "+err.Error())
 			return
 		}
+		h.logAudit(userID, hostID, "copy", req.Source, newPath, c.ClientIP(), nil)
 	}
 
 	utils.SuccessResponse(c, http.StatusOK, gin.H{"message": "pasted successfully"})
@@ -526,10 +563,12 @@ func (h *SftpHandler) Mkdir(c *gin.Context) {
 	defer sshClient.Close()
 
 	if err := sftpClient.Mkdir(req.Path); err != nil {
+		h.logAudit(userID, hostID, "mkdir", req.Path, "", c.ClientIP(), err)
 		utils.ErrorResponse(c, http.StatusInternalServerError, "failed to create directory: "+err.Error())
 		return
 	}
 
+	h.logAudit(userID, hostID, "mkdir", req.Path, "", c.ClientIP(), nil)
 	utils.SuccessResponse(c, http.StatusOK, gin.H{"message": "directory created successfully"})
 }
 
@@ -750,11 +789,11 @@ func (h *SftpHandler) tryDirectSCP(c *gin.Context, srcSSH *ssh.SSHClient, dstHos
 			return false
 		}
 		tmpKeyPath := strings.TrimSpace(string(output))
-		if tmpKeyPath == "" {
+		if tmpKeyPath == "" || !strings.HasPrefix(tmpKeyPath, "/tmp/ts_key_") {
 			return false
 		}
-		scpAuthPrefix = fmt.Sprintf("scp -i %s", tmpKeyPath)
-		cleanupCmd = fmt.Sprintf("rm -f %s", tmpKeyPath)
+		scpAuthPrefix = fmt.Sprintf("scp -i %s", utils.ShellEscape(tmpKeyPath))
+		cleanupCmd = fmt.Sprintf("rm -f %s", utils.ShellEscape(tmpKeyPath))
 	} else if dstPassword != "" {
 		// Check sshpass availability
 		checkSession, err := rawClient.NewSession()
@@ -767,20 +806,58 @@ func (h *SftpHandler) tryDirectSCP(c *gin.Context, srcSSH *ssh.SSHClient, dstHos
 			sendTransferEvent(c, map[string]interface{}{"type": "info", "message": "sshpass not available, falling back to relay"})
 			return false
 		}
+		// Security: Write password to temp file instead of command line to avoid /proc exposure
+		passSession, err := rawClient.NewSession()
+		if err != nil {
+			return false
+		}
 		escapedPass := strings.ReplaceAll(dstPassword, "'", "'\\''")
-		scpAuthPrefix = fmt.Sprintf("SSHPASS='%s' sshpass -e scp", escapedPass)
+		passCmd := fmt.Sprintf("TMPPASS=$(mktemp /tmp/ts_pass_XXXXXX) && chmod 600 $TMPPASS && printf '%%s' '%s' > $TMPPASS && echo $TMPPASS", escapedPass)
+		passOutput, err := passSession.Output(passCmd)
+		passSession.Close()
+		if err != nil {
+			return false
+		}
+		tmpPassPath := strings.TrimSpace(string(passOutput))
+		if tmpPassPath == "" || !strings.HasPrefix(tmpPassPath, "/tmp/ts_pass_") {
+			return false
+		}
+		scpAuthPrefix = fmt.Sprintf("sshpass -f %s scp", utils.ShellEscape(tmpPassPath))
+		cleanupCmd = fmt.Sprintf("rm -f %s", utils.ShellEscape(tmpPassPath))
 	} else {
 		return false
 	}
 
-	// Build SCP command
-	scpFlags := "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+	// Security: SCP Host Key Verification via ssh-keyscan and verify against DB fingerprint
+	expectedFp := dstHost.Fingerprint
+	// Fallback empty fingerprint checking if not populated (not recommended, but failsafe)
+	fingerprintCheck := ""
+	if expectedFp != "" {
+		expectedFpStr := strings.ReplaceAll(expectedFp, "'", "'\\''")
+		fingerprintCheck = fmt.Sprintf(`
+TMP_HOSTS=$(mktemp /tmp/ts_hosts_XXXXXX)
+ssh-keyscan -p %d %s > $TMP_HOSTS 2>/dev/null
+SCANNED_FP=$(ssh-keygen -l -f $TMP_HOSTS 2>/dev/null | awk '{print $2}' | head -n 1)
+if [ "$SCANNED_FP" != '%s' ]; then
+	echo "TRANSFER_ERROR: destination host key fingerprint mismatch (expected '%s', got $SCANNED_FP)" >&2
+	rm -f $TMP_HOSTS
+	%s
+	exit 1
+fi`, dstHost.Port, utils.ShellEscape(dstHost.Host), expectedFpStr, expectedFpStr, cleanupCmd)
+	} else {
+		// If no fingerprint in DB (rare TOFU), just grab it to bypass strict checking prompt, but warn
+		fingerprintCheck = fmt.Sprintf("TMP_HOSTS=$(mktemp /tmp/ts_hosts_XXXXXX)\nssh-keyscan -p %d %s > $TMP_HOSTS 2>/dev/null", dstHost.Port, utils.ShellEscape(dstHost.Host))
+	}
+
+	scpFlags := "-o StrictHostKeyChecking=yes -o UserKnownHostsFile=$TMP_HOSTS"
 	if isDir {
 		scpFlags += " -r"
 	}
-	scpCmd := fmt.Sprintf("%s %s -P %d '%s' %s@%s:'%s/'",
+
+	scpCmd := fmt.Sprintf("%s\n%s %s -P %d %s %s@%s:%s\nrm -f $TMP_HOSTS",
+		fingerprintCheck,
 		scpAuthPrefix, scpFlags, dstHost.Port,
-		sourcePath, dstHost.Username, dstHost.Host, destPath)
+		utils.ShellEscape(sourcePath), dstHost.Username, dstHost.Host, utils.ShellEscape(destPath+"/"))
 
 	// Run with PTY for progress output
 	session, err := rawClient.NewSession()

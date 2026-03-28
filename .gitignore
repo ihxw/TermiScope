@@ -52,3 +52,4 @@ release/
 agents/
 temp/
 test.go
+agent_hashes.json

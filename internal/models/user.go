@@ -1,6 +1,8 @@
 package models
 
 import (
+	"crypto/md5"
+	"encoding/hex"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -24,6 +26,36 @@ type User struct {
 	DeletedAt        gorm.DeletedAt `gorm:"index" json:"-"`
 }
 
+// UserDTO is the safe representation of a user without sensitive fields
+type UserDTO struct {
+	ID               uint       `json:"id"`
+	Username         string     `json:"username"`
+	Email            string     `json:"email"`
+	DisplayName      string     `json:"display_name"`
+	Role             string     `json:"role"`
+	Status           string     `json:"status"`
+	TwoFactorEnabled bool       `json:"two_factor_enabled"`
+	CreatedAt        time.Time  `json:"created_at"`
+	UpdatedAt        time.Time  `json:"updated_at"`
+	LastLoginAt      *time.Time `json:"last_login_at"`
+}
+
+// ToDTO converts a User to UserDTO
+func (u *User) ToDTO() UserDTO {
+	return UserDTO{
+		ID:               u.ID,
+		Username:         u.Username,
+		Email:            u.Email,
+		DisplayName:      u.DisplayName,
+		Role:             u.Role,
+		Status:           u.Status,
+		TwoFactorEnabled: u.TwoFactorEnabled,
+		CreatedAt:        u.CreatedAt,
+		UpdatedAt:        u.UpdatedAt,
+		LastLoginAt:      u.LastLoginAt,
+	}
+}
+
 // SetPassword hashes and sets the user password
 func (u *User) SetPassword(password string) error {
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
@@ -36,8 +68,28 @@ func (u *User) SetPassword(password string) error {
 
 // CheckPassword verifies the password against the hash
 func (u *User) CheckPassword(password string) bool {
+	valid, _ := u.CheckPasswordWithMigration(password)
+	return valid
+}
+
+// CheckPasswordWithMigration checks if the password matches and if it requires an MD5->Bcrypt upgrade
+func (u *User) CheckPasswordWithMigration(password string) (bool, bool) {
+	// First check direct bcrypt
 	err := bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(password))
-	return err == nil
+	if err == nil {
+		return true, false // Matches, no upgrade needed
+	}
+
+	// Fallback to testing MD5 for legacy hashes
+	md5Hash := md5.Sum([]byte(password))
+	md5Str := hex.EncodeToString(md5Hash[:])
+
+	err = bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(md5Str))
+	if err == nil {
+		return true, true // Matches, BUT requires upgrade
+	}
+
+	return false, false // Doesn't match
 }
 
 // IsAdmin checks if the user is an admin

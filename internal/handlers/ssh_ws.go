@@ -22,16 +22,6 @@ import (
 	"gorm.io/gorm"
 )
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-	CheckOrigin: func(r *http.Request) bool {
-		// This will be set by handler with allowed origins from config
-		return true // Placeholder, actual check done in handler
-	},
-	EnableCompression: true,
-}
-
 // createUpgrader creates a WebSocket upgrader with origin validation
 func createUpgrader(allowedOrigins []string) websocket.Upgrader {
 	return websocket.Upgrader{
@@ -348,12 +338,12 @@ func (h *SSHWebSocketHandler) HandleWebSocket(c *gin.Context) {
 	var recordFile *os.File
 	if record {
 		recordingDir := "data/recordings"
-		os.MkdirAll(recordingDir, 0755)
+		os.MkdirAll(recordingDir, 0700)
 
 		fileName := fmt.Sprintf("%d-%d-%d.cast", userID, host.ID, time.Now().Unix())
 		filePath := filepath.Join(recordingDir, fileName)
 
-		f, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+		f, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 		if err == nil {
 			recordFile = f
 			recording = &models.TerminalRecording{

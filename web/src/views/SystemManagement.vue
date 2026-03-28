@@ -233,7 +233,7 @@
         <a-form-item :label="t('network.frequency')">
           <a-input-number v-model:value="templateForm.frequency" :min="10" :max="3600" addon-after="s"/>
         </a-form-item>
-        <a-form-item label="图表颜色">
+        <a-form-item :label="t('system.chartColor')">
           <div style="display: flex; flex-direction: column; gap: 12px">
             <!-- Color Presets -->
             <div style="display: flex; flex-wrap: wrap; gap: 8px">
@@ -667,7 +667,7 @@ const fetchTemplates = async () => {
         // Wait, handler code: c.JSON(http.StatusOK, tmpls) -> Array.
         templates.value = res || []
     } catch(e) {
-        message.error('Failed to load templates')
+        message.error(t('network.loadFailed', 'Failed to load templates'))
         console.error(e)
     } finally {
         loadingTemplates.value = false
@@ -699,7 +699,7 @@ const openEditModal = (record) => {
 }
 
 const handleSaveTemplate = async () => {
-    if(!templateForm.name || !templateForm.target) return message.error('Name and Target are required')
+    if(!templateForm.name || !templateForm.target) return message.error(t('network.requiredNameAndTarget', 'Name and Target are required'))
     
     savingTemplate.value = true
     try {
@@ -707,7 +707,7 @@ const handleSaveTemplate = async () => {
         if (templateForm.id) {
             // Edit mode
             await updateNetworkTemplate(templateForm.id, data)
-            message.success('Updated successfully')
+            message.success(t('common.updateSuccess', 'Updated successfully'))
         } else {
             // Create mode
             await createNetworkTemplate(data)
@@ -716,7 +716,7 @@ const handleSaveTemplate = async () => {
         templateModalVisible.value = false
         fetchTemplates()
     } catch(e) {
-        message.error(templateForm.id ? 'Failed to update' : t('common.addFailed'))
+        message.error(templateForm.id ? t('common.updateFailed', 'Failed to update') : t('common.addFailed', 'Failed to add'))
         console.error(e)
     } finally {
         savingTemplate.value = false
@@ -755,7 +755,7 @@ const openApplyModal = async (tmpl) => {
 }
 
 const handleApplyTemplate = async () => {
-    if(selectedHostKeys.value.length === 0) return message.warn('Please select at least one host')
+    if(selectedHostKeys.value.length === 0) return message.warn(t('network.selectHostsFallback', 'Please select at least one host'))
     
     applyingTemplate.value = true
     try {
@@ -763,10 +763,10 @@ const handleApplyTemplate = async () => {
             template_id: currentTemplate.value.id,
             host_ids: selectedHostKeys.value
         })
-        message.success('Template deployed successfully')
+        message.success(t('network.deploySuccess', 'Template deployed successfully'))
         applyModalVisible.value = false
     } catch(e) {
-        message.error('Failed to deploy template')
+        message.error(t('network.deployFailed', 'Failed to deploy template'))
         console.error(e)
     } finally {
         applyingTemplate.value = false

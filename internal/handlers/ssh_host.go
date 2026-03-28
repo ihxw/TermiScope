@@ -151,17 +151,28 @@ func (h *SSHHostHandler) Get(c *gin.Context) {
 		return
 	}
 
-	// Decrypt credentials
-	if host.PasswordEncrypted != "" {
-		password, err := utils.DecryptAES(host.PasswordEncrypted, h.config.Security.EncryptionKey)
-		if err == nil {
-			host.Password = password
+	// Only decrypt and return credentials when explicitly requested
+	reveal := c.Query("reveal") == "true"
+	if reveal {
+		if host.PasswordEncrypted != "" {
+			password, err := utils.DecryptAES(host.PasswordEncrypted, h.config.Security.EncryptionKey)
+			if err == nil {
+				host.Password = password
+			}
 		}
-	}
-	if host.PrivateKeyEncrypted != "" {
-		privateKey, err := utils.DecryptAES(host.PrivateKeyEncrypted, h.config.Security.EncryptionKey)
-		if err == nil {
-			host.PrivateKey = privateKey
+		if host.PrivateKeyEncrypted != "" {
+			privateKey, err := utils.DecryptAES(host.PrivateKeyEncrypted, h.config.Security.EncryptionKey)
+			if err == nil {
+				host.PrivateKey = privateKey
+			}
+		}
+	} else {
+		// Return masked indicators so frontend knows credentials exist
+		if host.PasswordEncrypted != "" {
+			host.Password = "••••••••"
+		}
+		if host.PrivateKeyEncrypted != "" {
+			host.PrivateKey = "••••••••"
 		}
 	}
 
