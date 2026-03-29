@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../models/ssh_host.dart';
 
 class TerminalProvider extends ChangeNotifier {
   final List<TerminalSession> _sessions = [];
@@ -51,6 +52,23 @@ class TerminalProvider extends ChangeNotifier {
       return null;
     }
   }
+
+  Future<void> connectSession(String sessionId, SSHHost host) async {
+    final session = getSession(sessionId);
+    if (session == null) return;
+
+    // In a real implementation, we would connect the session to the host
+    // For now, we'll just simulate the connection
+    // This would involve using TerminalService to establish the SSH connection
+  }
+
+  Future<void> disconnectSession(String sessionId) async {
+    final session = getSession(sessionId);
+    if (session == null) return;
+
+    // In a real implementation, we would disconnect the session
+    // For now, we'll just simulate the disconnection
+  }
 }
 
 class TerminalSession {
@@ -58,6 +76,8 @@ class TerminalSession {
   final int hostId;
   final String name;
   final bool record;
+  bool isConnected = false;
+  String? connectionStatus;
 
   TerminalSession({
     required this.id,

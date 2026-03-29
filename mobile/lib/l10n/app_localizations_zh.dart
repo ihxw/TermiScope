@@ -327,4 +327,151 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get sshHistory => 'SSH 连接';
+
+  @override
+  String get basicSettings => '基本设置';
+
+  @override
+  String get emailNotifications => '邮件通知';
+
+  @override
+  String get telegramNotifications => 'Telegram通知';
+
+  @override
+  String get databaseManagement => '数据库管理';
+
+  @override
+  String get systemUpdates => '系统更新';
+
+  @override
+  String get smtpPort => 'SMTP端口';
+
+  @override
+  String get smtpUser => 'SMTP用户';
+
+  @override
+  String get smtpPassword => 'SMTP密码';
+
+  @override
+  String get smtpFrom => 'SMTP发件人';
+
+  @override
+  String get smtpTo => 'SMTP收件人';
+
+  @override
+  String get smtpSkipVerify => '跳过TLS验证';
+
+  @override
+  String get testEmail => '测试邮件';
+
+  @override
+  String get telegramBotToken => 'Telegram机器人令牌';
+
+  @override
+  String get telegramChatId => 'Telegram聊天ID';
+
+  @override
+  String get notificationTemplate => '通知模板';
+
+  @override
+  String get testTelegram => '测试Telegram';
+
+  @override
+  String get databaseManagementDescription => '管理数据库备份和恢复';
+
+  @override
+  String get backupDatabase => '备份数据库';
+
+  @override
+  String get restoreDatabase => '恢复数据库';
+
+  @override
+  String get checkUpdate => '检查更新';
+
+  @override
+  String get performUpdate => '执行更新';
+
+  @override
+  String get updateAvailable => '有可用更新';
+
+  @override
+  String get version => '版本';
+
+  @override
+  String get updateNow => '立即更新';
+
+  @override
+  String get close => '关闭';
+
+  @override
+  String get noUpdatesAvailable => '没有可用更新';
+
+  @override
+  String get settingsSavedSuccessfully => '设置保存成功';
+
+  @override
+  String get failedToSaveSettings => '保存设置失败';
+
+  @override
+  String get emailTestSentSuccessfully => '邮件测试发送成功';
+
+  @override
+  String get failedToSendEmailTest => '邮件测试发送失败';
+
+  @override
+  String get telegramTestSentSuccessfully => 'Telegram测试发送成功';
+
+  @override
+  String get failedToSendTelegramTest => 'Telegram测试发送失败';
+
+  @override
+  String get databaseBackupCreated => '数据库备份已创建';
+
+  @override
+  String get failedToCreateDatabaseBackup => '数据库备份创建失败';
+
+  @override
+  String get timezone => '时区';
+
+  @override
+  String get refreshExpiration => '刷新过期时间';
+
+  @override
+  String get lightTheme => '浅色主题';
+
+  @override
+  String get darkTheme => '深色主题';
+
+  @override
+  String get systemTheme => '跟随系统';
+
+  @override
+  String get addHost => '添加主机';
+
+  @override
+  String get failedToCheckForUpdates => '检查更新失败';
+
+  @override
+  String get noHostsForTerminal => '没有可用于终端的主机';
+
+  @override
+  String get connected => '已连接';
+
+  @override
+  String get reconnect => '重新连接';
+
+  @override
+  String get clearTerminal => '清空终端';
+
+  @override
+  String get copySelection => '复制选中内容';
+
+  @override
+  String get copiedToClipboard => '已复制到剪贴板';
+
+  @override
+  String get noUsersFound => '未找到用户';
+
+  @override
+  String get systemManagement => '系统管理';
 }

@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../data/services/api_service.dart';
-import '../../data/services/command_service.dart';
-import '../../data/models/command_template.dart';
+
 import 'package:mobile/l10n/app_localizations.dart';
 
 class CommandScreen extends StatefulWidget {
@@ -13,29 +11,32 @@ class CommandScreen extends StatefulWidget {
 }
 
 class _CommandScreenState extends State<CommandScreen> {
-  late CommandService _commandService;
-  List<CommandTemplate> _templates = [];
+  // late CommandService _commandService; // Service not implemented yet
+  // List<CommandTemplate> _templates = []; // Template not implemented yet
+  List<Map<String, dynamic>> _templates = []; // Placeholder for now
   bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    _commandService = CommandService(
-      Provider.of<ApiService>(context, listen: false),
-    );
+    // _commandService = CommandService(
+      //   Provider.of<ApiService>(context, listen: false),
+    // ); // Service not implemented yet
     _loadTemplates();
   }
 
   Future<void> _loadTemplates() async {
     setState(() => _isLoading = true);
     try {
-      final templates = await _commandService.getTemplates();
+      // final templates = await _commandService.getTemplates(); // Service not implemented yet
+      final templates = <Map<String, dynamic>>[]; // Placeholder for now
       if (mounted) setState(() => _templates = templates);
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -43,17 +44,18 @@ class _CommandScreenState extends State<CommandScreen> {
 
   Future<void> _deleteTemplate(int id) async {
     try {
-      await _commandService.deleteTemplate(id);
+      // await _commandService.deleteTemplate(id); // Service not implemented yet
       _loadTemplates();
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
     }
   }
 
-  void _showEditor([CommandTemplate? template]) {
+  void _showEditor([Map<String, dynamic>? template]) {
     showDialog(
       context: context,
       builder: (context) => _CommandEditorDialog(
@@ -61,23 +63,23 @@ class _CommandScreenState extends State<CommandScreen> {
         onSave: (name, command, desc) async {
           try {
             if (template == null) {
-              await _commandService.createTemplate(
-                CommandTemplate(
-                  name: name,
-                  command: command,
-                  description: desc,
-                ),
-              );
+              // await _commandService.createTemplate(
+              //   CommandTemplate(
+              //     name: name,
+              //     command: command,
+              //     description: desc,
+              //   ),
+              // ); // Service not implemented yet
             } else {
-              await _commandService.updateTemplate(
-                template.id!,
-                CommandTemplate(
-                  id: template.id,
-                  name: name,
-                  command: command,
-                  description: desc,
-                ),
-              );
+              // await _commandService.updateTemplate(
+              //   template['id'],
+              //   CommandTemplate(
+              //     id: template['id'],
+              //     name: name,
+              //     command: command,
+              //     description: desc,
+              //   ),
+              // ); // Service not implemented yet
             }
             if (mounted) Navigator.pop(context);
             _loadTemplates();
@@ -114,13 +116,13 @@ class _CommandScreenState extends State<CommandScreen> {
                   ),
                   child: ListTile(
                     title: Text(
-                      t.name,
+                      t['name'] ?? '',
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                     subtitle: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        if (t.description.isNotEmpty) Text(t.description),
+                        if ((t['description'] ?? '').isNotEmpty) Text(t['description'] ?? ''),
                         const SizedBox(height: 4),
                         Container(
                           padding: const EdgeInsets.all(4),
@@ -129,7 +131,7 @@ class _CommandScreenState extends State<CommandScreen> {
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
-                            t.command,
+                            t['command'] ?? '',
                             style: const TextStyle(
                               fontFamily: 'monospace',
                               fontSize: 12,
@@ -151,7 +153,7 @@ class _CommandScreenState extends State<CommandScreen> {
                       ],
                       onSelected: (value) {
                         if (value == 'edit') _showEditor(t);
-                        if (value == 'delete') _deleteTemplate(t.id!);
+                        if (value == 'delete') _deleteTemplate(t['id']);
                       },
                     ),
                   ),
@@ -163,7 +165,7 @@ class _CommandScreenState extends State<CommandScreen> {
 }
 
 class _CommandEditorDialog extends StatefulWidget {
-  final CommandTemplate? template;
+  final Map<String, dynamic>? template;
   final Function(String, String, String) onSave;
 
   const _CommandEditorDialog({this.template, required this.onSave});
@@ -180,9 +182,9 @@ class _CommandEditorDialogState extends State<_CommandEditorDialog> {
   @override
   void initState() {
     super.initState();
-    _nameCtrl = TextEditingController(text: widget.template?.name ?? '');
-    _cmdCtrl = TextEditingController(text: widget.template?.command ?? '');
-    _descCtrl = TextEditingController(text: widget.template?.description ?? '');
+    _nameCtrl = TextEditingController(text: widget.template?['name'] ?? '');
+    _cmdCtrl = TextEditingController(text: widget.template?['command'] ?? '');
+    _descCtrl = TextEditingController(text: widget.template?['description'] ?? '');
   }
 
   @override

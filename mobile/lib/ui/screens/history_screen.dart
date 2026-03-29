@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../data/services/api_service.dart';
-import '../../data/services/log_service.dart';
+
 import 'package:mobile/l10n/app_localizations.dart';
 
 class HistoryScreen extends StatefulWidget {
@@ -14,7 +13,7 @@ class HistoryScreen extends StatefulWidget {
 class _HistoryScreenState extends State<HistoryScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  late LogService _logService;
+  // late LogService _logService; // Service not implemented yet
 
   List<dynamic> _sshLogs = [];
   bool _sshLoading = false;
@@ -26,7 +25,7 @@ class _HistoryScreenState extends State<HistoryScreen>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
-    _logService = LogService(Provider.of<ApiService>(context, listen: false));
+    // _logService = LogService(Provider.of<ApiService>(context, listen: false)); // Service not implemented yet
 
     _loadSSHLogs();
     _loadLoginLogs();
@@ -35,7 +34,8 @@ class _HistoryScreenState extends State<HistoryScreen>
   Future<void> _loadSSHLogs() async {
     setState(() => _sshLoading = true);
     try {
-      final logs = await _logService.getConnectionLogs(1, 50);
+      // final logs = await _logService.getConnectionLogs(1, 50); // Service not implemented yet
+      final logs = []; // Placeholder for now
       if (mounted) setState(() => _sshLogs = logs);
     } catch (e) {
       print(e);
@@ -47,7 +47,8 @@ class _HistoryScreenState extends State<HistoryScreen>
   Future<void> _loadLoginLogs() async {
     setState(() => _loginLoading = true);
     try {
-      final logs = await _logService.getLoginHistory(1, 50);
+      // final logs = await _logService.getLoginHistory(1, 50); // Service not implemented yet
+      final logs = []; // Placeholder for now
       if (mounted) setState(() => _loginLogs = logs);
     } catch (e) {
       print(e);
@@ -124,8 +125,9 @@ class _HistoryScreenState extends State<HistoryScreen>
   }
 
   Widget _getStatusIcon(String? status) {
-    if (status == 'success')
+    if (status == 'success') {
       return const Icon(Icons.check_circle, color: Colors.green);
+    }
     if (status == 'failed') return const Icon(Icons.error, color: Colors.red);
     return const Icon(Icons.info, color: Colors.grey);
   }

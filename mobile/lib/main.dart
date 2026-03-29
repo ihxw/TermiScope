@@ -1,20 +1,25 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:mobile/l10n/app_localizations.dart';
-import 'package:provider/provider.dart';
-import 'core/constants.dart';
-import 'data/services/api_service.dart';
-import 'data/services/auth_service.dart';
-import 'data/services/host_service.dart';
-import 'providers/auth_provider.dart';
-import 'providers/host_provider.dart';
-import 'providers/monitor_provider.dart';
-import 'providers/terminal_provider.dart';
-import 'data/services/monitor_service.dart';
-import 'ui/screens/login_screen.dart';
-import 'ui/screens/main_screen.dart';
 
-void main() {
+import 'ui/screens/dashboard_screen.dart';
+import 'ui/screens/login_screen.dart';
+import 'ui/screens/setup_screen.dart';
+import 'core/api_client.dart';
+import 'providers/auth_provider.dart';
+import 'models/user.dart';
+import 'providers/theme_provider.dart';
+import 'ui/screens/main_screen.dart';
+import 'ui/screens/file_transfer_screen.dart';
+import 'ui/screens/command_management_screen.dart';
+import 'services/auth_service.dart';
+
+// Global instances
+final apiClient = ApiClient.instance;
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await apiClient.init();
   runApp(const MyApp());
 }
 
@@ -25,57 +30,82 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        Provider<ApiService>(create: (_) => ApiService()),
-        ProxyProvider<ApiService, AuthService>(
-          update: (_, api, __) => AuthService(api),
-        ),
-        ProxyProvider<ApiService, HostService>(
-          update: (_, api, __) => HostService(api),
-        ),
-        ProxyProvider<ApiService, MonitorService>(
-          update: (_, api, __) => MonitorService(api),
-        ),
-        ChangeNotifierProxyProvider<AuthService, AuthProvider>(
-          create: (context) =>
-              AuthProvider(Provider.of<AuthService>(context, listen: false)),
-          update: (_, authService, authProvider) => AuthProvider(authService),
-        ),
-        ChangeNotifierProxyProvider<HostService, HostProvider>(
-          create: (context) =>
-              HostProvider(Provider.of<HostService>(context, listen: false)),
-          update: (_, hostService, __) => HostProvider(hostService),
-        ),
-        ChangeNotifierProxyProvider2<
-          MonitorService,
-          HostService,
-          MonitorProvider
-        >(
-          create: (context) => MonitorProvider(
-            Provider.of<MonitorService>(context, listen: false),
-            Provider.of<HostService>(context, listen: false),
-          ),
-          update: (_, monitorService, hostService, __) =>
-              MonitorProvider(monitorService, hostService),
-        ),
-        ChangeNotifierProvider(create: (_) => TerminalProvider()),
+        ChangeNotifierProvider(create: (_) => AuthProvider(AuthService())),
+        ChangeNotifierProvider(create: (_) => ThemeProvider()),
       ],
-      child: MaterialApp(
-        title: AppConstants.appName,
-        theme: ThemeData(
-          colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-          useMaterial3: true,
-        ),
-        localizationsDelegates: const [
-          AppLocalizations.delegate,
-          GlobalMaterialLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
-        ],
-        supportedLocales: const [
-          Locale('en'), // English
-          Locale('zh'), // Chinese
-        ],
-        home: const SelectionArea(child: AuthWrapper()),
+      child: Consumer<ThemeProvider>(
+        builder: (context, themeProvider, child) {
+          return MaterialApp(
+            title: 'TermiScope',
+            debugShowCheckedModeBanner: false,
+            theme: ThemeData(
+              useMaterial3: true,
+              colorScheme: ColorScheme.fromSeed(
+                seedColor: Colors.blue,
+                brightness: Brightness.light,
+              ),
+            ),
+            darkTheme: ThemeData(
+              useMaterial3: true,
+              colorScheme: ColorScheme.fromSeed(
+                seedColor: Colors.blue,
+                brightness: Brightness.dark,
+              ),
+            ),
+            themeMode: themeProvider.themeMode,
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
+            supportedLocales: const [
+              Locale('en'), // English
+              Locale('zh'), // Chinese
+            ],
+            initialRoute: '/',
+            routes: {
+              '/': (context) => const SelectionArea(child: AuthWrapper()),
+              '/dashboard': (context) => const MainScreen(),
+              '/hosts': (context) => const MainScreen(),
+              '/terminal': (context) => const MainScreen(),
+              '/transfer': (context) => const FileTransferScreen(),
+              '/history': (context) => const MainScreen(),
+              '/commands': (context) => const CommandManagementScreen(),
+            },
+            onGenerateRoute: (settings) {
+              // Handle dynamic routes
+              if (settings.name?.startsWith('/dashboard/') ?? false) {
+                final pathParts = settings.name!.split('/');
+                if (pathParts.length > 2) {
+                  final tab = pathParts[2];
+                  switch (tab) {
+                    case 'terminal':
+                      return MaterialPageRoute(builder: (_) => const MainScreen());
+                    case 'hosts':
+                      return MaterialPageRoute(builder: (_) => const MainScreen());
+                    case 'monitor':
+                      return MaterialPageRoute(builder: (_) => const MainScreen());
+                    case 'users':
+                      return MaterialPageRoute(builder: (_) => const MainScreen());
+                    case 'system':
+                      return MaterialPageRoute(builder: (_) => const MainScreen());
+                    case 'profile':
+                      return MaterialPageRoute(builder: (_) => const MainScreen());
+                    case 'transfer':
+                      return MaterialPageRoute(builder: (_) => const FileTransferScreen());
+                    case 'history':
+                      return MaterialPageRoute(builder: (_) => const MainScreen());
+                    case 'commands':
+                      return MaterialPageRoute(builder: (_) => const CommandManagementScreen());
+                  }
+                }
+              }
+              return MaterialPageRoute(builder: (_) => const MainScreen());
+            },
+            home: const SelectionArea(child: AuthWrapper()),
+          );
+        },
       ),
     );
   }
@@ -86,20 +116,57 @@ class AuthWrapper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<AuthProvider>(
-      builder: (context, auth, _) {
-        switch (auth.status) {
-          case AuthStatus.authenticated:
-            return const MainScreen();
-          case AuthStatus.unauthenticated:
-            return const LoginScreen();
-          case AuthStatus.unknown:
-          default:
-            return const Scaffold(
-              body: Center(child: CircularProgressIndicator()),
-            );
+    return FutureBuilder<bool>(
+      future: _checkInitialization(context),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
         }
+
+        final isInitialized = snapshot.data ?? false;
+        
+        return Consumer<AuthProvider>(
+          builder: (context, auth, _) {
+            // If system is not initialized, show setup screen regardless of auth status
+            if (!isInitialized) {
+              return const SetupScreen();
+            }
+            
+            switch (auth.status) {
+              case AuthStatus.authenticated:
+                return const DashboardScreen();
+              case AuthStatus.unauthenticated:
+                return const LoginScreen();
+              case AuthStatus.unknown:
+                return const Scaffold(
+                  body: Center(child: CircularProgressIndicator()),
+                );
+            }
+          },
+        );
       },
     );
+  }
+
+  Future<bool> _checkInitialization(BuildContext context) async {
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    try {
+      // Debug: Print API client base URL
+      print('DEBUG: API Client base URL: ${ApiClient.instance.baseUrl}');
+      print('DEBUG: About to check initialization...');
+      
+      final result = await authProvider.checkInitialization();
+      print('System initialization check result: $result');
+      return result;
+    } catch (e, stackTrace) {
+      // If there's an error checking initialization, show login screen
+      // This handles cases where the server is unreachable or API errors
+      print('Error checking initialization, showing login screen: $e');
+      print('Stack trace: $stackTrace');
+      // Return true to skip setup screen and go to login
+      return true;
+    }
   }
 }

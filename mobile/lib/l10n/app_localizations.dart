@@ -733,6 +733,300 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'SSH Connections'**
   String get sshHistory;
+
+  /// No description provided for @basicSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Basic Settings'**
+  String get basicSettings;
+
+  /// No description provided for @emailNotifications.
+  ///
+  /// In en, this message translates to:
+  /// **'Email Notifications'**
+  String get emailNotifications;
+
+  /// No description provided for @telegramNotifications.
+  ///
+  /// In en, this message translates to:
+  /// **'Telegram Notifications'**
+  String get telegramNotifications;
+
+  /// No description provided for @databaseManagement.
+  ///
+  /// In en, this message translates to:
+  /// **'Database Management'**
+  String get databaseManagement;
+
+  /// No description provided for @systemUpdates.
+  ///
+  /// In en, this message translates to:
+  /// **'System Updates'**
+  String get systemUpdates;
+
+  /// No description provided for @smtpPort.
+  ///
+  /// In en, this message translates to:
+  /// **'SMTP Port'**
+  String get smtpPort;
+
+  /// No description provided for @smtpUser.
+  ///
+  /// In en, this message translates to:
+  /// **'SMTP User'**
+  String get smtpUser;
+
+  /// No description provided for @smtpPassword.
+  ///
+  /// In en, this message translates to:
+  /// **'SMTP Password'**
+  String get smtpPassword;
+
+  /// No description provided for @smtpFrom.
+  ///
+  /// In en, this message translates to:
+  /// **'SMTP From'**
+  String get smtpFrom;
+
+  /// No description provided for @smtpTo.
+  ///
+  /// In en, this message translates to:
+  /// **'SMTP To'**
+  String get smtpTo;
+
+  /// No description provided for @smtpSkipVerify.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip TLS Verification'**
+  String get smtpSkipVerify;
+
+  /// No description provided for @testEmail.
+  ///
+  /// In en, this message translates to:
+  /// **'Test Email'**
+  String get testEmail;
+
+  /// No description provided for @telegramBotToken.
+  ///
+  /// In en, this message translates to:
+  /// **'Telegram Bot Token'**
+  String get telegramBotToken;
+
+  /// No description provided for @telegramChatId.
+  ///
+  /// In en, this message translates to:
+  /// **'Telegram Chat ID'**
+  String get telegramChatId;
+
+  /// No description provided for @notificationTemplate.
+  ///
+  /// In en, this message translates to:
+  /// **'Notification Template'**
+  String get notificationTemplate;
+
+  /// No description provided for @testTelegram.
+  ///
+  /// In en, this message translates to:
+  /// **'Test Telegram'**
+  String get testTelegram;
+
+  /// No description provided for @databaseManagementDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage database backups and restores'**
+  String get databaseManagementDescription;
+
+  /// No description provided for @backupDatabase.
+  ///
+  /// In en, this message translates to:
+  /// **'Backup Database'**
+  String get backupDatabase;
+
+  /// No description provided for @restoreDatabase.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore Database'**
+  String get restoreDatabase;
+
+  /// No description provided for @checkUpdate.
+  ///
+  /// In en, this message translates to:
+  /// **'Check Update'**
+  String get checkUpdate;
+
+  /// No description provided for @performUpdate.
+  ///
+  /// In en, this message translates to:
+  /// **'Perform Update'**
+  String get performUpdate;
+
+  /// No description provided for @updateAvailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Update Available'**
+  String get updateAvailable;
+
+  /// No description provided for @version.
+  ///
+  /// In en, this message translates to:
+  /// **'Version'**
+  String get version;
+
+  /// No description provided for @updateNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Update Now'**
+  String get updateNow;
+
+  /// No description provided for @close.
+  ///
+  /// In en, this message translates to:
+  /// **'Close'**
+  String get close;
+
+  /// No description provided for @noUpdatesAvailable.
+  ///
+  /// In en, this message translates to:
+  /// **'No Updates Available'**
+  String get noUpdatesAvailable;
+
+  /// No description provided for @settingsSavedSuccessfully.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings saved successfully'**
+  String get settingsSavedSuccessfully;
+
+  /// No description provided for @failedToSaveSettings.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to save settings'**
+  String get failedToSaveSettings;
+
+  /// No description provided for @emailTestSentSuccessfully.
+  ///
+  /// In en, this message translates to:
+  /// **'Email test sent successfully'**
+  String get emailTestSentSuccessfully;
+
+  /// No description provided for @failedToSendEmailTest.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to send email test'**
+  String get failedToSendEmailTest;
+
+  /// No description provided for @telegramTestSentSuccessfully.
+  ///
+  /// In en, this message translates to:
+  /// **'Telegram test sent successfully'**
+  String get telegramTestSentSuccessfully;
+
+  /// No description provided for @failedToSendTelegramTest.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to send telegram test'**
+  String get failedToSendTelegramTest;
+
+  /// No description provided for @databaseBackupCreated.
+  ///
+  /// In en, this message translates to:
+  /// **'Database backup created'**
+  String get databaseBackupCreated;
+
+  /// No description provided for @failedToCreateDatabaseBackup.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to create database backup'**
+  String get failedToCreateDatabaseBackup;
+
+  /// No description provided for @timezone.
+  ///
+  /// In en, this message translates to:
+  /// **'Timezone'**
+  String get timezone;
+
+  /// No description provided for @refreshExpiration.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh Expiration'**
+  String get refreshExpiration;
+
+  /// No description provided for @lightTheme.
+  ///
+  /// In en, this message translates to:
+  /// **'Light Theme'**
+  String get lightTheme;
+
+  /// No description provided for @darkTheme.
+  ///
+  /// In en, this message translates to:
+  /// **'Dark Theme'**
+  String get darkTheme;
+
+  /// No description provided for @systemTheme.
+  ///
+  /// In en, this message translates to:
+  /// **'System Theme'**
+  String get systemTheme;
+
+  /// No description provided for @addHost.
+  ///
+  /// In en, this message translates to:
+  /// **'Add Host'**
+  String get addHost;
+
+  /// No description provided for @failedToCheckForUpdates.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to check for updates'**
+  String get failedToCheckForUpdates;
+
+  /// No description provided for @noHostsForTerminal.
+  ///
+  /// In en, this message translates to:
+  /// **'No hosts available for terminal'**
+  String get noHostsForTerminal;
+
+  /// No description provided for @connected.
+  ///
+  /// In en, this message translates to:
+  /// **'Connected'**
+  String get connected;
+
+  /// No description provided for @reconnect.
+  ///
+  /// In en, this message translates to:
+  /// **'Reconnect'**
+  String get reconnect;
+
+  /// No description provided for @clearTerminal.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear Terminal'**
+  String get clearTerminal;
+
+  /// No description provided for @copySelection.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy Selection'**
+  String get copySelection;
+
+  /// No description provided for @copiedToClipboard.
+  ///
+  /// In en, this message translates to:
+  /// **'Copied to clipboard'**
+  String get copiedToClipboard;
+
+  /// No description provided for @noUsersFound.
+  ///
+  /// In en, this message translates to:
+  /// **'No users found'**
+  String get noUsersFound;
+
+  /// No description provided for @systemManagement.
+  ///
+  /// In en, this message translates to:
+  /// **'System Management'**
+  String get systemManagement;
 }
 
 class _AppLocalizationsDelegate

@@ -328,4 +328,152 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sshHistory => 'SSH Connections';
+
+  @override
+  String get basicSettings => 'Basic Settings';
+
+  @override
+  String get emailNotifications => 'Email Notifications';
+
+  @override
+  String get telegramNotifications => 'Telegram Notifications';
+
+  @override
+  String get databaseManagement => 'Database Management';
+
+  @override
+  String get systemUpdates => 'System Updates';
+
+  @override
+  String get smtpPort => 'SMTP Port';
+
+  @override
+  String get smtpUser => 'SMTP User';
+
+  @override
+  String get smtpPassword => 'SMTP Password';
+
+  @override
+  String get smtpFrom => 'SMTP From';
+
+  @override
+  String get smtpTo => 'SMTP To';
+
+  @override
+  String get smtpSkipVerify => 'Skip TLS Verification';
+
+  @override
+  String get testEmail => 'Test Email';
+
+  @override
+  String get telegramBotToken => 'Telegram Bot Token';
+
+  @override
+  String get telegramChatId => 'Telegram Chat ID';
+
+  @override
+  String get notificationTemplate => 'Notification Template';
+
+  @override
+  String get testTelegram => 'Test Telegram';
+
+  @override
+  String get databaseManagementDescription =>
+      'Manage database backups and restores';
+
+  @override
+  String get backupDatabase => 'Backup Database';
+
+  @override
+  String get restoreDatabase => 'Restore Database';
+
+  @override
+  String get checkUpdate => 'Check Update';
+
+  @override
+  String get performUpdate => 'Perform Update';
+
+  @override
+  String get updateAvailable => 'Update Available';
+
+  @override
+  String get version => 'Version';
+
+  @override
+  String get updateNow => 'Update Now';
+
+  @override
+  String get close => 'Close';
+
+  @override
+  String get noUpdatesAvailable => 'No Updates Available';
+
+  @override
+  String get settingsSavedSuccessfully => 'Settings saved successfully';
+
+  @override
+  String get failedToSaveSettings => 'Failed to save settings';
+
+  @override
+  String get emailTestSentSuccessfully => 'Email test sent successfully';
+
+  @override
+  String get failedToSendEmailTest => 'Failed to send email test';
+
+  @override
+  String get telegramTestSentSuccessfully => 'Telegram test sent successfully';
+
+  @override
+  String get failedToSendTelegramTest => 'Failed to send telegram test';
+
+  @override
+  String get databaseBackupCreated => 'Database backup created';
+
+  @override
+  String get failedToCreateDatabaseBackup => 'Failed to create database backup';
+
+  @override
+  String get timezone => 'Timezone';
+
+  @override
+  String get refreshExpiration => 'Refresh Expiration';
+
+  @override
+  String get lightTheme => 'Light Theme';
+
+  @override
+  String get darkTheme => 'Dark Theme';
+
+  @override
+  String get systemTheme => 'System Theme';
+
+  @override
+  String get addHost => 'Add Host';
+
+  @override
+  String get failedToCheckForUpdates => 'Failed to check for updates';
+
+  @override
+  String get noHostsForTerminal => 'No hosts available for terminal';
+
+  @override
+  String get connected => 'Connected';
+
+  @override
+  String get reconnect => 'Reconnect';
+
+  @override
+  String get clearTerminal => 'Clear Terminal';
+
+  @override
+  String get copySelection => 'Copy Selection';
+
+  @override
+  String get copiedToClipboard => 'Copied to clipboard';
+
+  @override
+  String get noUsersFound => 'No users found';
+
+  @override
+  String get systemManagement => 'System Management';
 }

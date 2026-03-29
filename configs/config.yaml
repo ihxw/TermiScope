@@ -10,8 +10,10 @@ server:
   # 开发环境：需要配置 Vite 开发服务器地址 (如 http://localhost:5173)
   allowed_origins:
     - "http://localhost:5173"     # 开发环境 (Web)
+    - "http://localhost:8080"     # Flutter Web
     - "http://localhost:8100"     # 开发环境 (Ionic)
     - "http://127.0.0.1:8100"
+    - "http://127.0.0.1:8080"     # Flutter Web (IP 形式)
     - "http://localhost:3000"
     # 生产环境：删除以上开发地址，仅保留实际域名
     # - "https://your-domain.com"

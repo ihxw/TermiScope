@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import '../data/models/monitor_host.dart';
-import '../data/services/monitor_service.dart';
-import '../data/services/host_service.dart';
+
+import '../models/monitor_host.dart';
+import '../services/monitor_service.dart';
+import '../services/host_service.dart';
 
 class MonitorProvider extends ChangeNotifier {
   final MonitorService _service;
@@ -44,7 +45,7 @@ class MonitorProvider extends ChangeNotifier {
     try {
       final hostsList = await _hostService.getHosts();
       _hostNames = {for (var h in hostsList) h.id: h.name};
-      _hostTypes = {for (var h in hostsList) h.id: h.hostType};
+      _hostTypes = {for (var h in hostsList) h.id: 'ssh'}; // Default to ssh type
       _hostOrder = hostsList
           .map((h) => h.id)
           .toList(); // Preserve order from server

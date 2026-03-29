@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:mobile/l10n/app_localizations.dart';
 import '../../providers/auth_provider.dart';
+import 'theme_switch.dart';
 
 /// PC端顶部Header导航组件
 /// 参照Web版本Dashboard.vue的Header结构
@@ -86,6 +87,10 @@ class AppHeader extends StatelessWidget implements PreferredSizeWidget {
                   'v1.0.0',
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                 ),
+                const SizedBox(width: 16),
+
+                // 主题切换
+                const ThemeSwitch(),
                 const SizedBox(width: 16),
 
                 // 用户下拉菜单

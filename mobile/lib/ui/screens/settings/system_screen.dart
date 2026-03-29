@@ -3,8 +3,8 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/constants.dart';
-import '../../../data/services/api_service.dart';
-import '../../../data/services/settings_service.dart';
+
+
 import 'package:mobile/l10n/app_localizations.dart';
 
 class SystemScreen extends StatefulWidget {
@@ -15,7 +15,7 @@ class SystemScreen extends StatefulWidget {
 }
 
 class _SystemScreenState extends State<SystemScreen> {
-  late SettingsService _settingsService;
+  // late SettingsService _settingsService; // Service not implemented yet
   Map<String, dynamic> _settings = {};
   bool _isLoading = false;
 
@@ -25,22 +25,24 @@ class _SystemScreenState extends State<SystemScreen> {
   void initState() {
     super.initState();
     // Ensure ApiService is imported and available
-    _settingsService = SettingsService(
-      Provider.of<ApiService>(context, listen: false),
-    );
+    // _settingsService = SettingsService(
+      //   Provider.of<ApiService>(context, listen: false),
+    // ); // Service not implemented yet
     _loadSettings();
   }
 
   Future<void> _loadSettings() async {
     setState(() => _isLoading = true);
     try {
-      final settings = await _settingsService.getSystemSettings();
+      // final settings = await _settingsService.getSystemSettings(); // Service not implemented yet
+      final settings = {}; // Placeholder for now
       if (mounted) setState(() => _settings = Map.from(settings));
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -61,16 +63,18 @@ class _SystemScreenState extends State<SystemScreen> {
     }
 
     try {
-      await _settingsService.updateSystemSettings(payload);
-      if (mounted)
+      // await _settingsService.updateSystemSettings(payload); // Service not implemented yet
+      if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('Settings saved')));
+      }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
     }
   }
 
@@ -106,10 +110,19 @@ class _SystemScreenState extends State<SystemScreen> {
 
   Future<void> _performBackup(String password) async {
     try {
-      final result = await _settingsService.triggerBackup(password);
-      final filename = result['filename'];
-      final ticket = result['ticket'];
-
+      // final result = await _settingsService.triggerBackup(password); // Service not implemented yet
+      // final filename = result['filename'];
+      // final ticket = result['ticket'];
+      
+      // For now, just show a message that backup is not implemented
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Backup feature not implemented yet')));
+      }
+      
+      // Uncomment when service is implemented:
+      /*
       final prefs = await SharedPreferences.getInstance();
       final baseUrl =
           prefs.getString(AppConstants.serverUrlKey) ??
@@ -123,11 +136,13 @@ class _SystemScreenState extends State<SystemScreen> {
       )) {
         throw Exception('Could not launch $url');
       }
+      */
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Backup Failed: $e')));
+      }
     }
   }
 

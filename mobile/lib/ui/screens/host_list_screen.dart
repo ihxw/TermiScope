@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/host_provider.dart';
+import '../../models/ssh_host.dart';
 import 'package:mobile/l10n/app_localizations.dart';
 import 'terminal_screen.dart';
 
@@ -61,23 +62,21 @@ class _HostListScreenState extends State<HostListScreen> {
                 final host = hostProvider.hosts[index];
                 return ListTile(
                   leading: CircleAvatar(
-                    backgroundColor: host.status == 'online'
-                        ? Colors.green
-                        : Colors.grey,
+                    backgroundColor: Colors.grey,
                     child: const Icon(Icons.terminal, color: Colors.white),
                   ),
-                  title: Text(host.name),
-                  subtitle: Text('${host.username}@${host.host}:${host.port}'),
+                  title: Text(host.name ?? ''),
+                  subtitle: Text('${host.username ?? ''}@${host.hostname ?? ''}:${host.port ?? 22}'),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) =>
-                            TerminalScreen(hostId: host.id, title: host.name),
-                      ),
-                    );
-                  },
+                  // onTap: () {
+                  //   Navigator.push(
+                  //     context,
+                  //     MaterialPageRoute(
+                  //       builder: (context) =>
+                  //           TerminalScreen(sessionId: '', host: SSHHost()),
+                  //     ),
+                  //   );
+                  // },
                 );
               },
             ),

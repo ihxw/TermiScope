@@ -66,7 +66,7 @@ func LoadConfig() (*Config, error) {
 	viper.SetDefault("server.mode", "debug")
 	viper.SetDefault("server.timezone", "Local")
 	viper.SetDefault("server.allowed_origins", []string{}) // Empty = same-origin only (secure default)
-	viper.SetDefault("server.max_upload_size", 524288000)     // 500MB
+	viper.SetDefault("server.max_upload_size", 524288000)  // 500MB
 	viper.SetDefault("database.path", "./data/termiscope.db")
 	viper.SetDefault("ssh.timeout", "30s")
 	viper.SetDefault("ssh.idle_timeout", "30m")

@@ -37,6 +37,8 @@ dependencies:
   dio: ^5.9.1
   provider: ^6.1.5+1
   shared_preferences: ^2.5.4
+  path: ^1.9.0
+  crypto: ^3.0.7
 
   dartssh2: ^2.13.0
   xterm: ^4.0.0
@@ -46,7 +48,8 @@ dependencies:
   url_launcher: ^6.3.2
   flutter_localizations:
     sdk: flutter
-  crypto: ^3.0.7
+  file_picker: ^8.0.0
+  fl_chart: ^0.68.0
 
 dev_dependencies:
   flutter_test:
@@ -58,6 +61,7 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  intl_utils: ^2.8.7
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -70,6 +74,15 @@ flutter:
   # the material Icons class.
   uses-material-design: true
   generate: true
+  # Internationalization
+  # To add assets to your application, add an assets section, like this:
+  assets:
+    - lib/l10n/
+
+flutter_intl:
+  enabled: true
+  class_name: AppLocalizations
+  main_locale: en
 
   # To add assets to your application, add an assets section, like this:
   # assets:

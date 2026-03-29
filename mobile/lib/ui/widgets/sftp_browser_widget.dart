@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
-import '../../data/models/sftp_file.dart';
-import '../../data/services/api_service.dart';
-import '../../data/services/sftp_service.dart';
+import '../../models/sftp_file.dart';
+import '../../core/api_client.dart';
+import '../../services/sftp_service.dart';
 
 class SftpBrowserWidget extends StatefulWidget {
   final int hostId;
@@ -23,60 +23,19 @@ class _SftpBrowserWidgetState extends State<SftpBrowserWidget> {
   @override
   void initState() {
     super.initState();
-    final apiService = Provider.of<ApiService>(context, listen: false);
-    _sftpService = SftpService(apiService);
+    _sftpService = SftpService();
     _loadFiles();
   }
 
   Future<void> _loadFiles() async {
     setState(() => _loading = true);
     try {
-      final result = await _sftpService.listFiles(widget.hostId, _currentPath);
+      final result = await _sftpService.listDirectory(widget.hostId.toString(), _currentPath);
       if (mounted) {
         setState(() {
-          // result['files']已经是List<SftpFile>类型
-          final filesList = result['files'];
-          if (filesList is List<SftpFile>) {
-            _files = filesList;
-          } else {
-            _files = [];
-          }
-          _currentPath = result['cwd'] as String? ?? '.';
+          _files = result.files;
+          _currentPath = result.currentPath;
         });
-
-        // 异步加载目录大小
-        for (int i = 0; i < _files.length; i++) {
-          if (_files[i].isDir) {
-            final file = _files[i];
-            final fullPath = _currentPath == '.'
-                ? file.name
-                : '$_currentPath/${file.name}';
-            _sftpService
-                .getDirSize(widget.hostId, fullPath)
-                .then((size) {
-                  if (mounted && size != null) {
-                    setState(() {
-                      // 更新该文件的大小
-                      final index = _files.indexWhere(
-                        (f) => f.name == file.name,
-                      );
-                      if (index != -1) {
-                        _files[index] = SftpFile(
-                          name: file.name,
-                          isDir: file.isDir,
-                          size: size,
-                          modTime: file.modTime,
-                        );
-                      }
-                    });
-                  }
-                })
-                .catchError((e) {
-                  // 静默处理getDirSize错误
-                  debugPrint('Failed to get size for ${file.name}: $e');
-                });
-          }
-        }
       }
     } catch (e) {
       debugPrint('Failed to load files: $e');
@@ -158,7 +117,7 @@ class _SftpBrowserWidgetState extends State<SftpBrowserWidget> {
     if (confirmed == true) {
       try {
         final fullPath = _currentPath == '.' ? name : '$_currentPath/$name';
-        await _sftpService.deleteFile(widget.hostId, fullPath);
+        await _sftpService.deletePath(widget.hostId.toString(), fullPath);
         if (mounted) {
           ScaffoldMessenger.of(
             context,
@@ -202,7 +161,7 @@ class _SftpBrowserWidgetState extends State<SftpBrowserWidget> {
     if (name != null && name.isNotEmpty) {
       try {
         final fullPath = _currentPath == '.' ? name : '$_currentPath/$name';
-        await _sftpService.createDirectory(widget.hostId, fullPath);
+        await _sftpService.createDirectory(widget.hostId.toString(), fullPath);
         if (mounted) {
           ScaffoldMessenger.of(
             context,
@@ -316,8 +275,8 @@ class _SftpBrowserWidgetState extends State<SftpBrowserWidget> {
                       return ListTile(
                         dense: true,
                         leading: Icon(
-                          file.isDir ? Icons.folder : Icons.insert_drive_file,
-                          color: file.isDir
+                          file.isDirectory ? Icons.folder : Icons.insert_drive_file,
+                          color: file.isDirectory
                               ? Colors.amber
                               : Colors.grey.shade600,
                           size: 20,
@@ -326,7 +285,7 @@ class _SftpBrowserWidgetState extends State<SftpBrowserWidget> {
                           file.name,
                           style: const TextStyle(fontSize: 13),
                         ),
-                        subtitle: file.isDir
+                        subtitle: file.isDirectory
                             ? null
                             : Text(
                                 _formatSize(file.size),
@@ -359,7 +318,7 @@ class _SftpBrowserWidgetState extends State<SftpBrowserWidget> {
                             ),
                           ],
                         ),
-                        onTap: file.isDir
+                        onTap: file.isDirectory
                             ? () => _enterDirectory(file.name)
                             : null,
                       );
