@@ -376,7 +376,7 @@ func collectDiskMetricsHybrid() ([]DiskData, uint64, uint64, error) {
 	// Global seen set to prevent double-counting
 	globalSeenMounts := make(map[string]struct{})
 	globalSeenDevIDs := make(map[uint64]struct{})
-	
+
 	var disks []DiskData
 	var totalUsed uint64
 	var totalSize uint64
@@ -389,23 +389,23 @@ func collectDiskMetricsHybrid() ([]DiskData, uint64, uint64, error) {
 
 		// Get usage using gopsutil (cross-platform, reliable)
 		usage, err := disk.Usage(mountPoint)
-		
+
 		// Handle case where disk exists but usage cannot be determined
 		// For example: unmounted disk, raw disk, or permission issues
 		var used uint64
 		var total uint64
-		
+
 		if err != nil {
 			// Cannot get usage, but we still want to report the disk
 			// Try to get size from lsblk or df fallback
 			continue // Skip for now, will be handled by df fallback if needed
 		}
-		
+
 		if usage.Total == 0 {
 			// Disk with 0 total size, skip
 			continue
 		}
-		
+
 		used = usage.Used
 		total = usage.Total
 
@@ -666,7 +666,7 @@ func collectDiskMetricsDf() ([]DiskData, uint64, uint64, error) {
 		globalSeenMounts[mp] = struct{}{}
 
 		total := mountTotal[mp]
-		
+
 		// Skip if total is 0 (invalid disk)
 		if total == 0 {
 			continue
@@ -684,7 +684,7 @@ func collectDiskMetricsDf() ([]DiskData, uint64, uint64, error) {
 		// MountPoint should be the mount point, not the device name
 		// Device name is stored for reference but we display mount point
 		disks = append(disks, DiskData{
-			MountPoint: mp,              // Mount point (e.g., /fs, /vol1)
+			MountPoint: mp, // Mount point (e.g., /fs, /vol1)
 			Used:       used,
 			Total:      total,
 		})

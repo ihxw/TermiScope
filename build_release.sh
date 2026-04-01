@@ -65,10 +65,10 @@ GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags "$AGENT_LDFLAGS" -o "$A
 
 # Normalize line endings for install scripts
 if [ -f "$ROOT_DIR/scripts/install.sh" ]; then
-  sed -i 's/\r$//' "$ROOT_DIR/scripts/install.sh"
+  sed -i '' 's/\r$//' "$ROOT_DIR/scripts/install.sh" 2>/dev/null || true
 fi
 if [ -f "$ROOT_DIR/scripts/uninstall.sh" ]; then
-  sed -i 's/\r$//' "$ROOT_DIR/scripts/uninstall.sh"
+  sed -i '' 's/\r$//' "$ROOT_DIR/scripts/uninstall.sh" 2>/dev/null || true
 fi
 
 echo "4. Building Backends and Packaging..."
