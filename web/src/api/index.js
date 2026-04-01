@@ -4,7 +4,7 @@ import { message } from 'ant-design-vue'
 // Create axios instance
 const api = axios.create({
     baseURL: '/api',
-    timeout: 30000,
+    timeout: 60000,  // 1 minute
 })
 
 // Request interceptor

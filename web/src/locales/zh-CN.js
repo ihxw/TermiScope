@@ -50,7 +50,8 @@ export default {
         hostSettings: '主机设置',
         update: '更新',
         updateNow: '立即更新',
-        backToLogin: '返回登录'
+        backToLogin: '返回登录',
+        items: '项'
     },
     nav: {
         terminal: '终端',
@@ -532,7 +533,8 @@ export default {
         agentOutdated: '需要更新',
         agentLatest: '最新版本',
         agentUnknown: '未知版本',
-        currentAgentVersion: '当前Agent版本',
+        currentAgentVersion: '当前 Agent 版本',
+        diskDetails: '磁盘详情',
         batchDeploy: '批量部署监控',
         batchDeployConfirm: '准备部署监控到 {count} 个主机',
         batchTrafficNotify: '批量设置流量警告',

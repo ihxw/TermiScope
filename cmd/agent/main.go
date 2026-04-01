@@ -346,93 +346,20 @@ func collectMetrics() MetricData {
 }
 
 func collectDiskMetrics() ([]DiskData, uint64, uint64) {
-	// Use df-based method as primary on Linux (most reliable for LVM, Btrfs, etc.)
+	// Use physical disk-based collection on Linux (aggregates partitions)
 	if runtime.GOOS == "linux" {
-		if d, used, size, err := collectDiskMetricsDf(); err == nil && len(d) > 0 {
+		if d, used, size, err := collectDiskMetricsPhysical(); err == nil && len(d) > 0 {
 			return d, used, size
 		}
-		// Fallthrough to partition-based method on error
+		// Fallthrough to df-based method on error
 	}
 
-	// Fallback: use partition-based method
-	partitions, err := disk.Partitions(true)
+	// Fallback: use df-based method
+	d, used, size, err := collectDiskMetricsDf()
 	if err != nil {
 		return nil, 0, 0
 	}
-
-	seenKeys := make(map[string]struct{})
-	seenMounts := make(map[string]struct{})
-	seenPools := make(map[string]struct{})
-	seenDevIDs := make(map[uint64]struct{})
-	disks := make([]DiskData, 0, len(partitions))
-	var totalUsed uint64
-	var totalSize uint64
-
-	for _, partition := range partitions {
-		mountPoint := strings.TrimSpace(partition.Mountpoint)
-		if shouldSkipPartition(partition, mountPoint) {
-			continue
-		}
-
-		usage, err := disk.Usage(mountPoint)
-		if err != nil || usage.Total == 0 {
-			continue
-		}
-
-		if _, exists := seenMounts[mountPoint]; exists {
-			continue
-		}
-
-		diskKey := diskIdentityKey(partition)
-		if _, exists := seenKeys[diskKey]; exists {
-			continue
-		}
-
-		// Deduplicate by strict Unix Device ID if possible
-		devID := getDiskID(mountPoint)
-		if devID != 0 {
-			if _, exists := seenDevIDs[devID]; exists {
-				continue
-			}
-			seenDevIDs[devID] = struct{}{}
-		}
-
-		// Deduplicate pooled filesystems (ZFS, Btrfs, APFS)
-		lowerFS := strings.ToLower(strings.TrimSpace(partition.Fstype))
-		if lowerFS == "zfs" || lowerFS == "btrfs" || lowerFS == "apfs" {
-			// They share identical pool size
-			poolKey := fmt.Sprintf("%s-%d", lowerFS, usage.Total)
-			if _, exists := seenPools[poolKey]; exists {
-				continue
-			}
-			seenPools[poolKey] = struct{}{}
-		}
-
-		seenMounts[mountPoint] = struct{}{}
-		seenKeys[diskKey] = struct{}{}
-
-		disks = append(disks, DiskData{
-			MountPoint: mountPoint,
-			Used:       usage.Used,
-			Total:      usage.Total,
-		})
-		totalSize += usage.Total
-		totalUsed += usage.Used
-	}
-
-	if len(disks) == 0 && runtime.GOOS != "windows" {
-		if usage, err := disk.Usage("/"); err == nil && usage.Total > 0 {
-			disks = append(disks, DiskData{MountPoint: "/", Used: usage.Used, Total: usage.Total})
-			totalSize = usage.Total
-			totalUsed = usage.Used
-		}
-	}
-
-	sort.Slice(disks, func(i, j int) bool {
-		return disks[i].MountPoint < disks[j].MountPoint
-	})
-
-	return disks, totalUsed, totalSize
+	return d, used, size
 }
 
 // collectDiskMetricsHybrid uses gopsutil with df fallback for reliable disk statistics.
@@ -526,6 +453,155 @@ func collectDiskMetricsHybrid() ([]DiskData, uint64, uint64, error) {
 	return disks, totalUsed, totalSize, nil
 }
 
+// collectDiskMetricsPhysical collects disk metrics by physical device.
+// It aggregates usage across all partitions of the same physical disk.
+func collectDiskMetricsPhysical() ([]DiskData, uint64, uint64, error) {
+	// Step 1: Get all mountpoints with usage from df
+	dfOut, err := exec.Command("df", "-B1", "-P", "-T").Output()
+	if err != nil {
+		return nil, 0, 0, err
+	}
+
+	// Map: mountpoint -> {used, total}
+	mountData := make(map[string]struct {
+		used  uint64
+		total uint64
+	})
+
+	lines := strings.Split(string(dfOut), "\n")
+	for i, line := range lines {
+		if i == 0 {
+			continue // Skip header
+		}
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		fields := strings.Fields(line)
+		if len(fields) < 7 {
+			continue
+		}
+
+		fsType := fields[1]
+		totalStr := fields[2]
+		usedStr := fields[3]
+		mountPoint := fields[len(fields)-1]
+
+		total, err := strconv.ParseUint(totalStr, 10, 64)
+		if err != nil {
+			continue
+		}
+		used, err := strconv.ParseUint(usedStr, 10, 64)
+		if err != nil {
+			continue
+		}
+
+		if shouldSkipFsType(fsType, mountPoint) {
+			continue
+		}
+
+		mountData[mountPoint] = struct {
+			used  uint64
+			total uint64
+		}{used: used, total: total}
+	}
+
+	// Step 2: Get physical disk to mountpoint mapping from lsblk
+	// Use -o NAME,TYPE,MOUNTPOINT,PKNAME to get parent device
+	lsblkOut, err := exec.Command("lsblk", "-rn", "-o", "NAME,TYPE,MOUNTPOINT,PKNAME").Output()
+	if err != nil {
+		// Fallback to df-based method
+		return collectDiskMetricsDf()
+	}
+
+	// Map: physical disk -> {used, total}
+	physicalDiskData := make(map[string]struct {
+		used  uint64
+		total uint64
+	})
+
+	// Map: device name -> physical disk
+	deviceToDisk := make(map[string]string)
+
+	lines = strings.Split(string(lsblkOut), "\n")
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		fields := strings.Fields(line)
+		if len(fields) < 4 {
+			continue
+		}
+
+		name := "/dev/" + fields[0]
+		devType := fields[1]
+		mountPoint := fields[2]
+		parent := "/dev/" + fields[3]
+
+		// Track physical disks
+		if devType == "disk" {
+			deviceToDisk[name] = name
+			if _, exists := physicalDiskData[name]; !exists {
+				physicalDiskData[name] = struct {
+					used  uint64
+					total uint64
+				}{used: 0, total: 0}
+			}
+			continue
+		}
+
+		// Map child devices to their physical disk
+		if parentDisk, exists := deviceToDisk[parent]; exists {
+			deviceToDisk[name] = parentDisk
+		}
+
+		// If this device has a mountpoint, add its usage to the physical disk
+		if mountPoint != "" && mountPoint != "[SWAP]" {
+			if physicalDisk, exists := deviceToDisk[name]; exists {
+				if data, mpExists := mountData[mountPoint]; mpExists {
+					existing := physicalDiskData[physicalDisk]
+					existing.used += data.used
+					existing.total += data.total
+					physicalDiskData[physicalDisk] = existing
+				}
+			}
+		}
+	}
+
+	// Step 3: Build result
+	var disks []DiskData
+	var totalUsed uint64
+	var totalSize uint64
+
+	for disk, data := range physicalDiskData {
+		if data.total == 0 {
+			continue // Skip disks without mounted partitions
+		}
+
+		disks = append(disks, DiskData{
+			MountPoint: disk,
+			Used:       data.used,
+			Total:      data.total,
+		})
+		totalUsed += data.used
+		totalSize += data.total
+	}
+
+	if len(disks) == 0 {
+		return collectDiskMetricsDf()
+	}
+
+	sort.Slice(disks, func(i, j int) bool {
+		return disks[i].MountPoint < disks[j].MountPoint
+	})
+
+	return disks, totalUsed, totalSize, nil
+}
+
 // collectDiskMetricsDf is a fallback method that parses df command output
 func collectDiskMetricsDf() ([]DiskData, uint64, uint64, error) {
 	dfOut, err := exec.Command("df", "-B1", "-P", "-T").Output()
@@ -579,6 +655,9 @@ func collectDiskMetricsDf() ([]DiskData, uint64, uint64, error) {
 	var totalUsed uint64
 	var totalSize uint64
 	globalSeenMounts := make(map[string]struct{})
+	// Track seen storage pools to avoid double-counting (e.g., LVM, Btrfs)
+	// Key: "total-fstype" to identify unique storage pools
+	seenPools := make(map[string]struct{})
 
 	for mp, used := range mountUsage {
 		if _, exists := globalSeenMounts[mp]; exists {
@@ -592,6 +671,15 @@ func collectDiskMetricsDf() ([]DiskData, uint64, uint64, error) {
 		if total == 0 {
 			continue
 		}
+
+		// Skip duplicate storage pools (same total capacity)
+		// This prevents double-counting LVM, Btrfs pools, etc.
+		poolKey := fmt.Sprintf("%d", total)
+		if _, exists := seenPools[poolKey]; exists {
+			// Skip this mount point as it's a duplicate of the same pool
+			continue
+		}
+		seenPools[poolKey] = struct{}{}
 
 		// MountPoint should be the mount point, not the device name
 		// Device name is stored for reference but we display mount point

@@ -103,9 +103,6 @@
                     </a-tag>
                   </a-tooltip>
                 </template>
-                <template v-else>
-                   <a-tag color="success" size="small" style="margin: 0">{{ t('monitor.agentLatest') }}</a-tag>
-                </template>
               </template>
             </div>
 
@@ -140,21 +137,56 @@
 
             <!-- Disk -->
              <div style="margin-bottom: 8px">
-              <!-- Multi-disk: iterate host.disks if available, else fallback to scalar -->
+              <!-- Multi-disk: show total with popover for details -->
               <template v-if="host.disks && host.disks.length > 0">
-                <div v-for="disk in host.disks" :key="disk.mount_point" style="margin-bottom: 6px">
-                  <div style="display: flex; justify-content: space-between; margin-bottom: 2px">
-                    <span>
-                      {{ t('monitor.disk') }}
-                      <span style="font-size: 11px; color: #8c8c8c; margin-left: 4px">{{ disk.mount_point }}</span>
-                      <span style="font-size: 11px; color: #8c8c8c; margin-left: 4px">
-                        {{ formatBytes(disk.used) }} / {{ formatBytes(disk.total) }}
+                <a-popover placement="bottom" trigger="click">
+                  <template #content>
+                    <div style="max-height: 300px; overflow-y: auto; min-width: 250px">
+                      <div style="font-size: 12px; font-weight: 500; margin-bottom: 8px; color: #262626">
+                        {{ t('monitor.diskDetails') }}
+                      </div>
+                      <div v-for="disk in host.disks" :key="disk.mount_point" style="margin-bottom: 8px">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 12px">
+                          <span style="color: #595959">{{ disk.mount_point }}</span>
+                          <span style="color: #8c8c8c">
+                            {{ formatBytes(disk.used) }} / {{ formatBytes(disk.total) }}
+                          </span>
+                        </div>
+                        <a-progress 
+                          :percent="calcPct(disk.used, disk.total)" 
+                          :status="getStatus(calcPct(disk.used, disk.total))" 
+                          :show-info="false" 
+                          stroke-linecap="square" 
+                          size="small" 
+                        />
+                      </div>
+                    </div>
+                  </template>
+                  <div style="display: flex; align-items: center; gap: 8px">
+                    <div style="flex: 1">
+                      <div style="display: flex; justify-content: space-between; margin-bottom: 4px">
+                        <span>
+                          {{ t('monitor.disk') }}
+                          <span style="font-size: 11px; color: #8c8c8c; margin-left: 4px">
+                            {{ formatBytes(getTotalDiskUsed(host)) }} / {{ formatBytes(getTotalDiskTotal(host)) }}
+                          </span>
+                        </span>
+                        <span>{{ formatPct(getTotalDiskUsed(host), getTotalDiskTotal(host)) }}%</span>
+                      </div>
+                      <a-progress 
+                        :percent="calcPct(getTotalDiskUsed(host), getTotalDiskTotal(host))" 
+                        :status="getStatus(calcPct(getTotalDiskUsed(host), getTotalDiskTotal(host)))" 
+                        :show-info="false" 
+                        stroke-linecap="square" 
+                      />
+                    </div>
+                    <a-button type="link" size="small" slot="trigger" style="padding: 0; flex-shrink: 0">
+                      <span style="font-size: 12px; color: #1890ff">
+                        {{ host.disks.length }}{{ t('common.items') }}
                       </span>
-                    </span>
-                    <span>{{ calcPct(disk.used, disk.total) }}%</span>
+                    </a-button>
                   </div>
-                  <a-progress :percent="calcPct(disk.used, disk.total)" :status="getStatus(calcPct(disk.used, disk.total))" :show-info="false" stroke-linecap="square" size="small" />
-                </div>
+                </a-popover>
               </template>
               <template v-else>
                 <div style="display: flex; justify-content: space-between; margin-bottom: 4px">
@@ -291,15 +323,56 @@
 
         <template v-if="column.key === 'disk'">
             <div style="width: 100%">
-              <!-- Multi-disk iteration if available -->
+              <!-- Multi-disk: show total with popover for details -->
               <template v-if="record.disks && record.disks.length > 0">
-                <div v-for="disk in record.disks" :key="disk.mount_point" style="margin-bottom: 4px">
-                  <div style="display: flex; justify-content: space-between; font-size: 12px;">
-                    <span style="color: #8c8c8c; font-size: 10px">{{ disk.mount_point }}</span>
-                    <span style="color: grey; font-size: 10px">{{ calcPct(disk.used, disk.total) }}% &nbsp; {{ formatBytes(disk.used) }}/{{ formatBytes(disk.total) }}</span>
+                <a-popover placement="bottom" trigger="click">
+                  <template #content>
+                    <div style="max-height: 300px; overflow-y: auto; min-width: 250px">
+                      <div style="font-size: 12px; font-weight: 500; margin-bottom: 8px; color: #262626">
+                        {{ t('monitor.diskDetails') }}
+                      </div>
+                      <div v-for="disk in record.disks" :key="disk.mount_point" style="margin-bottom: 8px">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 12px">
+                          <span style="color: #595959">{{ disk.mount_point }}</span>
+                          <span style="color: #8c8c8c">
+                            {{ formatBytes(disk.used) }} / {{ formatBytes(disk.total) }}
+                          </span>
+                        </div>
+                        <a-progress 
+                          :percent="calcPct(disk.used, disk.total)" 
+                          :status="getStatus(calcPct(disk.used, disk.total))" 
+                          :show-info="false" 
+                          stroke-linecap="square" 
+                          size="small" 
+                        />
+                      </div>
+                    </div>
+                  </template>
+                  <div style="display: flex; align-items: center; gap: 8px">
+                    <div style="flex: 1">
+                      <div style="display: flex; justify-content: space-between; font-size: 12px;">
+                        <span style="color: #8c8c8c; font-size: 10px">
+                          {{ formatBytes(getTotalDiskUsed(record)) }} / {{ formatBytes(getTotalDiskTotal(record)) }}
+                        </span>
+                        <span style="color: grey; font-size: 10px">
+                          {{ calcPct(getTotalDiskUsed(record), getTotalDiskTotal(record)) }}%
+                        </span>
+                      </div>
+                      <a-progress 
+                        :percent="calcPct(getTotalDiskUsed(record), getTotalDiskTotal(record))" 
+                        :status="getStatus(calcPct(getTotalDiskUsed(record), getTotalDiskTotal(record)))" 
+                        :show-info="false" 
+                        stroke-linecap="square" 
+                        size="small" 
+                      />
+                    </div>
+                    <a-button type="link" size="small" slot="trigger" style="padding: 0; flex-shrink: 0">
+                      <span style="font-size: 10px; color: #1890ff">
+                        {{ record.disks.length }}{{ t('common.items') }}
+                      </span>
+                    </a-button>
                   </div>
-                  <a-progress :percent="calcPct(disk.used, disk.total)" :status="getStatus(calcPct(disk.used, disk.total))" :show-info="false" stroke-linecap="square" size="small" />
-                </div>
+                </a-popover>
               </template>
               <template v-else>
                 <div style="display: flex; justify-content: space-between; font-size: 12px;">
@@ -823,6 +896,21 @@ const sortedHosts = computed(() => {
 
 const totalHosts = computed(() => sortedHosts.value.length)
 const onlineHosts = computed(() => sortedHosts.value.filter(h => !isOffline(h)).length)
+
+// Calculate total disk usage for a host
+const getTotalDiskUsed = (host) => {
+  if (!host.disks || host.disks.length === 0) {
+    return host.disk_used || 0
+  }
+  return host.disks.reduce((sum, disk) => sum + (disk.used || 0), 0)
+}
+
+const getTotalDiskTotal = (host) => {
+  if (!host.disks || host.disks.length === 0) {
+    return host.disk_total || 0
+  }
+  return host.disks.reduce((sum, disk) => sum + (disk.total || 0), 0)
+}
 
 const connect = async () => {
   try {

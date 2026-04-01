@@ -50,7 +50,8 @@ export default {
         hostSettings: 'Host Settings',
         update: 'Update',
         updateNow: 'Update Now',
-        backToLogin: 'Back to Login'
+        backToLogin: 'Back to Login',
+        items: ' items'
     },
     nav: {
         terminal: 'Terminal',
@@ -532,6 +533,7 @@ export default {
         agentLatest: 'Latest',
         agentUnknown: 'Unknown',
         currentAgentVersion: 'Current Version',
+        diskDetails: 'Disk Details',
         batchDeploy: 'Batch Deploy',
         batchDeployConfirm: 'Deploy to {count} hosts',
         batchTrafficNotify: 'Batch Traffic Alert',
