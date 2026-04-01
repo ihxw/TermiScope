@@ -3,9 +3,34 @@
 
 package main
 
-// On Windows, statfs is not available; provide a stub that returns error.
-import "errors"
+import (
+	"golang.org/x/sys/windows"
+)
 
+// statfsUsage returns used bytes for mountpoint on Windows.
 func statfsUsage(mountpoint string) (uint64, error) {
-	return 0, errors.New("statfs not supported on windows")
+	var freeBytesAvailable uint64
+	var totalBytes uint64
+	var totalFreeBytes uint64
+
+	// Convert mountpoint to UTF-16 for Windows API
+	mountPointPtr, err := windows.UTF16PtrFromString(mountpoint)
+	if err != nil {
+		return 0, err
+	}
+
+	// Call Windows API to get disk free space
+	err = windows.GetDiskFreeSpaceEx(
+		mountPointPtr,
+		&freeBytesAvailable,
+		&totalBytes,
+		&totalFreeBytes,
+	)
+	if err != nil {
+		return 0, err
+	}
+
+	// Calculate used bytes
+	used := totalBytes - totalFreeBytes
+	return used, nil
 }

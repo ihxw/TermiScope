@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -345,12 +346,12 @@ func collectMetrics() MetricData {
 }
 
 func collectDiskMetrics() ([]DiskData, uint64, uint64) {
-	// Prefer lsblk-based collection on Linux to enumerate physical disks
+	// Use df-based method as primary on Linux (most reliable for LVM, Btrfs, etc.)
 	if runtime.GOOS == "linux" {
-		if d, used, size, err := collectDiskMetricsLsblk(); err == nil && len(d) > 0 {
+		if d, used, size, err := collectDiskMetricsDf(); err == nil && len(d) > 0 {
 			return d, used, size
 		}
-		// Fallthrough to original method on error
+		// Fallthrough to partition-based method on error
 	}
 
 	// Fallback: use partition-based method
@@ -434,89 +435,244 @@ func collectDiskMetrics() ([]DiskData, uint64, uint64) {
 	return disks, totalUsed, totalSize
 }
 
-// collectDiskMetricsLsblk uses `lsblk -b -J` to list block devices and then
-// aggregates per-physical-disk size and used bytes (using statfs on mountpoints).
-func collectDiskMetricsLsblk() ([]DiskData, uint64, uint64, error) {
-	out, err := exec.Command("lsblk", "-b", "-J", "-o", "NAME,TYPE,SIZE,MOUNTPOINT").Output()
+// collectDiskMetricsHybrid uses gopsutil with df fallback for reliable disk statistics.
+// This approach correctly handles LVM, Btrfs pools, and other complex storage configurations.
+func collectDiskMetricsHybrid() ([]DiskData, uint64, uint64, error) {
+	// Primary method: Use gopsutil's disk.Partitions and disk.Usage
+	// This is more reliable than parsing command output
+	partitions, err := disk.Partitions(true)
+	if err != nil {
+		// Fallback to df-based method if gopsutil fails
+		return collectDiskMetricsDf()
+	}
+
+	// Global seen set to prevent double-counting
+	globalSeenMounts := make(map[string]struct{})
+	globalSeenDevIDs := make(map[uint64]struct{})
+	
+	var disks []DiskData
+	var totalUsed uint64
+	var totalSize uint64
+
+	for _, partition := range partitions {
+		mountPoint := strings.TrimSpace(partition.Mountpoint)
+		if shouldSkipPartition(partition, mountPoint) {
+			continue
+		}
+
+		// Get usage using gopsutil (cross-platform, reliable)
+		usage, err := disk.Usage(mountPoint)
+		
+		// Handle case where disk exists but usage cannot be determined
+		// For example: unmounted disk, raw disk, or permission issues
+		var used uint64
+		var total uint64
+		
+		if err != nil {
+			// Cannot get usage, but we still want to report the disk
+			// Try to get size from lsblk or df fallback
+			continue // Skip for now, will be handled by df fallback if needed
+		}
+		
+		if usage.Total == 0 {
+			// Disk with 0 total size, skip
+			continue
+		}
+		
+		used = usage.Used
+		total = usage.Total
+
+		// Skip if already seen this mountpoint
+		if _, exists := globalSeenMounts[mountPoint]; exists {
+			continue
+		}
+
+		// Deduplicate by device ID
+		devID := getDiskID(mountPoint)
+		if devID != 0 {
+			if _, exists := globalSeenDevIDs[devID]; exists {
+				continue
+			}
+			globalSeenDevIDs[devID] = struct{}{}
+		}
+
+		globalSeenMounts[mountPoint] = struct{}{}
+
+		// Try to map to physical disk using lsblk
+		physDevice := getPhysicalDeviceForMount(mountPoint, partition.Device)
+		diskKey := physDevice
+		if diskKey == "" {
+			diskKey = partition.Device
+		}
+
+		disks = append(disks, DiskData{
+			MountPoint: mountPoint,
+			Used:       used,
+			Total:      total,
+		})
+		totalUsed += used
+		totalSize += total
+	}
+
+	if len(disks) == 0 {
+		// Complete fallback to df method
+		return collectDiskMetricsDf()
+	}
+
+	sort.Slice(disks, func(i, j int) bool {
+		return disks[i].MountPoint < disks[j].MountPoint
+	})
+
+	return disks, totalUsed, totalSize, nil
+}
+
+// collectDiskMetricsDf is a fallback method that parses df command output
+func collectDiskMetricsDf() ([]DiskData, uint64, uint64, error) {
+	dfOut, err := exec.Command("df", "-B1", "-P", "-T").Output()
 	if err != nil {
 		return nil, 0, 0, err
 	}
 
-	var raw struct {
-		Blockdevices []struct {
-			Name       string      `json:"name"`
-			Type       string      `json:"type"`
-			Size       json.Number `json:"size"`
-			Mountpoint *string     `json:"mountpoint"`
-			Children   []struct {
-				Name       string      `json:"name"`
-				Type       string      `json:"type"`
-				Size       json.Number `json:"size"`
-				Mountpoint *string     `json:"mountpoint"`
-			} `json:"children"`
-		} `json:"blockdevices"`
-	}
+	mountUsage := make(map[string]uint64)
+	mountTotal := make(map[string]uint64)
+	mountDevice := make(map[string]string)
 
-	if err := json.Unmarshal(out, &raw); err != nil {
-		return nil, 0, 0, err
+	lines := strings.Split(string(dfOut), "\n")
+	for i, line := range lines {
+		if i == 0 {
+			continue // Skip header
+		}
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		fields := strings.Fields(line)
+		if len(fields) < 7 {
+			continue
+		}
+
+		fsType := fields[1]
+		totalStr := fields[2]
+		usedStr := fields[3]
+		mountPoint := fields[len(fields)-1] // Use last field to handle long device names
+
+		total, err := strconv.ParseUint(totalStr, 10, 64)
+		if err != nil {
+			continue
+		}
+		used, err := strconv.ParseUint(usedStr, 10, 64)
+		if err != nil {
+			continue
+		}
+
+		if shouldSkipFsType(fsType, mountPoint) {
+			continue
+		}
+
+		mountUsage[mountPoint] = used
+		mountTotal[mountPoint] = total
+		mountDevice[mountPoint] = fields[0] // Store device name
 	}
 
 	var disks []DiskData
 	var totalUsed uint64
 	var totalSize uint64
-	seen := make(map[string]struct{})
+	globalSeenMounts := make(map[string]struct{})
 
-	for _, dev := range raw.Blockdevices {
-		if dev.Type != "disk" {
+	for mp, used := range mountUsage {
+		if _, exists := globalSeenMounts[mp]; exists {
 			continue
 		}
-		// parse size
-		size64, _ := dev.Size.Int64()
-		if size64 <= 0 {
+		globalSeenMounts[mp] = struct{}{}
+
+		total := mountTotal[mp]
+		
+		// Skip if total is 0 (invalid disk)
+		if total == 0 {
 			continue
 		}
 
-		// Collect mountpoints from children (partitions)
-		var mountpoints []string
-		for _, ch := range dev.Children {
-			if ch.Mountpoint != nil && *ch.Mountpoint != "" {
-				mountpoints = append(mountpoints, *ch.Mountpoint)
-			}
-		}
-
-		// If no partition mountpoints, maybe disk itself mounted (rare)
-		if dev.Mountpoint != nil && *dev.Mountpoint != "" {
-			mountpoints = append(mountpoints, *dev.Mountpoint)
-		}
-
-		// Aggregate used bytes by summing statfs on unique mountpoints
-		var used uint64
-		for _, mp := range mountpoints {
-			if mp == "" {
-				continue
-			}
-			if _, ok := seen[mp]; ok {
-				continue
-			}
-			u, err := statfsUsage(mp)
-			if err != nil {
-				// statfs not supported on this platform or failed for this mountpoint
-				continue
-			}
-			used += u
-			seen[mp] = struct{}{}
-		}
-
+		// MountPoint should be the mount point, not the device name
+		// Device name is stored for reference but we display mount point
 		disks = append(disks, DiskData{
-			MountPoint: "/dev/" + dev.Name,
+			MountPoint: mp,              // Mount point (e.g., /fs, /vol1)
 			Used:       used,
-			Total:      uint64(size64),
+			Total:      total,
 		})
 		totalUsed += used
-		totalSize += uint64(size64)
+		totalSize += total
 	}
 
+	sort.Slice(disks, func(i, j int) bool {
+		return disks[i].MountPoint < disks[j].MountPoint
+	})
+
 	return disks, totalUsed, totalSize, nil
+}
+
+// getPhysicalDeviceForMount attempts to find the physical block device for a mount point
+func getPhysicalDeviceForMount(mountPoint, device string) string {
+	if device == "" {
+		return ""
+	}
+
+	// Try to resolve the device to a physical disk
+	return getPhysicalDevice(device)
+}
+
+// getPhysicalDevice attempts to derive the underlying physical block device
+// for a given device path (e.g. /dev/sda1 -> /dev/sda, /dev/nvme0n1p1 -> /dev/nvme0n1).
+// If it cannot determine a parent device, it returns the device path as-is.
+// shouldSkipFsType determines if a filesystem type should be skipped
+func shouldSkipFsType(fsType, mountPoint string) bool {
+	lowerFS := strings.ToLower(strings.TrimSpace(fsType))
+	lowerMount := strings.ToLower(strings.TrimSpace(mountPoint))
+
+	pseudoFS := map[string]struct{}{
+		"autofs":      {},
+		"binfmt_misc": {},
+		"cgroup":      {},
+		"cgroup2":     {},
+		"configfs":    {},
+		"debugfs":     {},
+		"devfs":       {},
+		"devpts":      {},
+		"devtmpfs":    {},
+		"fusectl":     {},
+		"hugetlbfs":   {},
+		"mqueue":      {},
+		"nsfs":        {},
+		"overlay":     {}, // Skip overlay unless it's root
+		"proc":        {},
+		"procfs":      {},
+		"pstore":      {},
+		"securityfs":  {},
+		"selinuxfs":   {},
+		"squashfs":    {},
+		"sysfs":       {},
+		"tmpfs":       {},
+		"tracefs":     {},
+	}
+
+	if _, skip := pseudoFS[lowerFS]; skip {
+		return true
+	}
+
+	// Keep overlay only for root filesystem
+	if lowerFS == "overlay" && lowerMount != "/" {
+		return true
+	}
+
+	// Skip virtual mount points
+	skipMountPrefixes := []string{"/proc", "/sys", "/dev", "/run", "/snap"}
+	for _, prefix := range skipMountPrefixes {
+		if lowerMount == prefix || strings.HasPrefix(lowerMount, prefix+"/") {
+			return true
+		}
+	}
+
+	return false
 }
 
 func shouldSkipPartition(partition disk.PartitionStat, mountPoint string) bool {
