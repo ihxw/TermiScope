@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mobile/l10n/app_localizations.dart';
+import '../../providers/locale_provider.dart';
+import '../../providers/theme_provider.dart';
 import '../../core/constants.dart';
 import '../../providers/auth_provider.dart';
 
@@ -122,6 +124,24 @@ class _LoginScreenState extends State<LoginScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text('${l10n.appTitle} ${l10n.login}'),
+        actions: [
+          IconButton(
+            tooltip: 'Toggle language',
+            icon: const Icon(Icons.language),
+            onPressed: () {
+              final localeProvider = Provider.of<LocaleProvider>(context, listen: false);
+              localeProvider.toggleLocale();
+            },
+          ),
+          IconButton(
+            tooltip: 'Toggle theme',
+            icon: const Icon(Icons.brightness_6),
+            onPressed: () {
+              final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+              themeProvider.toggleTheme();
+            },
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),

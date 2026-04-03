@@ -200,6 +200,15 @@ class ApiClient {
     return await _dio.get(path, queryParameters: params);
   }
 
+  // Get plain text response (useful for streaming raw recordings)
+  Future<Response> getPlain(String path, {Map<String, dynamic>? params}) async {
+    return await _dio.get(
+      path,
+      queryParameters: params,
+      options: Options(responseType: ResponseType.plain),
+    );
+  }
+
   Future<Response> post(String path, {dynamic data, Map<String, dynamic>? params}) async {
     return await _dio.post(path, data: data, queryParameters: params);
   }

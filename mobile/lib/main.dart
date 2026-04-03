@@ -10,6 +10,7 @@ import 'core/api_client.dart';
 import 'providers/auth_provider.dart';
 import 'models/user.dart';
 import 'providers/theme_provider.dart';
+import 'providers/locale_provider.dart';
 import 'ui/screens/main_screen.dart';
 import 'ui/screens/file_transfer_screen.dart';
 import 'ui/screens/command_management_screen.dart';
@@ -32,9 +33,10 @@ class MyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider(AuthService())),
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
+        ChangeNotifierProvider(create: (_) => LocaleProvider()),
       ],
-      child: Consumer<ThemeProvider>(
-        builder: (context, themeProvider, child) {
+      child: Consumer2<ThemeProvider, LocaleProvider>(
+        builder: (context, themeProvider, localeProvider, child) {
           return MaterialApp(
             title: 'TermiScope',
             debugShowCheckedModeBanner: false,
@@ -53,6 +55,7 @@ class MyApp extends StatelessWidget {
               ),
             ),
             themeMode: themeProvider.themeMode,
+            locale: localeProvider.locale,
             localizationsDelegates: const [
               AppLocalizations.delegate,
               GlobalMaterialLocalizations.delegate,

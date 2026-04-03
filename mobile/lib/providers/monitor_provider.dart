@@ -12,6 +12,9 @@ class MonitorProvider extends ChangeNotifier {
   Map<int, String> _hostTypes = {}; // hostId -> hostType
   List<int> _hostOrder = []; // Sorted host IDs from HostService
   bool _isConnected = false;
+  bool _batchUpdating = false;
+
+  bool get batchUpdating => _batchUpdating;
 
   List<MonitorHost> get hosts {
     // Sort based on _hostOrder from HostService
@@ -157,5 +160,115 @@ class MonitorProvider extends ChangeNotifier {
   void dispose() {
     _service.dispose();
     super.dispose();
+  }
+
+  // Batch update agents for all hosts (returns number of successes)
+  Future<int> batchUpdateAgents() async {
+    _batchUpdating = true;
+    notifyListeners();
+
+    int successCount = 0;
+    for (final h in _hosts) {
+      try {
+        final ok = await _service.updateAgent(h.hostId);
+        if (ok) successCount++;
+      } catch (e) {
+        // continue on error
+      }
+    }
+
+    _batchUpdating = false;
+    notifyListeners();
+    return successCount;
+  }
+
+  // Test helper: set hosts directly for unit tests
+  void setHostsForTesting(List<MonitorHost> hosts) {
+    _hosts = hosts;
+    _hostOrder = hosts.map((h) => h.hostId).toList();
+    _hostNames = {for (var h in hosts) h.hostId: h.name};
+    _hostTypes = {for (var h in hosts) h.hostId: 'ssh'};
+    notifyListeners();
+  }
+
+  // Network tasks helpers
+  Future<List<Map<String, dynamic>>> getHostNetworkTasks(int hostId) async {
+    try {
+      return await _service.getHostNetworkTasks(hostId);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> createNetworkTask(Map<String, dynamic> data) async {
+    try {
+      return await _service.createNetworkTask(data);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> updateNetworkTask(int taskId, Map<String, dynamic> data) async {
+    try {
+      return await _service.updateNetworkTask(taskId, data);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<bool> deleteNetworkTask(int taskId) async {
+    try {
+      return await _service.deleteNetworkTask(taskId);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Future<Map<String, dynamic>> getTaskStats(int taskId, {String range = '24h'}) async {
+    try {
+      return await _service.getTaskStats(taskId, range: range);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getNetworkTemplates() async {
+    try {
+      return await _service.getNetworkTemplates();
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<bool> batchApplyTemplate(Map<String, dynamic> data) async {
+    try {
+      return await _service.batchApplyTemplate(data);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> fetchTrafficResetLogs() async {
+    try {
+      return await _service.getTrafficResetLogs();
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> fetchTrafficResetDebug(int hostId) async {
+    try {
+      return await _service.getTrafficResetDebug(hostId);
+    } catch (e) {
+      rethrow;
+    }
+  }
+
+  Future<bool> forceTrafficReset(int hostId) async {
+    try {
+      return await _service.forceTrafficReset(hostId);
+    } catch (e) {
+      return false;
+    }
   }
 }
