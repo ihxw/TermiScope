@@ -4,33 +4,75 @@
 package main
 
 import (
+	"sort"
+	"strings"
+
 	"golang.org/x/sys/windows"
 )
 
-// statfsUsage returns used bytes for mountpoint on Windows.
-func statfsUsage(mountpoint string) (uint64, error) {
-	var freeBytesAvailable uint64
-	var totalBytes uint64
-	var totalFreeBytes uint64
+// collectDiskMetricsWindows collects disk metrics on Windows platform
+func collectDiskMetricsWindows() ([]DiskData, uint64, uint64) {
+	var disks []DiskData
+	var totalUsed uint64
+	var totalSize uint64
 
-	// Convert mountpoint to UTF-16 for Windows API
-	mountPointPtr, err := windows.UTF16PtrFromString(mountpoint)
+	// Get all logical drives
+	var drives [256]uint16
+	n, err := windows.GetLogicalDriveStrings(256, &drives[0])
 	if err != nil {
-		return 0, err
+		return nil, 0, 0
 	}
 
-	// Call Windows API to get disk free space
-	err = windows.GetDiskFreeSpaceEx(
-		mountPointPtr,
-		&freeBytesAvailable,
-		&totalBytes,
-		&totalFreeBytes,
-	)
-	if err != nil {
-		return 0, err
+	// Convert to Go string and split
+	driveBytes := make([]byte, n*2)
+	for i := 0; i < int(n); i++ {
+		driveBytes[i*2] = byte(drives[i])
+		driveBytes[i*2+1] = byte(drives[i] >> 8)
+	}
+	driveStr := string(driveBytes)
+	driveList := strings.Split(driveStr, "\x00")
+
+	for _, drive := range driveList {
+		if drive == "" {
+			continue
+		}
+
+		// Get disk free space
+		var freeBytesAvailable, totalNumberOfBytes, totalNumberOfFreeBytes uint64
+		err := windows.GetDiskFreeSpaceEx(
+			windows.StringToUTF16Ptr(drive),
+			&freeBytesAvailable,
+			&totalNumberOfBytes,
+			&totalNumberOfFreeBytes,
+		)
+		if err != nil {
+			continue
+		}
+
+		// Skip if total is 0 (invalid disk)
+		if totalNumberOfBytes == 0 {
+			continue
+		}
+
+		// Calculate used space
+		used := totalNumberOfBytes - totalNumberOfFreeBytes
+
+		disks = append(disks, DiskData{
+			MountPoint: drive,
+			Used:       used,
+			Total:      totalNumberOfBytes,
+		})
+		totalUsed += used
+		totalSize += totalNumberOfBytes
 	}
 
-	// Calculate used bytes
-	used := totalBytes - totalFreeBytes
-	return used, nil
+	if len(disks) == 0 {
+		return nil, 0, 0
+	}
+
+	sort.Slice(disks, func(i, j int) bool {
+		return disks[i].MountPoint < disks[j].MountPoint
+	})
+
+	return disks, totalUsed, totalSize
 }
