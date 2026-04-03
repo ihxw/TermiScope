@@ -14,6 +14,7 @@ import 'providers/locale_provider.dart';
 import 'ui/screens/main_screen.dart';
 import 'ui/screens/file_transfer_screen.dart';
 import 'ui/screens/command_management_screen.dart';
+import 'ui/screens/reset_password_screen.dart';
 import 'services/auth_service.dart';
 
 // Global instances
@@ -77,6 +78,14 @@ class MyApp extends StatelessWidget {
               '/commands': (context) => const CommandManagementScreen(),
             },
             onGenerateRoute: (settings) {
+              if (settings.name?.startsWith('/reset-password') ?? false) {
+                final uri = Uri.parse(settings.name!);
+                final token = uri.queryParameters['token'] ?? '';
+                return MaterialPageRoute(
+                  builder: (_) => ResetPasswordScreen(token: token),
+                );
+              }
+
               // Handle dynamic routes
               if (settings.name?.startsWith('/dashboard/') ?? false) {
                 final pathParts = settings.name!.split('/');
@@ -106,7 +115,6 @@ class MyApp extends StatelessWidget {
               }
               return MaterialPageRoute(builder: (_) => const MainScreen());
             },
-            home: const SelectionArea(child: AuthWrapper()),
           );
         },
       ),

@@ -7,9 +7,6 @@ import 'dart:typed_data';
 
 class TerminalService {
   final ApiClient _apiClient = ApiClient.instance;
-
-  // This service will handle SSH connections and terminal interactions
-  // It will use dartssh2 for SSH and xterm for terminal emulation
   
   SSHClient? _client;
   SSHSession? _session;
@@ -17,21 +14,48 @@ class TerminalService {
 
   Future<bool> connectToHost(SSHHost host, Terminal terminal) async {
     try {
-      // TODO: Implement SSH connection using dartssh2
-      // This is a placeholder implementation
       _terminal = terminal;
       
-      // For now, just simulate the connection
+      final socket = await SSHSocket.connect(host.hostname, host.port);
+      _client = SSHClient(
+        socket,
+        username: host.username,
+        onPasswordRequest: () => host.password ?? '',
+      );
+
+      _session = await _client!.shell(
+        pty: SSHPtyConfig(
+          width: terminal.viewWidth,
+          height: terminal.viewHeight,
+        ),
+      );
+
+      _session!.stdout.cast<List<int>>().transform(utf8.decoder).listen((data) {
+        terminal.write(data);
+      });
+      
+      _session!.stderr.cast<List<int>>().transform(utf8.decoder).listen((data) {
+        terminal.write(data);
+      });
+
+      terminal.onOutput = (String data) {
+        if (_session != null) {
+          _session!.write(Uint8List.fromList(utf8.encode(data)));
+        }
+      };
+
       return true;
     } catch (e) {
       print('Failed to connect to host: $e');
+      terminal.write('\r\n\x1b[31mFailed to connect to host: $e\x1b[0m\r\n');
       return false;
     }
   }
 
-  Future<void> disconnect() async {
+  void disconnect() {
     try {
-      // TODO: Implement actual disconnection
+      _session?.close();
+      _client?.close();
       _session = null;
       _client = null;
       _terminal = null;
@@ -41,11 +65,14 @@ class TerminalService {
   }
 
   void sendCommand(String command) {
-    // TODO: Implement actual command sending
-    // _session?.stdin.add(Uint8List.fromList(utf8.encode(command)));
+    if (_session != null) {
+      _session!.write(Uint8List.fromList(utf8.encode(command)));
+    }
   }
 
   void resizeTerminal(int cols, int rows) {
-    // TODO: Implement terminal resize
+    if (_session != null) {
+      _session!.resizeTerminal(cols, rows, 0, 0);
+    }
   }
-}
+}

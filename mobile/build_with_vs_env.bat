@@ -13,18 +13,22 @@ echo Found Visual Studio at: %VS_PATH%
 echo.
 echo Loading Visual Studio Developer Environment...
 call "%VS_PATH%\Common7\Tools\VsDevCmd.bat"
+echo.
+echo Setting up Tsinghua Mirrors for Dart and Flutter to resolve network issues...
+set PUB_HOSTED_URL=https://mirrors.tuna.tsinghua.edu.cn/dart-pub
+set FLUTTER_STORAGE_BASE_URL=https://mirrors.tuna.tsinghua.edu.cn/flutter
 
 echo.
 echo Cleaning Flutter project...
-flutter clean
+call flutter clean
 
 echo.
 echo Getting Flutter dependencies...
-flutter pub get
+call flutter pub get
 
 echo.
 echo Building Windows application...
-flutter build windows --debug
+call flutter build windows --debug
 
 echo.
 if %ERRORLEVEL% EQU 0 (

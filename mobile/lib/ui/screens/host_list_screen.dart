@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/host_provider.dart';
+import '../../providers/terminal_provider.dart';
 import '../../models/ssh_host.dart';
 import 'package:mobile/l10n/app_localizations.dart';
 import 'terminal_screen.dart';
@@ -68,15 +69,22 @@ class _HostListScreenState extends State<HostListScreen> {
                   title: Text(host.name ?? ''),
                   subtitle: Text('${host.username ?? ''}@${host.hostname ?? ''}:${host.port ?? 22}'),
                   trailing: const Icon(Icons.chevron_right),
-                  // onTap: () {
-                  //   Navigator.push(
-                  //     context,
-                  //     MaterialPageRoute(
-                  //       builder: (context) =>
-                  //           TerminalScreen(sessionId: '', host: SSHHost()),
-                  //     ),
-                  //   );
-                  // },
+                  onTap: () {
+                    final terminalProvider = Provider.of<TerminalProvider>(context, listen: false);
+                    final sessionId = terminalProvider.addSession(
+                      hostId: host.id,
+                      name: host.name ?? 'Host',
+                    );
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => TerminalScreen(
+                          sessionId: sessionId,
+                          host: host,
+                        ),
+                      ),
+                    );
+                  },
                 );
               },
             ),

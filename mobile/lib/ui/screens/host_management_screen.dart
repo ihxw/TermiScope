@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:mobile/l10n/app_localizations.dart';
 import '../../providers/host_provider.dart';
+import '../../providers/terminal_provider.dart';
 import '../../models/ssh_host.dart';
+import 'terminal_screen.dart';
 
 class HostManagementScreen extends StatefulWidget {
   const HostManagementScreen({super.key});
@@ -97,6 +99,22 @@ class _HostManagementScreenState extends State<HostManagementScreen> {
                     case 'stop':
                       _stopMonitor(context, host);
                       break;
+                    case 'connect':
+                      final terminalProvider = Provider.of<TerminalProvider>(context, listen: false);
+                      final sessionId = terminalProvider.addSession(
+                        hostId: host.id,
+                        name: host.name,
+                      );
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => TerminalScreen(
+                            sessionId: sessionId,
+                            host: host,
+                          ),
+                        ),
+                      );
+                      break;
                   }
                 },
                 itemBuilder: (context) => <PopupMenuEntry<String>>[
@@ -128,6 +146,16 @@ class _HostManagementScreenState extends State<HostManagementScreen> {
                         const Icon(Icons.network_check, size: 18),
                         const SizedBox(width: 8),
                         Text('Test Connection'),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: 'connect',
+                    child: Row(
+                      children: [
+                        const Icon(Icons.terminal, size: 18),
+                        const SizedBox(width: 8),
+                        Text('Connect SSH'),
                       ],
                     ),
                   ),

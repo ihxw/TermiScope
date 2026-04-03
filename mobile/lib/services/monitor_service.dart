@@ -50,12 +50,10 @@ class MonitorService {
       final baseUrl = prefs.getString(AppConstants.serverUrlKey) ?? AppConstants.defaultServerUrl;
       
       // Replace http/https with ws/wss
-      final wsUrl = baseUrl.replaceFirst(RegExp(r'^https?:'), 'ws:') + '/api/monitor/stream';
+      final wsUrl = baseUrl.replaceFirst(RegExp(r'^https?:'), 'ws:') + '/api/monitor/stream?token=$ticket';
       
       // Connect to WebSocket with ticket
-      _channel = IOWebSocketChannel.connect(Uri.parse(wsUrl),
-        headers: {'Authorization': 'Bearer $ticket'}
-      );
+      _channel = IOWebSocketChannel.connect(Uri.parse(wsUrl));
       
       // Listen to incoming messages
       _subscription = _channel!.stream.listen(
