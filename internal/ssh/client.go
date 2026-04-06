@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/ssh"
@@ -40,8 +41,17 @@ func NewSSHClient(cfg *SSHConfig) (*SSHClient, error) {
 
 	// Add key authentication
 	if cfg.PrivateKey != "" {
-		signer, err := ssh.ParsePrivateKey([]byte(cfg.PrivateKey))
+		// Normalize line endings: Windows copy-paste may introduce \r\n into PEM keys,
+		// which causes ParsePrivateKey to succeed but produce an invalid signer.
+		normalizedKey := strings.ReplaceAll(cfg.PrivateKey, "\r\n", "\n")
+		normalizedKey = strings.ReplaceAll(normalizedKey, "\r", "\n")
+		normalizedKey = strings.TrimSpace(normalizedKey) + "\n"
+		signer, err := ssh.ParsePrivateKey([]byte(normalizedKey))
 		if err != nil {
+			// Try with passphrase error hint
+			if _, ok := err.(*ssh.PassphraseMissingError); ok {
+				return nil, fmt.Errorf("private key is passphrase-protected; passphrase-protected keys are not supported")
+			}
 			return nil, fmt.Errorf("failed to parse private key: %w", err)
 		}
 		authMethods = append(authMethods, ssh.PublicKeys(signer))

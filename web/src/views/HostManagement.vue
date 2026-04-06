@@ -411,6 +411,9 @@
               :placeholder="editingHost ? t('host.placeholderKeepKey') : t('host.placeholderPrivateKey')"
               :rows="6"
             />
+            <div style="margin-top: 4px; font-size: 12px; color: #888;">
+              {{ t('host.privateKeyHelp') }}
+            </div>
           </a-form-item>
         </template>
 
