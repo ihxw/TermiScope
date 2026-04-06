@@ -198,7 +198,8 @@ const hostForm = ref({
   password: '',
   private_key: '',
   group_name: '',
-  description: ''
+  description: '',
+  host_type: 'control_monitor'
 })
 
 onMounted(async () => {
@@ -280,7 +281,8 @@ const handleAddHost = () => {
     password: '',
     private_key: '',
     group_name: '',
-    description: ''
+    description: '',
+    host_type: 'control_monitor'
   }
 }
 
@@ -297,7 +299,8 @@ const handleQuickConnect = () => {
     password: '',
     private_key: '',
     group_name: t('terminal.temporaryGroup'),
-    description: t('terminal.onetimeSession')
+    description: t('terminal.onetimeSession'),
+    host_type: 'control_monitor'
   }
 }
 
