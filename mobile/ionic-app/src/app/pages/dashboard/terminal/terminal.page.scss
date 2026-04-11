@@ -1,0 +1,102 @@
+.placeholder-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 24px;
+  text-align: center;
+  color: var(--ion-color-medium);
+}
+
+// App Header Session Title
+.session-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 !important;
+  
+  ion-badge {
+    font-size: 10px;
+    padding: 2px 6px;
+    height: 18px;
+    line-height: 14px;
+  }
+  
+  .host-name {
+    font-size: 14px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 150px;
+  }
+}
+
+.terminal-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #1e1e1e;
+}
+
+// Terminal Container
+.terminal-container {
+  flex: 1;
+  overflow: hidden;
+  padding: 4px;
+}
+
+// Virtual Keyboard Toolbar
+.keyboard-toolbar {
+  background: #2d2d2d;
+  border-top: 1px solid #3d3d3d;
+  padding: 4px;
+  
+  .keyboard-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 0;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+  
+  ion-button {
+    --padding-start: 8px;
+    --padding-end: 8px;
+    --padding-top: 6px;
+    --padding-bottom: 6px;
+    font-size: 12px;
+    min-height: 32px;
+    
+    &.modifier-btn {
+      --background: #404040;
+      
+      &.active {
+        --background: var(--ion-color-primary);
+      }
+    }
+  }
+  
+  .key-separator {
+    width: 1px;
+    height: 24px;
+    background: #404040;
+    margin: 0 4px;
+  }
+}
+
+// xterm.js styles
+:host ::ng-deep {
+  .xterm {
+    height: 100%;
+    
+    .xterm-screen {
+      height: 100% !important;
+    }
+  }
+}

@@ -1,0 +1,89 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button></ion-menu-button>
+    </ion-buttons>
+    <ion-title>{{ 'nav.hosts' | translate }}</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="openAddHostModal()">
+        <ion-icon name="add" slot="icon-only"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <!-- Search Bar -->
+  <ion-searchbar 
+    [placeholder]="'host.searchPlaceholder' | translate"
+    (ionInput)="handleSearch($event)"
+    [value]="searchText">
+  </ion-searchbar>
+
+  <!-- Quick Filter -->
+  <ion-segment [(ngModel)]="quickFilter" (ionChange)="applyFilters()">
+    <ion-segment-button value="all">
+      <ion-label>{{ 'host.filterAll' | translate }}</ion-label>
+    </ion-segment-button>
+    <ion-segment-button value="online">
+      <ion-label>{{ 'host.filterOnline' | translate }}</ion-label>
+    </ion-segment-button>
+    <ion-segment-button value="offline">
+      <ion-label>{{ 'host.filterOffline' | translate }}</ion-label>
+    </ion-segment-button>
+  </ion-segment>
+
+  <!-- Hosts List -->
+  <ion-list>
+    <ion-item-sliding *ngFor="let host of filteredHosts">
+      <ion-item>
+        <ion-icon 
+          slot="start" 
+          [name]="host.is_active ? 'wifi' : 'wifi-outline'"
+          [color]="host.is_active ? 'success' : 'medium'">
+        </ion-icon>
+        <ion-label>
+          <h2>{{ host.name }}</h2>
+          <p>{{ host.host }}:{{ host.port }}</p>
+          <p>{{ host.username }} | {{ getAuthTypeLabel(host) }}</p>
+          <ion-text color="medium" *ngIf="host.group">
+            <small>{{ host.group }}</small>
+          </ion-text>
+        </ion-label>
+        <ion-badge slot="end" color="primary" *ngIf="host.host_type === 'monitor'">
+          {{ 'host.monitorOnly' | translate }}
+        </ion-badge>
+      </ion-item>
+
+      <ion-item-options side="end">
+        <ion-item-option color="primary" (click)="testConnection(host)">
+          <ion-icon name="pulse" slot="icon-only"></ion-icon>
+        </ion-item-option>
+        <ion-item-option color="secondary" (click)="deployMonitor(host)" *ngIf="host.host_type !== 'monitor'">
+          <ion-icon name="cloud-upload" slot="icon-only"></ion-icon>
+        </ion-item-option>
+        <ion-item-option color="warning" (click)="editHost(host)">
+          <ion-icon name="create" slot="icon-only"></ion-icon>
+        </ion-item-option>
+        <ion-item-option color="danger" (click)="deleteHost(host)">
+          <ion-icon name="trash" slot="icon-only"></ion-icon>
+        </ion-item-option>
+      </ion-item-options>
+    </ion-item-sliding>
+  </ion-list>
+
+  <!-- Empty State -->
+  <div class="ion-text-center ion-padding" *ngIf="filteredHosts.length === 0 && !loading">
+    <ion-icon name="server" style="font-size: 64px; color: var(--ion-color-medium);"></ion-icon>
+    <h3>{{ 'nav.hosts' | translate }}</h3>
+    <p>{{ 'host.searchPlaceholder' | translate }}</p>
+    <ion-button (click)="openAddHostModal()">
+      {{ 'host.addHost' | translate }}
+    </ion-button>
+  </div>
+
+  <!-- Refresh -->
+  <ion-refresher slot="fixed" (ionRefresh)="loadHosts(); $event.target.complete()">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+</ion-content>

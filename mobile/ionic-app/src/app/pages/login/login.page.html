@@ -1,0 +1,107 @@
+<ion-content class="login-content">
+  <div class="login-container">
+    <!-- Top Actions -->
+    <div class="top-actions">
+      <ion-button fill="clear" size="small" (click)="toggleServerConfig()">
+        {{ 'common.settings' | translate }}
+      </ion-button>
+    </div>
+
+    <!-- Server Config -->
+    <div class="server-config" *ngIf="showServerConfig">
+      <ion-card>
+        <ion-card-header>
+          <ion-card-title>{{ 'common.settings' | translate }}</ion-card-title>
+        </ion-card-header>
+        <ion-card-content>
+          <ion-item>
+            <ion-label position="stacked">Server URL</ion-label>
+            <ion-input [(ngModel)]="serverUrl" placeholder="http://localhost:8080"></ion-input>
+          </ion-item>
+          <ion-button expand="block" (click)="saveServerUrl()">
+            {{ 'common.save' | translate }}
+          </ion-button>
+        </ion-card-content>
+      </ion-card>
+    </div>
+
+    <!-- Login Box -->
+    <div class="login-box">
+      <div class="login-title">
+        <ion-icon name="code-slash" style="font-size: 32px; margin-bottom: 8px"></ion-icon>
+        <div>TermiScope</div>
+      </div>
+
+      <!-- Step 1: Username and Password -->
+      <form [formGroup]="loginForm" (ngSubmit)="onLogin()" *ngIf="!requires2FA">
+        <ion-item>
+          <ion-label position="stacked">{{ 'auth.username' | translate }}</ion-label>
+          <ion-input 
+            formControlName="username" 
+            type="text"
+            [placeholder]="'auth.usernamePlaceholder' | translate">
+          </ion-input>
+        </ion-item>
+
+        <ion-item>
+          <ion-label position="stacked">{{ 'auth.password' | translate }}</ion-label>
+          <ion-input 
+            formControlName="password" 
+            type="password"
+            [placeholder]="'auth.passwordPlaceholder' | translate">
+          </ion-input>
+        </ion-item>
+
+        <div class="form-actions">
+          <ion-checkbox formControlName="remember" labelPlacement="end">
+            {{ 'auth.rememberMe' | translate }}
+          </ion-checkbox>
+          <ion-button fill="clear" size="small" (click)="goToForgotPassword()">
+            {{ 'auth.forgotPassword' | translate }}
+          </ion-button>
+        </div>
+
+        <ion-button 
+          expand="block" 
+          type="submit" 
+          [disabled]="loginForm.invalid">
+          {{ 'auth.login' | translate }}
+        </ion-button>
+      </form>
+
+      <!-- Step 2: 2FA Verification -->
+      <form [formGroup]="twoFAForm" (ngSubmit)="onVerify2FA()" *ngIf="requires2FA">
+        <ion-item lines="none">
+          <ion-label>
+            <h2>{{ 'twofa.loginTitle' | translate }}</h2>
+            <p>{{ 'twofa.loginDesc' | translate }}</p>
+          </ion-label>
+        </ion-item>
+
+        <ion-item>
+          <ion-label position="stacked">{{ 'twofa.verificationCodeLabel' | translate }}</ion-label>
+          <ion-input 
+            formControlName="code" 
+            type="text"
+            maxlength="39"
+            [placeholder]="'twofa.verificationCodePlaceholder' | translate">
+          </ion-input>
+        </ion-item>
+
+        <div class="form-actions">
+          <ion-button expand="block" type="submit" [disabled]="twoFAForm.invalid">
+            {{ 'twofa.verify' | translate }}
+          </ion-button>
+          <ion-button expand="block" fill="outline" (click)="backToLogin()">
+            {{ 'common.back' | translate }}
+          </ion-button>
+        </div>
+      </form>
+
+      <div class="version-info">
+        <div>v{{ frontendVersion }}</div>
+        <div *ngIf="backendVersion !== '...'">Backend: v{{ backendVersion }}</div>
+      </div>
+    </div>
+  </div>
+</ion-content>

@@ -1,0 +1,61 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button></ion-menu-button>
+    </ion-buttons>
+    <ion-title>{{ 'nav.system' | translate }}</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="ion-padding">
+  <!-- System Info -->
+  <ion-card *ngIf="systemInfo">
+    <ion-card-header>
+      <ion-card-title>{{ 'system.settings' | translate }}</ion-card-title>
+    </ion-card-header>
+    <ion-card-content>
+      <ion-item>
+        <ion-label>{{ 'common.backendVersion' | translate }}</ion-label>
+        <ion-note slot="end">{{ systemInfo.version }}</ion-note>
+      </ion-item>
+    </ion-card-content>
+  </ion-card>
+
+  <!-- Actions -->
+  <ion-card>
+    <ion-card-header>
+      <ion-card-title>{{ 'common.actions' | translate }}</ion-card-title>
+    </ion-card-header>
+    <ion-card-content>
+      <ion-button expand="block" (click)="checkUpdate()">
+        <ion-icon name="cloud-download" slot="start"></ion-icon>
+        {{ 'system.update' | translate }}
+      </ion-button>
+      <ion-button expand="block" (click)="backupDatabase()">
+        <ion-icon name="save" slot="start"></ion-icon>
+        {{ 'system.backupTitle' | translate }}
+      </ion-button>
+    </ion-card-content>
+  </ion-card>
+
+  <!-- Settings -->
+  <ion-card>
+    <ion-card-header>
+      <ion-card-title>{{ 'system.settingsTitle' | translate }}</ion-card-title>
+    </ion-card-header>
+    <ion-card-content>
+      <ion-item>
+        <ion-label position="stacked">{{ 'system.sshTimeout' | translate }}</ion-label>
+        <ion-input type="number" [(ngModel)]="settings.ssh_timeout"></ion-input>
+      </ion-item>
+      <ion-item>
+        <ion-label position="stacked">{{ 'system.idleTimeout' | translate }}</ion-label>
+        <ion-input type="number" [(ngModel)]="settings.idle_timeout"></ion-input>
+      </ion-item>
+      <ion-item>
+        <ion-label position="stacked">{{ 'system.maxConnectionsPerUser' | translate }}</ion-label>
+        <ion-input type="number" [(ngModel)]="settings.max_connections_per_user"></ion-input>
+      </ion-item>
+    </ion-card-content>
+  </ion-card>
+</ion-content>

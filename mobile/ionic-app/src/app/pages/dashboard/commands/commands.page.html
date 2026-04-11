@@ -1,0 +1,52 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button></ion-menu-button>
+    </ion-buttons>
+    <ion-title>{{ 'nav.commands' | translate }}</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="addCommand()">
+        <ion-icon name="add" slot="icon-only"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <ion-list>
+    <ion-item-sliding *ngFor="let command of commands">
+      <ion-item>
+        <ion-icon slot="start" name="flash" color="warning"></ion-icon>
+        <ion-label>
+          <h2>{{ command.name }}</h2>
+          <p><code>{{ command.command }}</code></p>
+          <p *ngIf="command.description">{{ command.description }}</p>
+        </ion-label>
+      </ion-item>
+
+      <ion-item-options side="end">
+        <ion-item-option color="primary" (click)="executeCommand(command)">
+          <ion-icon name="play" slot="icon-only"></ion-icon>
+        </ion-item-option>
+        <ion-item-option color="danger" (click)="deleteCommand(command)">
+          <ion-icon name="trash" slot="icon-only"></ion-icon>
+        </ion-item-option>
+      </ion-item-options>
+    </ion-item-sliding>
+  </ion-list>
+
+  <!-- Empty State -->
+  <div class="ion-text-center ion-padding" *ngIf="commands.length === 0 && !loading">
+    <ion-icon name="flash" style="font-size: 64px; color: var(--ion-color-medium);"></ion-icon>
+    <h3>{{ 'nav.commands' | translate }}</h3>
+    <p>{{ 'command.nameRequired' | translate }}</p>
+    <ion-button (click)="addCommand()">
+      {{ 'command.addCommand' | translate }}
+    </ion-button>
+  </div>
+
+  <!-- Refresh -->
+  <ion-refresher slot="fixed" (ionRefresh)="loadCommands(); $event.target.complete()">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+</ion-content>

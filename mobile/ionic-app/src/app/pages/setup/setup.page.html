@@ -1,0 +1,52 @@
+<ion-content class="setup-content">
+  <div class="setup-container">
+    <div class="setup-box">
+      <div class="setup-title">
+        <ion-icon name="code-slash" style="font-size: 32px; margin-bottom: 8px"></ion-icon>
+        <div>TermiScope</div>
+        <p>{{ 'setup.description' | translate }}</p>
+      </div>
+
+      <form [formGroup]="setupForm" (ngSubmit)="onSubmit()">
+        <ion-item>
+          <ion-label position="stacked">{{ 'auth.username' | translate }}</ion-label>
+          <ion-input 
+            formControlName="username" 
+            type="text"
+            [placeholder]="'setup.usernamePlaceholder' | translate">
+          </ion-input>
+        </ion-item>
+
+        <ion-item>
+          <ion-label position="stacked">{{ 'auth.password' | translate }}</ion-label>
+          <ion-input 
+            formControlName="password" 
+            type="password"
+            [placeholder]="'setup.passwordPlaceholder' | translate">
+          </ion-input>
+        </ion-item>
+
+        <ion-item>
+          <ion-label position="stacked">{{ 'auth.confirmPassword' | translate }}</ion-label>
+          <ion-input 
+            formControlName="confirmPassword" 
+            type="password"
+            [placeholder]="'setup.confirmPlaceholder' | translate">
+          </ion-input>
+        </ion-item>
+
+        <ion-text color="danger" *ngIf="setupForm.hasError('passwordMismatch') && setupForm.get('confirmPassword')?.touched">
+          <p>{{ 'auth.passwordMismatch' | translate }}</p>
+        </ion-text>
+
+        <ion-button 
+          expand="block" 
+          type="submit" 
+          [disabled]="setupForm.invalid"
+          class="submit-btn">
+          {{ 'setup.submit' | translate }}
+        </ion-button>
+      </form>
+    </div>
+  </div>
+</ion-content>

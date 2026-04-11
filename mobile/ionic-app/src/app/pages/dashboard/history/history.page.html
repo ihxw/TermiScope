@@ -1,0 +1,77 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button></ion-menu-button>
+    </ion-buttons>
+    <ion-title>{{ 'nav.history' | translate }}</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <!-- Tabs -->
+  <ion-segment [(ngModel)]="activeTab" (ionChange)="setTab($event.detail.value || 'ssh')">
+    <ion-segment-button value="ssh">
+      <ion-label>{{ 'history.sshTitle' | translate }}</ion-label>
+    </ion-segment-button>
+    <ion-segment-button value="web">
+      <ion-label>{{ 'history.webTitle' | translate }}</ion-label>
+    </ion-segment-button>
+  </ion-segment>
+
+  <!-- SSH Logs -->
+  <ion-list *ngIf="activeTab === 'ssh'">
+    <ion-item *ngFor="let log of sshLogs">
+      <ion-label>
+        <h2>{{ log.host_name }}</h2>
+        <p>{{ log.username }}</p>
+        <p>
+          <small>
+            {{ 'history.connectedAt' | translate }}: {{ formatDate(log.connected_at) }}
+          </small>
+        </p>
+        <p *ngIf="log.disconnected_at">
+          <small>
+            {{ 'history.disconnectedAt' | translate }}: {{ formatDate(log.disconnected_at) }}
+            ({{ formatDuration(log.duration || 0) }})
+          </small>
+        </p>
+      </ion-label>
+      <ion-badge [color]="log.status === 'connected' ? 'success' : 'medium'" slot="end">
+        {{ log.status }}
+      </ion-badge>
+    </ion-item>
+  </ion-list>
+
+  <!-- Web Login History -->
+  <ion-list *ngIf="activeTab === 'web'">
+    <ion-item *ngFor="let log of webLogs">
+      <ion-label>
+        <h2>{{ log.username }}</h2>
+        <p>{{ log.ip_address }}</p>
+        <p *ngIf="log.browser">
+          <small>{{ log.browser }} | {{ log.os }}</small>
+        </p>
+        <p>
+          <small>
+            {{ 'history.loginTime' | translate }}: {{ formatDate(log.login_time) }}
+          </small>
+        </p>
+      </ion-label>
+      <ion-badge [color]="log.status === 'active' ? 'success' : 'medium'" slot="end">
+        {{ log.status }}
+      </ion-badge>
+      <ion-icon *ngIf="log.is_current" name="checkmark-circle" color="success" slot="end"></ion-icon>
+    </ion-item>
+  </ion-list>
+
+  <!-- Empty State -->
+  <div class="ion-text-center ion-padding" *ngIf="(activeTab === 'ssh' && sshLogs.length === 0) || (activeTab === 'web' && webLogs.length === 0)">
+    <ion-icon name="time" style="font-size: 64px; color: var(--ion-color-medium);"></ion-icon>
+    <p>{{ 'history.title' | translate }}</p>
+  </div>
+
+  <!-- Refresh -->
+  <ion-refresher slot="fixed" (ionRefresh)="activeTab === 'ssh' ? loadSSHLogs() : loadWebLogs(); $event.target.complete()">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+</ion-content>

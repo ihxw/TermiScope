@@ -1,0 +1,107 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button></ion-menu-button>
+    </ion-buttons>
+    <ion-title>{{ 'nav.profile' | translate }}</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content class="ion-padding">
+  <!-- User Info -->
+  <ion-card *ngIf="user">
+    <ion-card-header>
+      <ion-card-title>{{ user.username }}</ion-card-title>
+      <ion-card-subtitle>{{ user.email }}</ion-card-subtitle>
+    </ion-card-header>
+    <ion-card-content>
+      <ion-item>
+        <ion-label>{{ 'user.role' | translate }}</ion-label>
+        <ion-note slot="end">{{ user.role }}</ion-note>
+      </ion-item>
+    </ion-card-content>
+  </ion-card>
+
+  <!-- 2FA Section -->
+  <ion-card>
+    <ion-card-header>
+      <ion-card-title>{{ 'twofa.title' | translate }}</ion-card-title>
+    </ion-card-header>
+    <ion-card-content>
+      <ion-item *ngIf="!showQRCode">
+        <ion-label>{{ twoFAEnabled ? ('twofa.enabled' | translate) : ('twofa.disabled' | translate) }}</ion-label>
+        <ion-badge [color]="twoFAEnabled ? 'success' : 'medium'" slot="end">
+          {{ twoFAEnabled ? ('common.enabled' | translate) : ('common.disabled' | translate) }}
+        </ion-badge>
+      </ion-item>
+
+      <!-- Setup 2FA -->
+      <div *ngIf="showQRCode && twoFASetupData">
+        <ion-item>
+          <ion-label>{{ 'twofa.setupDesc' | translate }}</ion-label>
+        </ion-item>
+        <div class="ion-text-center ion-padding">
+          <img [src]="twoFASetupData.qr_code" alt="QR Code" style="max-width: 200px;" />
+        </div>
+        <ion-item>
+          <ion-label position="stacked">{{ 'twofa.secretKey' | translate }}</ion-label>
+          <ion-input [value]="twoFASetupData.secret" readonly></ion-input>
+        </ion-item>
+        <ion-item>
+          <ion-label position="stacked">{{ 'twofa.verificationCode' | translate }}</ion-label>
+          <ion-input [(ngModel)]="verificationCode" type="text" maxlength="6" placeholder="000000"></ion-input>
+        </ion-item>
+        <ion-button expand="block" (click)="verify2FASetup()">
+          {{ 'twofa.verify' | translate }}
+        </ion-button>
+        <ion-button expand="block" fill="clear" (click)="cancel2FASetup()">
+          {{ 'common.cancel' | translate }}
+        </ion-button>
+      </div>
+
+      <!-- Backup Codes -->
+      <div *ngIf="twoFAEnabled && twoFASetupData?.backup_codes?.length">
+        <ion-item>
+          <ion-label>{{ 'twofa.backupCodes' | translate }}</ion-label>
+        </ion-item>
+        <ion-list>
+          <ion-item *ngFor="let code of twoFASetupData?.backup_codes">
+            <ion-label><code>{{ code }}</code></ion-label>
+          </ion-item>
+        </ion-list>
+      </div>
+
+      <!-- Actions -->
+      <ion-button *ngIf="!twoFAEnabled && !showQRCode" expand="block" (click)="setup2FA()">
+        {{ 'twofa.enable' | translate }}
+      </ion-button>
+      <ion-button *ngIf="twoFAEnabled && !showQRCode" expand="block" color="danger" (click)="disable2FA()">
+        {{ 'twofa.disable' | translate }}
+      </ion-button>
+    </ion-card-content>
+  </ion-card>
+
+  <!-- Change Password -->
+  <ion-card>
+    <ion-card-header>
+      <ion-card-title>{{ 'auth.changePassword' | translate }}</ion-card-title>
+    </ion-card-header>
+    <ion-card-content>
+      <ion-item>
+        <ion-label position="stacked">{{ 'auth.oldPassword' | translate }}</ion-label>
+        <ion-input [(ngModel)]="passwordData.current" type="password"></ion-input>
+      </ion-item>
+      <ion-item>
+        <ion-label position="stacked">{{ 'auth.newPassword' | translate }}</ion-label>
+        <ion-input [(ngModel)]="passwordData.new" type="password"></ion-input>
+      </ion-item>
+      <ion-item>
+        <ion-label position="stacked">{{ 'auth.confirmPassword' | translate }}</ion-label>
+        <ion-input [(ngModel)]="passwordData.confirm" type="password"></ion-input>
+      </ion-item>
+      <ion-button expand="block" (click)="changePassword()">
+        {{ 'auth.changePassword' | translate }}
+      </ion-button>
+    </ion-card-content>
+  </ion-card>
+</ion-content>
