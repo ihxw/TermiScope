@@ -9,31 +9,51 @@
   color: var(--ion-color-medium);
 }
 
-// App Header Title Styles
-ion-title {
-  &.page-title {
-    padding-inline-start: 0;
+// App Header Styles
+ion-header {
+  ion-toolbar {
+    --background: #1e1e1e;
+    --color: #d4d4d4;
+    --border-width: 0;
+    --min-height: 44px;
+    
+    ion-buttons {
+      ion-button {
+        --padding-start: 4px;
+        --padding-end: 4px;
+        margin: 0;
+        
+        ion-icon {
+          font-size: 22px;
+        }
+      }
+    }
   }
   
-  &.session-title {
-    padding-inline-start: 0;
+  ion-title {
+    padding-inline-start: 8px;
+    padding-inline-end: 8px;
     
-    .title-content {
+    &.session-title {
       display: flex;
       align-items: center;
-      gap: 8px;
-      width: 100%;
       
-      ion-badge {
-        font-size: 10px;
-        padding: 2px 6px;
-        height: 18px;
-        line-height: 14px;
+      .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #ff4d4f;
+        margin-right: 8px;
         flex-shrink: 0;
+        
+        &.connected {
+          background: #52c41a;
+        }
       }
       
       .host-name {
         font-size: 14px;
+        font-weight: 500;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;

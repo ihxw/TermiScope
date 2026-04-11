@@ -1,66 +1,60 @@
-<ion-header>
+<ion-header class="ion-no-border">
   <ion-toolbar>
     <ion-buttons slot="start">
       <ion-menu-button></ion-menu-button>
     </ion-buttons>
     
-    <!-- Title changes based on active session -->
-    <ion-title *ngIf="!activeSession" class="page-title">{{ 'nav.terminal' | translate }}</ion-title>
+    <!-- Title: simple page title or session info -->
+    <ion-title *ngIf="!activeSession">{{ 'nav.terminal' | translate }}</ion-title>
     <ion-title *ngIf="activeSession" class="session-title">
-      <div class="title-content">
-        <ion-badge [color]="activeSession.connected ? 'success' : 'danger'" size="small">
-          {{ activeSession.connected ? ('terminal.connected' | translate) : ('terminal.disconnected' | translate) }}
-        </ion-badge>
-        <span class="host-name">{{ activeSession.hostName }}</span>
-      </div>
+      <span class="status-dot" [class.connected]="activeSession.connected"></span>
+      <span class="host-name">{{ activeSession.hostName }}</span>
     </ion-title>
     
     <ion-buttons slot="end">
-      <!-- Session active menu -->
+      <!-- Session active: keyboard + menu -->
       <ng-container *ngIf="activeSession">
-        <ion-button (click)="toggleKeyboardToolbar()">
-          <ion-icon name="keypad" slot="icon-only"></ion-icon>
+        <ion-button fill="clear" size="small" (click)="toggleKeyboardToolbar()">
+          <ion-icon name="keypad"></ion-icon>
         </ion-button>
-        <ion-button id="terminal-menu-trigger">
-          <ion-icon name="ellipsis-vertical" slot="icon-only"></ion-icon>
+        <ion-button fill="clear" size="small" id="terminal-menu">
+          <ion-icon name="ellipsis-vertical"></ion-icon>
         </ion-button>
-        <ion-popover trigger="terminal-menu-trigger" triggerAction="click">
+        <ion-popover #popover trigger="terminal-menu" side="end" alignment="end">
           <ng-template>
-            <ion-content>
-              <ion-list>
-                <ion-item button (click)="reconnect()" *ngIf="!activeSession.connected">
-                  <ion-icon name="refresh" slot="start" color="primary"></ion-icon>
-                  <ion-label>{{ 'terminal.reconnect' | translate }}</ion-label>
-                </ion-item>
-                <ion-item button (click)="disconnect()" *ngIf="activeSession.connected">
-                  <ion-icon name="close-circle" slot="start" color="danger"></ion-icon>
-                  <ion-label>{{ 'terminal.disconnect' | translate }}</ion-label>
-                </ion-item>
-                <ion-item button (click)="toggleSftp()">
-                  <ion-icon name="folder-open" slot="start" [color]="showSftp ? 'warning' : 'primary'"></ion-icon>
-                  <ion-label>{{ 'terminal.sftp' | translate }}</ion-label>
-                </ion-item>
-                <ion-item button (click)="showQuickCommands()">
-                  <ion-icon name="flash" slot="start"></ion-icon>
-                  <ion-label>{{ 'terminal.commands' | translate }}</ion-label>
-                </ion-item>
-                <ion-item button (click)="copySelection()">
-                  <ion-icon name="copy" slot="start"></ion-icon>
-                  <ion-label>Copy</ion-label>
-                </ion-item>
-                <ion-item button (click)="pasteFromClipboard()">
-                  <ion-icon name="clipboard" slot="start"></ion-icon>
-                  <ion-label>Paste</ion-label>
-                </ion-item>
-              </ion-list>
-            </ion-content>
+            <ion-list lines="none">
+              <ion-item button detail="false" (click)="popover.dismiss(); reconnect()" *ngIf="!activeSession.connected">
+                <ion-icon name="refresh" slot="start" color="primary"></ion-icon>
+                <ion-label>{{ 'terminal.reconnect' | translate }}</ion-label>
+              </ion-item>
+              <ion-item button detail="false" (click)="popover.dismiss(); disconnect()" *ngIf="activeSession.connected">
+                <ion-icon name="close-circle" slot="start" color="danger"></ion-icon>
+                <ion-label>{{ 'terminal.disconnect' | translate }}</ion-label>
+              </ion-item>
+              <ion-item button detail="false" (click)="popover.dismiss(); toggleSftp()">
+                <ion-icon name="folder-open" slot="start"></ion-icon>
+                <ion-label>{{ 'terminal.sftp' | translate }}</ion-label>
+              </ion-item>
+              <ion-item button detail="false" (click)="popover.dismiss(); showQuickCommands()">
+                <ion-icon name="flash" slot="start"></ion-icon>
+                <ion-label>{{ 'terminal.commands' | translate }}</ion-label>
+              </ion-item>
+              <ion-item button detail="false" (click)="popover.dismiss(); copySelection()">
+                <ion-icon name="copy" slot="start"></ion-icon>
+                <ion-label>Copy</ion-label>
+              </ion-item>
+              <ion-item button detail="false" (click)="popover.dismiss(); pasteFromClipboard()">
+                <ion-icon name="clipboard" slot="start"></ion-icon>
+                <ion-label>Paste</ion-label>
+              </ion-item>
+            </ion-list>
           </ng-template>
         </ion-popover>
       </ng-container>
       
-      <!-- No session buttons -->
-      <ion-button *ngIf="!activeSession" (click)="quickConnect()">
-        <ion-icon name="flash" slot="icon-only"></ion-icon>
+      <!-- No session: quick connect -->
+      <ion-button *ngIf="!activeSession" fill="clear" size="small" (click)="quickConnect()">
+        <ion-icon name="flash"></ion-icon>
       </ion-button>
     </ion-buttons>
   </ion-toolbar>
