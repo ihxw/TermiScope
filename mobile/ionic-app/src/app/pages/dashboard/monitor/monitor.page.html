@@ -1,12 +1,12 @@
-<ion-header>
+<ion-header class="ion-no-border">
   <ion-toolbar>
     <ion-buttons slot="start">
       <ion-menu-button></ion-menu-button>
     </ion-buttons>
     <ion-title>{{ 'nav.monitor' | translate }}</ion-title>
     <ion-buttons slot="end">
-      <ion-button (click)="loadHosts()">
-        <ion-icon name="refresh" slot="icon-only"></ion-icon>
+      <ion-button fill="clear" size="small" (click)="loadHosts()">
+        <ion-icon name="refresh"></ion-icon>
       </ion-button>
     </ion-buttons>
   </ion-toolbar>
@@ -14,124 +14,104 @@
 
 <ion-content>
   <!-- Stats Header -->
-  <ion-card>
-    <ion-card-content>
-      <ion-row>
-        <ion-col size="6" class="ion-text-center">
-          <h2>{{ totalHosts }}</h2>
-          <p>{{ 'monitor.total' | translate }}</p>
-        </ion-col>
-        <ion-col size="6" class="ion-text-center">
-          <h2 style="color: var(--ion-color-success)">{{ onlineHosts }}</h2>
-          <p>{{ 'monitor.online' | translate }}</p>
-        </ion-col>
-      </ion-row>
-    </ion-card-content>
-  </ion-card>
+  <div class="stats-header">
+    <div class="stat-item">
+      <span class="stat-value">{{ totalHosts }}</span>
+      <span class="stat-label">{{ 'monitor.total' | translate }}</span>
+    </div>
+    <div class="stat-divider"></div>
+    <div class="stat-item online">
+      <span class="stat-value">{{ onlineHosts }}</span>
+      <span class="stat-label">{{ 'monitor.online' | translate }}</span>
+    </div>
+  </div>
 
   <!-- Batch Actions -->
-  <ion-toolbar *ngIf="hasSelection">
+  <ion-toolbar *ngIf="hasSelection" class="batch-toolbar">
     <ion-buttons slot="start">
-      <ion-button (click)="batchDeploy()">
+      <ion-button size="small" (click)="batchDeploy()">
         <ion-icon name="cloud-upload" slot="start"></ion-icon>
         {{ 'monitor.batchDeploy' | translate }} ({{ selectedHosts.length }})
       </ion-button>
     </ion-buttons>
     <ion-buttons slot="end">
-      <ion-button fill="clear" (click)="selectedHosts = []">
+      <ion-button fill="clear" size="small" (click)="selectedHosts = []">
         {{ 'common.cancel' | translate }}
       </ion-button>
     </ion-buttons>
   </ion-toolbar>
 
   <!-- Monitor Cards -->
-  <ion-grid>
+  <ion-grid class="monitor-grid">
     <ion-row>
-      <ion-col size="12" size-md="6" *ngFor="let host of hosts">
-        <ion-card [class.offline]="!isOnline(host.id)">
-          <ion-card-header>
-            <ion-card-title>
+      <ion-col size="12" *ngFor="let host of hosts">
+        <ion-card class="monitor-card" [class.offline]="!isOnline(host.id)">
+          <!-- Card Header -->
+          <div class="card-header">
+            <div class="host-info">
               <ion-checkbox 
                 *ngIf="hasSelection || selectedHosts.length > 0"
                 [checked]="isSelected(host.id)"
-                (ionChange)="toggleHostSelection(host.id)"
-                style="margin-right: 8px;">
+                (ionChange)="toggleHostSelection(host.id)">
               </ion-checkbox>
-              {{ host.name }}
-              <ion-badge [color]="isOnline(host.id) ? 'success' : 'danger'" style="margin-left: 8px;">
+              <span class="host-name">{{ host.name }}</span>
+              <ion-badge [color]="isOnline(host.id) ? 'success' : 'medium'" size="small">
+                <ion-icon [name]="isOnline(host.id) ? 'checkmark-circle' : 'close-circle'"></ion-icon>
                 {{ isOnline(host.id) ? ('monitor.online' | translate) : ('monitor.offline' | translate) }}
               </ion-badge>
-            </ion-card-title>
-            <ion-card-subtitle>{{ host.host }}</ion-card-subtitle>
-          </ion-card-header>
-
-          <ion-card-content *ngIf="getHostStatus(host.id) as status">
-            <!-- CPU -->
-            <ion-item lines="none">
-              <ion-label>CPU</ion-label>
-              <ion-note slot="end">{{ status.cpu_usage?.toFixed(1) ?? '-' }}%</ion-note>
-            </ion-item>
-            <ion-progress-bar [value]="(status.cpu_usage ?? 0) / 100" [color]="(status.cpu_usage ?? 0) > 80 ? 'danger' : 'primary'"></ion-progress-bar>
-
-            <!-- Memory -->
-            <ion-item lines="none">
-              <ion-label>{{ 'monitor.ram' | translate }}</ion-label>
-              <ion-note slot="end">{{ status.memory_usage?.toFixed(1) ?? '-' }}%</ion-note>
-            </ion-item>
-            <ion-progress-bar [value]="(status.memory_usage ?? 0) / 100" [color]="(status.memory_usage ?? 0) > 80 ? 'danger' : 'primary'"></ion-progress-bar>
-
-            <!-- Disk -->
-            <ion-item lines="none">
-              <ion-label>{{ 'monitor.disk' | translate }}</ion-label>
-              <ion-note slot="end">{{ status.disk_usage?.toFixed(1) ?? '-' }}%</ion-note>
-            </ion-item>
-            <ion-progress-bar [value]="(status.disk_usage ?? 0) / 100" [color]="(status.disk_usage ?? 0) > 80 ? 'danger' : 'primary'"></ion-progress-bar>
-
-            <!-- Network -->
-            <ion-row class="ion-margin-top">
-              <ion-col size="6" class="ion-text-center">
-                <ion-icon name="arrow-down" color="success"></ion-icon>
-                <small>{{ formatSpeed(status.network_rx_speed ?? 0) }}</small>
-              </ion-col>
-              <ion-col size="6" class="ion-text-center">
-                <ion-icon name="arrow-up" color="primary"></ion-icon>
-                <small>{{ formatSpeed(status.network_tx_speed ?? 0) }}</small>
-              </ion-col>
-            </ion-row>
-
-            <!-- Uptime -->
-            <ion-item lines="none" class="ion-margin-top">
-              <ion-icon name="time" slot="start"></ion-icon>
-              <ion-label>{{ 'monitor.uptime' | translate }}</ion-label>
-              <ion-note slot="end">{{ formatUptime(status.uptime ?? 0) }}</ion-note>
-            </ion-item>
-
-            <!-- Actions -->
-            <ion-row class="ion-margin-top">
-              <ion-col>
-                <ion-button expand="block" size="small" (click)="deployMonitor(host)" *ngIf="!isOnline(host.id)">
-                  <ion-icon name="cloud-upload" slot="start"></ion-icon>
-                  {{ 'monitor.deployAgent' | translate }}
-                </ion-button>
-                <ion-button expand="block" size="small" color="danger" (click)="stopMonitor(host)" *ngIf="isOnline(host.id)">
-                  <ion-icon name="stop" slot="start"></ion-icon>
-                  {{ 'monitor.stopMonitor' | translate }}
-                </ion-button>
-              </ion-col>
-            </ion-row>
-          </ion-card-content>
-
-          <!-- No Monitor -->
-          <ion-card-content *ngIf="!getHostStatus(host.id)">
-            <div class="ion-text-center ion-padding">
-              <ion-icon name="cloud-offline" style="font-size: 48px; color: var(--ion-color-medium);"></ion-icon>
-              <p>{{ 'monitor.monitorDisabled' | translate }}</p>
-              <ion-button (click)="deployMonitor(host)">
-                <ion-icon name="cloud-upload" slot="start"></ion-icon>
-                {{ 'monitor.deployAgent' | translate }}
-              </ion-button>
             </div>
-          </ion-card-content>
+            <span class="host-ip">{{ host.host }}</span>
+          </div>
+
+          <!-- Card Content -->
+          <div class="card-content" *ngIf="getHostStatus(host.id) as status; else offlineTpl">
+            <!-- Metrics Row -->
+            <div class="metrics-row">
+              <div class="metric-item">
+                <ion-icon name="hardware-chip"></ion-icon>
+                <span class="metric-value" [class.danger]="(status.cpu_usage ?? 0) > 80">{{ status.cpu_usage?.toFixed(0) ?? '-' }}%</span>
+                <span class="metric-label">CPU</span>
+              </div>
+              <div class="metric-item">
+                <ion-icon name="memory"></ion-icon>
+                <span class="metric-value" [class.danger]="(status.memory_usage ?? 0) > 80">{{ status.memory_usage?.toFixed(0) ?? '-' }}%</span>
+                <span class="metric-label">{{ 'monitor.ram' | translate }}</span>
+              </div>
+              <div class="metric-item">
+                <ion-icon name="server"></ion-icon>
+                <span class="metric-value" [class.danger]="(status.disk_usage ?? 0) > 80">{{ status.disk_usage?.toFixed(0) ?? '-' }}%</span>
+                <span class="metric-label">{{ 'monitor.disk' | translate }}</span>
+              </div>
+            </div>
+            
+            <!-- Network & Uptime -->
+            <div class="info-row">
+              <div class="network-stats">
+                <span class="net-down"><ion-icon name="arrow-down"></ion-icon> {{ formatSpeed(status.network_rx_speed ?? 0) }}</span>
+                <span class="net-up"><ion-icon name="arrow-up"></ion-icon> {{ formatSpeed(status.network_tx_speed ?? 0) }}</span>
+              </div>
+              <span class="uptime"><ion-icon name="time-outline"></ion-icon> {{ formatUptime(status.uptime ?? 0) }}</span>
+            </div>
+          </div>
+          
+          <ng-template #offlineTpl>
+            <div class="card-content offline-content">
+              <ion-icon name="cloud-offline"></ion-icon>
+              <span>{{ 'monitor.offline' | translate }}</span>
+            </div>
+          </ng-template>
+
+          <!-- Actions -->
+          <div class="card-actions">
+            <ion-button size="small" fill="outline" (click)="deployMonitor(host)" *ngIf="!isOnline(host.id)">
+              <ion-icon name="cloud-upload" slot="start"></ion-icon>
+              {{ 'monitor.deployAgent' | translate }}
+            </ion-button>
+            <ion-button size="small" fill="clear" color="danger" (click)="stopMonitor(host)" *ngIf="isOnline(host.id)">
+              <ion-icon name="stop" slot="start"></ion-icon>
+              {{ 'monitor.stopMonitor' | translate }}
+            </ion-button>
+          </div>
         </ion-card>
       </ion-col>
     </ion-row>

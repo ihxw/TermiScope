@@ -8,3 +8,207 @@
   text-align: center;
   color: var(--ion-color-medium);
 }
+
+// Stats Header
+.stats-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 16px;
+  background: var(--ion-color-dark);
+  gap: 24px;
+  
+  .stat-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    
+    .stat-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--ion-color-light);
+    }
+    
+    .stat-label {
+      font-size: 11px;
+      color: var(--ion-color-medium);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    &.online .stat-value {
+      color: var(--ion-color-success);
+    }
+  }
+  
+  .stat-divider {
+    width: 1px;
+    height: 32px;
+    background: rgba(255, 255, 255, 0.1);
+  }
+}
+
+// Batch Toolbar
+.batch-toolbar {
+  --padding-start: 8px;
+  --padding-end: 8px;
+  --min-height: 44px;
+  background: var(--ion-color-primary-tint);
+}
+
+// Monitor Grid
+.monitor-grid {
+  padding: 8px;
+}
+
+// Monitor Card
+.monitor-card {
+  margin: 8px;
+  border-radius: 12px;
+  overflow: hidden;
+  --background: var(--ion-card-background, var(--ion-background-color, #fff));
+  
+  &.offline {
+    opacity: 0.7;
+  }
+  
+  .card-header {
+    display: flex;
+    flex-direction: column;
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(var(--ion-text-color-rgb), 0.06);
+    
+    .host-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      
+      .host-name {
+        font-size: 15px;
+        font-weight: 600;
+        flex: 1;
+      }
+      
+      ion-badge {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        font-size: 10px;
+        
+        ion-icon {
+          font-size: 12px;
+        }
+      }
+    }
+    
+    .host-ip {
+      font-size: 12px;
+      color: var(--ion-color-medium);
+      margin-top: 4px;
+    }
+  }
+  
+  .card-content {
+    padding: 12px 16px;
+    
+    &.offline-content {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      color: var(--ion-color-medium);
+      
+      ion-icon {
+        font-size: 32px;
+        margin-bottom: 8px;
+      }
+    }
+    
+    .metrics-row {
+      display: flex;
+      justify-content: space-around;
+      margin-bottom: 12px;
+      
+      .metric-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 4px;
+        
+        ion-icon {
+          font-size: 20px;
+          color: var(--ion-color-medium);
+        }
+        
+        .metric-value {
+          font-size: 18px;
+          font-weight: 700;
+          color: var(--ion-color-primary);
+          
+          &.danger {
+            color: var(--ion-color-danger);
+          }
+        }
+        
+        .metric-label {
+          font-size: 10px;
+          color: var(--ion-color-medium);
+          text-transform: uppercase;
+        }
+      }
+    }
+    
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      color: var(--ion-color-medium);
+      
+      .network-stats {
+        display: flex;
+        gap: 12px;
+        
+        .net-down, .net-up {
+          display: flex;
+          align-items: center;
+          gap: 4px;
+          
+          ion-icon {
+            font-size: 12px;
+          }
+        }
+        
+        .net-down {
+          color: var(--ion-color-success);
+        }
+        
+        .net-up {
+          color: var(--ion-color-primary);
+        }
+      }
+      
+      .uptime {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        
+        ion-icon {
+          font-size: 14px;
+        }
+      }
+    }
+  }
+  
+  .card-actions {
+    display: flex;
+    justify-content: center;
+    padding: 8px 16px 12px;
+    gap: 8px;
+    
+    ion-button {
+      margin: 0;
+    }
+  }
+}
