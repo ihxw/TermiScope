@@ -362,17 +362,16 @@ export class TerminalPage implements OnInit, OnDestroy {
   }
 
   // Terminal control methods
-  reconnect() {
+  async reconnect() {
     const session = this.activeSession;
     if (session && !session.connected) {
-      // Close existing connection
-      if (session.ws) {
-        session.ws.close();
-      }
+      // Close and cleanup existing session
+      this.closeSession(session.id);
+      
       // Find host and reconnect
       const host = this.hosts.find(h => h.id === session.hostId);
       if (host) {
-        this.connectToHost(host);
+        await this.connectToHost(host);
       }
     }
   }

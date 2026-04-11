@@ -9,26 +9,38 @@
   color: var(--ion-color-medium);
 }
 
-// App Header Session Title
-.session-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 !important;
-  
-  ion-badge {
-    font-size: 10px;
-    padding: 2px 6px;
-    height: 18px;
-    line-height: 14px;
+// App Header Title Styles
+ion-title {
+  &.page-title {
+    padding-inline-start: 0;
   }
   
-  .host-name {
-    font-size: 14px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: 150px;
+  &.session-title {
+    padding-inline-start: 0;
+    
+    .title-content {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      
+      ion-badge {
+        font-size: 10px;
+        padding: 2px 6px;
+        height: 18px;
+        line-height: 14px;
+        flex-shrink: 0;
+      }
+      
+      .host-name {
+        font-size: 14px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        flex: 1;
+        min-width: 0;
+      }
+    }
   }
 }
 
@@ -98,5 +110,48 @@
     .xterm-screen {
       height: 100% !important;
     }
+    
+    // Hide xterm.js auxiliary input elements
+    .xterm-helper-textarea {
+      position: absolute;
+      opacity: 0;
+      left: -9999em;
+      top: 0;
+      width: 0;
+      height: 0;
+      z-index: -10;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+    
+    // Hide composition view (IME input)
+    .xterm-composition-view {
+      display: none;
+    }
+    
+    // Ensure cursor is visible
+    .xterm-cursor {
+      &.xterm-cursor-block {
+        background-color: #d4d4d4;
+        color: #1e1e1e;
+      }
+      
+      &.xterm-cursor-bar {
+        border-left: 2px solid #d4d4d4;
+      }
+      
+      &.xterm-cursor-underline {
+        border-bottom: 2px solid #d4d4d4;
+      }
+    }
+  }
+}
+
+// Hide any stray input elements in terminal container
+.terminal-container {
+  input, textarea {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
   }
 }
