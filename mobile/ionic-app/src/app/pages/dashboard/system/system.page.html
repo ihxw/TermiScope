@@ -5,57 +5,194 @@
     </ion-buttons>
     <ion-title>{{ 'nav.system' | translate }}</ion-title>
   </ion-toolbar>
+  <ion-toolbar>
+    <ion-segment [(ngModel)]="activeTab">
+      <ion-segment-button value="settings">
+        <ion-label>{{ 'system.settings' | translate }}</ion-label>
+      </ion-segment-button>
+      <ion-segment-button value="backup">
+        <ion-label>{{ 'system.backupTitle' | translate }}</ion-label>
+      </ion-segment-button>
+    </ion-segment>
+  </ion-toolbar>
 </ion-header>
 
 <ion-content class="ion-padding">
-  <!-- System Info -->
-  <ion-card *ngIf="systemInfo">
-    <ion-card-header>
-      <ion-card-title>{{ 'system.settings' | translate }}</ion-card-title>
-    </ion-card-header>
-    <ion-card-content>
-      <ion-item>
-        <ion-label>{{ 'common.backendVersion' | translate }}</ion-label>
-        <ion-note slot="end">{{ systemInfo.version }}</ion-note>
-      </ion-item>
-    </ion-card-content>
-  </ion-card>
+  <!-- Settings Tab -->
+  <div *ngIf="activeTab === 'settings'">
+    <!-- System Info -->
+    <ion-card *ngIf="systemInfo">
+      <ion-card-header>
+        <ion-card-title>{{ 'system.settings' | translate }}</ion-card-title>
+      </ion-card-header>
+      <ion-card-content>
+        <ion-item>
+          <ion-label>{{ 'common.backendVersion' | translate }}</ion-label>
+          <ion-note slot="end">{{ systemInfo.version }}</ion-note>
+        </ion-item>
+        <ion-button expand="block" fill="outline" (click)="checkUpdate()">
+          <ion-icon name="cloud-download" slot="start"></ion-icon>
+          {{ 'system.update' | translate }}
+        </ion-button>
+      </ion-card-content>
+    </ion-card>
 
-  <!-- Actions -->
-  <ion-card>
-    <ion-card-header>
-      <ion-card-title>{{ 'common.actions' | translate }}</ion-card-title>
-    </ion-card-header>
-    <ion-card-content>
-      <ion-button expand="block" (click)="checkUpdate()">
-        <ion-icon name="cloud-download" slot="start"></ion-icon>
-        {{ 'system.update' | translate }}
-      </ion-button>
-      <ion-button expand="block" (click)="backupDatabase()">
-        <ion-icon name="save" slot="start"></ion-icon>
-        {{ 'system.backupTitle' | translate }}
-      </ion-button>
-    </ion-card-content>
-  </ion-card>
+    <!-- General Settings -->
+    <ion-card>
+      <ion-card-header>
+        <ion-card-title>{{ 'system.settingsTitle' | translate }}</ion-card-title>
+      </ion-card-header>
+      <ion-card-content>
+        <ion-item>
+          <ion-label position="stacked">{{ 'system.timezone' | translate }}</ion-label>
+          <ion-select [(ngModel)]="settings.timezone" interface="popover">
+            <ion-select-option value="Local">Local (Server Default)</ion-select-option>
+            <ion-select-option value="UTC">UTC</ion-select-option>
+            <ion-select-option value="Asia/Shanghai">Asia/Shanghai (CST)</ion-select-option>
+            <ion-select-option value="America/New_York">America/New_York (EST/EDT)</ion-select-option>
+            <ion-select-option value="Europe/London">Europe/London (GMT/BST)</ion-select-option>
+            <ion-select-option value="Asia/Tokyo">Asia/Tokyo (JST)</ion-select-option>
+            <ion-select-option value="Europe/Paris">Europe/Paris (CET/CEST)</ion-select-option>
+          </ion-select>
+        </ion-item>
+        <ion-item>
+          <ion-label position="stacked">{{ 'system.sshTimeout' | translate }}</ion-label>
+          <ion-input [(ngModel)]="settings.ssh_timeout" placeholder="30s"></ion-input>
+        </ion-item>
+        <ion-item>
+          <ion-label position="stacked">{{ 'system.idleTimeout' | translate }}</ion-label>
+          <ion-input [(ngModel)]="settings.idle_timeout" placeholder="30m"></ion-input>
+        </ion-item>
+        <ion-item>
+          <ion-label position="stacked">{{ 'system.maxConnectionsPerUser' | translate }}</ion-label>
+          <ion-input type="number" [(ngModel)]="settings.max_connections_per_user"></ion-input>
+        </ion-item>
+        <ion-item>
+          <ion-label position="stacked">{{ 'system.loginRateLimit' | translate }}</ion-label>
+          <ion-input type="number" [(ngModel)]="settings.login_rate_limit"></ion-input>
+        </ion-item>
+        <ion-item>
+          <ion-label position="stacked">{{ 'system.accessExpiration' | translate }}</ion-label>
+          <ion-input [(ngModel)]="settings.access_expiration" placeholder="60m"></ion-input>
+        </ion-item>
+        <ion-item>
+          <ion-label position="stacked">{{ 'system.refreshExpiration' | translate }}</ion-label>
+          <ion-input [(ngModel)]="settings.refresh_expiration" placeholder="168h"></ion-input>
+        </ion-item>
+      </ion-card-content>
+    </ion-card>
 
-  <!-- Settings -->
-  <ion-card>
-    <ion-card-header>
-      <ion-card-title>{{ 'system.settingsTitle' | translate }}</ion-card-title>
-    </ion-card-header>
-    <ion-card-content>
-      <ion-item>
-        <ion-label position="stacked">{{ 'system.sshTimeout' | translate }}</ion-label>
-        <ion-input type="number" [(ngModel)]="settings.ssh_timeout"></ion-input>
-      </ion-item>
-      <ion-item>
-        <ion-label position="stacked">{{ 'system.idleTimeout' | translate }}</ion-label>
-        <ion-input type="number" [(ngModel)]="settings.idle_timeout"></ion-input>
-      </ion-item>
-      <ion-item>
-        <ion-label position="stacked">{{ 'system.maxConnectionsPerUser' | translate }}</ion-label>
-        <ion-input type="number" [(ngModel)]="settings.max_connections_per_user"></ion-input>
-      </ion-item>
-    </ion-card-content>
-  </ion-card>
+    <!-- Notification Settings -->
+    <ion-card>
+      <ion-card-header>
+        <ion-card-title>{{ 'system.notificationTitle' | translate }}</ion-card-title>
+      </ion-card-header>
+      <ion-card-content>
+        <!-- SMTP -->
+        <ion-item-divider>
+          <ion-label>SMTP</ion-label>
+        </ion-item-divider>
+        <ion-item>
+          <ion-label position="stacked">{{ 'system.smtpServer' | translate }}</ion-label>
+          <ion-input [(ngModel)]="settings.smtp_server" placeholder="smtp.example.com"></ion-input>
+        </ion-item>
+        <ion-item>
+          <ion-label position="stacked">{{ 'system.smtpPort' | translate }}</ion-label>
+          <ion-input [(ngModel)]="settings.smtp_port" placeholder="587"></ion-input>
+        </ion-item>
+        <ion-item>
+          <ion-label position="stacked">{{ 'system.smtpUser' | translate }}</ion-label>
+          <ion-input [(ngModel)]="settings.smtp_user"></ion-input>
+        </ion-item>
+        <ion-item>
+          <ion-label position="stacked">{{ 'system.smtpPassword' | translate }}</ion-label>
+          <ion-input [(ngModel)]="settings.smtp_password" type="password"></ion-input>
+        </ion-item>
+        <ion-item>
+          <ion-label position="stacked">{{ 'system.smtpFrom' | translate }}</ion-label>
+          <ion-input [(ngModel)]="settings.smtp_from" placeholder="noreply@example.com"></ion-input>
+        </ion-item>
+        <ion-item>
+          <ion-label position="stacked">{{ 'system.smtpTo' | translate }}</ion-label>
+          <ion-input [(ngModel)]="settings.smtp_to"></ion-input>
+        </ion-item>
+        <ion-item>
+          <ion-checkbox [(ngModel)]="settings.smtp_tls_skip_verify" slot="start"></ion-checkbox>
+          <ion-label>{{ 'system.smtpTlsSkipVerify' | translate }}</ion-label>
+        </ion-item>
+        <ion-button expand="block" fill="outline" size="small" [disabled]="sendingTestEmail" (click)="testEmail()">
+          {{ 'system.testEmail' | translate }}
+        </ion-button>
+
+        <!-- Telegram -->
+        <ion-item-divider style="margin-top: 16px;">
+          <ion-label>Telegram</ion-label>
+        </ion-item-divider>
+        <ion-item>
+          <ion-label position="stacked">{{ 'system.telegramToken' | translate }}</ion-label>
+          <ion-input [(ngModel)]="settings.telegram_bot_token" type="password"></ion-input>
+        </ion-item>
+        <ion-item>
+          <ion-label position="stacked">{{ 'system.telegramChatId' | translate }}</ion-label>
+          <ion-input [(ngModel)]="settings.telegram_chat_id"></ion-input>
+        </ion-item>
+        <ion-button expand="block" fill="outline" size="small" [disabled]="sendingTestTelegram" (click)="testTelegram()">
+          {{ 'system.testTelegram' | translate }}
+        </ion-button>
+
+        <!-- Notification Template -->
+        <ion-item-divider style="margin-top: 16px;">
+          <ion-label>{{ 'system.notificationTemplate' | translate }}</ion-label>
+        </ion-item-divider>
+        <ion-item>
+          <ion-textarea [(ngModel)]="settings.notification_template" rows="6"></ion-textarea>
+        </ion-item>
+        <ion-button fill="clear" size="small" (click)="resetNotificationTemplate()">
+          {{ 'system.resetTemplate' | translate }}
+        </ion-button>
+      </ion-card-content>
+    </ion-card>
+
+    <!-- Save Button -->
+    <ion-button expand="block" [disabled]="settingsLoading" (click)="saveSettings()">
+      {{ 'common.save' | translate }}
+    </ion-button>
+  </div>
+
+  <!-- Backup Tab -->
+  <div *ngIf="activeTab === 'backup'">
+    <!-- Backup Section -->
+    <ion-card>
+      <ion-card-header>
+        <ion-card-title>{{ 'system.backupTitle' | translate }}</ion-card-title>
+      </ion-card-header>
+      <ion-card-content>
+        <p>{{ 'system.backupDesc' | translate }}</p>
+        <ion-button expand="block" (click)="backupDatabase()">
+          <ion-icon name="download" slot="start"></ion-icon>
+          {{ 'system.startBackup' | translate }}
+        </ion-button>
+      </ion-card-content>
+    </ion-card>
+
+    <!-- Restore Section -->
+    <ion-card>
+      <ion-card-header>
+        <ion-card-title>{{ 'system.restoreTitle' | translate }}</ion-card-title>
+      </ion-card-header>
+      <ion-card-content>
+        <ion-item color="warning" lines="none" style="margin-bottom: 12px; border-radius: 8px;">
+          <ion-icon name="warning" slot="start"></ion-icon>
+          <ion-label class="ion-text-wrap">
+            <p>{{ 'system.restoreWarningDesc' | translate }}</p>
+          </ion-label>
+        </ion-item>
+        <p>{{ 'system.restoreDesc' | translate }}</p>
+        <ion-button expand="block" color="warning" (click)="restoreDatabase()">
+          <ion-icon name="push" slot="start"></ion-icon>
+          {{ 'system.startRestore' | translate }}
+        </ion-button>
+      </ion-card-content>
+    </ion-card>
+  </div>
 </ion-content>

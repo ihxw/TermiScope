@@ -17,7 +17,7 @@
       [value]="searchText"
       class="compact-search">
     </ion-searchbar>
-    <ion-segment [(ngModel)]="quickFilter" (ionChange)="applyFilters()" size="small">
+    <ion-segment [(ngModel)]="quickFilter" (ionChange)="applyFilters()" [scrollable]="true">
       <ion-segment-button value="all">
         <ion-label>{{ 'host.filterAll' | translate }}</ion-label>
       </ion-segment-button>
@@ -26,6 +26,15 @@
       </ion-segment-button>
       <ion-segment-button value="offline">
         <ion-label>{{ 'host.filterOffline' | translate }}</ion-label>
+      </ion-segment-button>
+      <ion-segment-button value="expiring">
+        <ion-label>{{ 'host.filterExpiring' | translate }}</ion-label>
+      </ion-segment-button>
+      <ion-segment-button value="expired">
+        <ion-label>{{ 'host.filterExpired' | translate }}</ion-label>
+      </ion-segment-button>
+      <ion-segment-button value="deleted">
+        <ion-label>{{ 'host.filterDeleted' | translate }}</ion-label>
       </ion-segment-button>
     </ion-segment>
   </ion-toolbar>
@@ -69,8 +78,11 @@
         <ion-item-option color="warning" (click)="editHost(host)">
           <ion-icon name="create" slot="icon-only"></ion-icon>
         </ion-item-option>
-        <ion-item-option color="danger" (click)="deleteHost(host)">
+        <ion-item-option color="danger" (click)="deleteHost(host)" *ngIf="!host.deleted_at">
           <ion-icon name="trash" slot="icon-only"></ion-icon>
+        </ion-item-option>
+        <ion-item-option color="danger" (click)="permanentDeleteHost(host)" *ngIf="host.deleted_at">
+          <ion-icon name="close-circle" slot="icon-only"></ion-icon>
         </ion-item-option>
       </ion-item-options>
     </ion-item-sliding>

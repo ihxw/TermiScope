@@ -77,9 +77,8 @@ export class SSHService {
     return this.api.post('/ssh-hosts/monitor/batch-stop', { host_ids: hostIds });
   }
 
-  getMonitorStatus(hostId: number): Observable<MonitorStatus> {
-    return this.testConnection(hostId);
-  }
+  // 注意：监控状态通过 WebSocket /monitor/stream 获取
+  // 不再错误地调用 testConnection() 作为 getMonitorStatus()
 
   getNetworkLatency(hostId: number, limit: number = 100): Observable<NetworkLatency[]> {
     return this.api.get<NetworkLatency[]>(`/monitor/network-latency/${hostId}?limit=${limit}`);

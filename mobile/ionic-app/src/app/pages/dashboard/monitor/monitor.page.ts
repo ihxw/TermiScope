@@ -148,16 +148,12 @@ export class MonitorPage implements OnInit, OnDestroy {
   }
 
   refreshStatuses() {
-    this.hosts.forEach(host => {
-      this.sshService.getMonitorStatus(host.id).subscribe({
-        next: (status: any) => {
-          this.monitorStatuses.set(host.id, status as MonitorStatusExtended);
-        },
-        error: () => {
-          // Host might not have monitor deployed
-        }
-      });
-    });
+    // 监控状态完全通过 WebSocket /monitor/stream 获取
+    // 不再调用错误的 testConnection API
+    // 如果 WebSocket 未连接，尝试重新连接
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      this.connectMonitorStream();
+    }
   }
 
   getHostStatus(hostId: number): MonitorStatusExtended | undefined {

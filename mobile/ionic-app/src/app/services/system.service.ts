@@ -1,7 +1,6 @@
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { ApiService } from './api.service';
-import { SystemSettings, NotificationSettings } from '../models';
 
 @Injectable({
   providedIn: 'root'
@@ -9,38 +8,38 @@ import { SystemSettings, NotificationSettings } from '../models';
 export class SystemService {
   constructor(private api: ApiService) {}
 
-  // System Settings
-  getSettings(): Observable<SystemSettings> {
-    return this.api.get<SystemSettings>('/system/settings');
+  // System Settings - 合并在同一个 /system/settings 端点
+  // Web 端: GET /system/settings 获取所有设置（含通知）
+  getSettings(): Observable<any> {
+    return this.api.get('/system/settings');
   }
 
-  saveSettings(settings: SystemSettings): Observable<any> {
-    return this.api.post('/system/settings', settings);
+  // Web 端: PUT /system/settings 保存（不是 POST）
+  saveSettings(settings: any): Observable<any> {
+    return this.api.put('/system/settings', settings);
   }
 
-  // Notification Settings
-  getNotificationSettings(): Observable<NotificationSettings> {
-    return this.api.get<NotificationSettings>('/system/notification-settings');
-  }
-
-  saveNotificationSettings(settings: NotificationSettings): Observable<any> {
-    return this.api.post('/system/notification-settings', settings);
-  }
-
-  // Test notifications
-  testEmail(settings: NotificationSettings): Observable<any> {
+  // Test notifications - 与 Web 端一致
+  testEmail(settings: any): Observable<any> {
     return this.api.post('/system/settings/test-email', settings);
   }
 
-  testTelegram(settings: NotificationSettings): Observable<any> {
+  testTelegram(settings: any): Observable<any> {
     return this.api.post('/system/settings/test-telegram', settings);
   }
 
-  // Backup & Restore
-  backupDatabase(password?: string): Observable<Blob> {
-    return this.api.post('/system/backup', { password }, { responseType: 'blob' });
+  // Backup - Web 端: POST /system/backup 返回 JSON { filename, ticket }
+  backupDatabase(password?: string): Observable<any> {
+    return this.api.post('/system/backup', { password: password || '' });
   }
 
+  // Download backup - Web 端: GET /system/backup/download?file=...&token=...
+  getBackupDownloadUrl(filename: string, ticket: string): string {
+    const serverUrl = this.api.getServerUrl();
+    return `${serverUrl}/api/system/backup/download?file=${filename}&token=${ticket}`;
+  }
+
+  // Restore - 与 Web 端一致
   restoreDatabase(file: File, password?: string): Observable<any> {
     const formData = new FormData();
     formData.append('file', file);
@@ -50,7 +49,7 @@ export class SystemService {
     return this.api.post('/system/restore', formData);
   }
 
-  // Agent Version
+  // Agent Version - 与 Web 端一致
   getAgentVersion(): Observable<{ version: string; download_url?: string }> {
     return this.api.get('/system/agent-version');
   }

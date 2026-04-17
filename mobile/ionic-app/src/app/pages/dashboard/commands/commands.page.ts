@@ -2,8 +2,7 @@ import { Component, OnInit } from '@angular/core';
 import { AlertController, LoadingController, ToastController } from '@ionic/angular';
 import { TranslateService } from '@ngx-translate/core';
 import { CommandService } from '../../../services/data.service';
-import { SSHService } from '../../../services/ssh.service';
-import { Command, SSHHostExtended } from '../../../models';
+import { Command } from '../../../models';
 
 @Component({
   selector: 'app-commands',
@@ -13,14 +12,10 @@ import { Command, SSHHostExtended } from '../../../models';
 })
 export class CommandsPage implements OnInit {
   commands: Command[] = [];
-  hosts: SSHHostExtended[] = [];
   loading = false;
-  page = 1;
-  pageSize = 20;
 
   constructor(
     private commandService: CommandService,
-    private sshService: SSHService,
     private alertController: AlertController,
     private loadingController: LoadingController,
     private toastController: ToastController,
@@ -29,15 +24,15 @@ export class CommandsPage implements OnInit {
 
   ngOnInit() {
     this.loadCommands();
-    this.loadHosts();
   }
 
   async loadCommands() {
     this.loading = true;
-    this.commandService.getCommands(this.page, this.pageSize)
+    // Web 端: GET /command-templates 无分页，返回直接数组
+    this.commandService.getCommands()
       .subscribe({
         next: (result: any) => {
-          this.commands = result.items || [];
+          this.commands = result || [];
           this.loading = false;
         },
         error: async () => {
@@ -50,15 +45,6 @@ export class CommandsPage implements OnInit {
           toast.present();
         }
       });
-  }
-
-  async loadHosts() {
-    this.sshService.getHosts().subscribe({
-      next: (hosts) => {
-        this.hosts = hosts.filter((h: SSHHostExtended) => h.host_type !== 'monitor');
-      },
-      error: () => {}
-    });
   }
 
   async addCommand() {
@@ -115,6 +101,61 @@ export class CommandsPage implements OnInit {
       });
   }
 
+  // Web 端支持编辑命令模板
+  async editCommand(command: Command) {
+    const alert = await this.alertController.create({
+      header: await this.translate.get('command.editTemplate').toPromise(),
+      inputs: [
+        { name: 'name', type: 'text', value: command.name, placeholder: await this.translate.get('command.name').toPromise() },
+        { name: 'command', type: 'text', value: command.command, placeholder: await this.translate.get('command.command').toPromise() },
+        { name: 'description', type: 'text', value: command.description, placeholder: await this.translate.get('command.description').toPromise() }
+      ],
+      buttons: [
+        { text: await this.translate.get('common.cancel').toPromise(), role: 'cancel' },
+        {
+          text: await this.translate.get('common.save').toPromise(),
+          handler: (data) => {
+            if (data.name && data.command) {
+              this.doUpdateCommand(command.id, data);
+            }
+            return true;
+          }
+        }
+      ]
+    });
+    await alert.present();
+  }
+
+  async doUpdateCommand(id: number, data: any) {
+    const loading = await this.loadingController.create({
+      message: await this.translate.get('common.loading').toPromise()
+    });
+    await loading.present();
+
+    this.commandService.updateCommand(id, data)
+      .subscribe({
+        next: async () => {
+          loading.dismiss();
+          const toast = await this.toastController.create({
+            message: await this.translate.get('command.templateUpdated').toPromise(),
+            duration: 2000,
+            color: 'success'
+          });
+          toast.present();
+          this.loadCommands();
+        },
+        error: async () => {
+          loading.dismiss();
+          const toast = await this.toastController.create({
+            message: await this.translate.get('command.saveFailed').toPromise(),
+            duration: 3000,
+            color: 'danger'
+          });
+          toast.present();
+        }
+      });
+  }
+
   async deleteCommand(command: Command) {
     const alert = await this.alertController.create({
       header: await this.translate.get('command.deleteCommand').toPromise(),
@@ -151,54 +192,6 @@ export class CommandsPage implements OnInit {
     await alert.present();
   }
 
-  async executeCommand(command: Command) {
-    // Show host selection
-    const buttons = this.hosts.map(host => ({
-      text: host.name,
-      handler: () => {
-        this.doExecuteCommand(host.id, command.id);
-        return true;
-      }
-    }));
-    
-    (buttons as any[]).push({
-      text: await this.translate.get('common.cancel').toPromise(),
-      role: 'cancel'
-    });
-
-    const alert = await this.alertController.create({
-      header: await this.translate.get('terminal.selectHost').toPromise(),
-      buttons: buttons
-    });
-    await alert.present();
-  }
-
-  async doExecuteCommand(hostId: number, commandId: number) {
-    const loading = await this.loadingController.create({
-      message: await this.translate.get('common.loading').toPromise()
-    });
-    await loading.present();
-
-    this.commandService.executeCommand(hostId, commandId)
-      .subscribe({
-        next: async (result: any) => {
-          loading.dismiss();
-          const toast = await this.toastController.create({
-            message: result?.message || 'Command executed',
-            duration: 2000,
-            color: 'success'
-          });
-          toast.present();
-        },
-        error: async () => {
-          loading.dismiss();
-          const toast = await this.toastController.create({
-            message: 'Failed to execute command',
-            duration: 3000,
-            color: 'danger'
-          });
-          toast.present();
-        }
-      });
-  }
+  // Note: Web 端没有"快速执行"功能，命令模板仅在终端中手动使用
+  // 已移除 executeCommand 和 doExecuteCommand 方法
 }

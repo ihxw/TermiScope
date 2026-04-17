@@ -5,103 +5,171 @@
     </ion-buttons>
     <ion-title>{{ 'nav.profile' | translate }}</ion-title>
   </ion-toolbar>
+  <ion-toolbar>
+    <ion-segment [(ngModel)]="activeTab" (ionChange)="onTabChange($event)">
+      <ion-segment-button value="basic">
+        <ion-label>{{ 'nav.profile' | translate }}</ion-label>
+      </ion-segment-button>
+      <ion-segment-button value="history">
+        <ion-label>{{ 'history.loginHistory' | translate }}</ion-label>
+      </ion-segment-button>
+      <ion-segment-button value="sessions">
+        <ion-label>{{ 'history.sessions' | translate }}</ion-label>
+      </ion-segment-button>
+    </ion-segment>
+  </ion-toolbar>
 </ion-header>
 
 <ion-content class="ion-padding">
-  <!-- User Info -->
-  <ion-card *ngIf="user">
-    <ion-card-header>
-      <ion-card-title>{{ user.username }}</ion-card-title>
-      <ion-card-subtitle>{{ user.email }}</ion-card-subtitle>
-    </ion-card-header>
-    <ion-card-content>
-      <ion-item>
-        <ion-label>{{ 'user.role' | translate }}</ion-label>
-        <ion-note slot="end">{{ user.role }}</ion-note>
-      </ion-item>
-    </ion-card-content>
-  </ion-card>
+  <!-- Basic Info Tab -->
+  <div *ngIf="activeTab === 'basic'">
+    <!-- User Info -->
+    <ion-card *ngIf="user">
+      <ion-card-header>
+        <ion-card-title>{{ user.username }}</ion-card-title>
+        <ion-card-subtitle>{{ user.email }}</ion-card-subtitle>
+      </ion-card-header>
+      <ion-card-content>
+        <ion-item>
+          <ion-label>{{ 'user.role' | translate }}</ion-label>
+          <ion-badge slot="end" [color]="user.role === 'admin' ? 'danger' : 'primary'">{{ user.role }}</ion-badge>
+        </ion-item>
+        <ion-item>
+          <ion-label>{{ 'twofa.title' | translate }}</ion-label>
+          <ion-badge slot="end" [color]="twoFAEnabled ? 'success' : 'medium'">
+            {{ twoFAEnabled ? ('twofa.enabled' | translate) : ('twofa.disabled' | translate) }}
+          </ion-badge>
+        </ion-item>
+      </ion-card-content>
+    </ion-card>
 
-  <!-- 2FA Section -->
-  <ion-card>
-    <ion-card-header>
-      <ion-card-title>{{ 'twofa.title' | translate }}</ion-card-title>
-    </ion-card-header>
-    <ion-card-content>
-      <ion-item *ngIf="!showQRCode">
-        <ion-label>{{ twoFAEnabled ? ('twofa.enabled' | translate) : ('twofa.disabled' | translate) }}</ion-label>
-        <ion-badge [color]="twoFAEnabled ? 'success' : 'medium'" slot="end">
-          {{ twoFAEnabled ? ('common.enabled' | translate) : ('common.disabled' | translate) }}
+    <!-- 2FA Section -->
+    <ion-card>
+      <ion-card-header>
+        <ion-card-title>{{ 'twofa.title' | translate }}</ion-card-title>
+      </ion-card-header>
+      <ion-card-content>
+        <!-- Setup 2FA -->
+        <div *ngIf="showQRCode && twoFASetupData">
+          <ion-item>
+            <ion-label>{{ 'twofa.setupDesc' | translate }}</ion-label>
+          </ion-item>
+          <div class="ion-text-center ion-padding">
+            <img [src]="twoFASetupData.qr_code" alt="QR Code" style="max-width: 200px;" />
+          </div>
+          <ion-item>
+            <ion-label position="stacked">{{ 'twofa.secretKey' | translate }}</ion-label>
+            <ion-input [value]="twoFASetupData.secret" readonly></ion-input>
+          </ion-item>
+          <ion-item>
+            <ion-label position="stacked">{{ 'twofa.verificationCode' | translate }}</ion-label>
+            <ion-input [(ngModel)]="verificationCode" type="text" maxlength="6" placeholder="000000"></ion-input>
+          </ion-item>
+          <ion-button expand="block" (click)="verify2FASetup()">
+            {{ 'twofa.verify' | translate }}
+          </ion-button>
+          <ion-button expand="block" fill="clear" (click)="cancel2FASetup()">
+            {{ 'common.cancel' | translate }}
+          </ion-button>
+        </div>
+
+        <!-- Backup Codes Display -->
+        <div *ngIf="showBackupCodes && backupCodes.length > 0">
+          <ion-item color="warning">
+            <ion-label class="ion-text-wrap">{{ 'twofa.backupCodesDesc' | translate }}</ion-label>
+          </ion-item>
+          <ion-list>
+            <ion-item *ngFor="let code of backupCodes">
+              <ion-label><code>{{ code }}</code></ion-label>
+            </ion-item>
+          </ion-list>
+          <ion-button expand="block" fill="clear" (click)="dismissBackupCodes()">
+            {{ 'common.close' | translate }}
+          </ion-button>
+        </div>
+
+        <!-- Actions -->
+        <div *ngIf="!showQRCode && !showBackupCodes">
+          <ion-button *ngIf="!twoFAEnabled" expand="block" (click)="setup2FA()">
+            {{ 'twofa.enable' | translate }}
+          </ion-button>
+          <ion-button *ngIf="twoFAEnabled" expand="block" color="danger" (click)="disable2FA()">
+            {{ 'twofa.disable' | translate }}
+          </ion-button>
+          <ion-button *ngIf="twoFAEnabled" expand="block" fill="outline" (click)="regenerateBackupCodes()">
+            {{ 'twofa.regenerateBackupCodes' | translate }}
+          </ion-button>
+        </div>
+      </ion-card-content>
+    </ion-card>
+
+    <!-- Change Password -->
+    <ion-card>
+      <ion-card-header>
+        <ion-card-title>{{ 'auth.changePassword' | translate }}</ion-card-title>
+      </ion-card-header>
+      <ion-card-content>
+        <ion-item>
+          <ion-label position="stacked">{{ 'auth.oldPassword' | translate }}</ion-label>
+          <ion-input [(ngModel)]="passwordData.current" type="password"></ion-input>
+        </ion-item>
+        <ion-item>
+          <ion-label position="stacked">{{ 'auth.newPassword' | translate }}</ion-label>
+          <ion-input [(ngModel)]="passwordData.new" type="password"></ion-input>
+        </ion-item>
+        <ion-item>
+          <ion-label position="stacked">{{ 'auth.confirmPassword' | translate }}</ion-label>
+          <ion-input [(ngModel)]="passwordData.confirm" type="password"></ion-input>
+        </ion-item>
+        <ion-button expand="block" (click)="changePassword()">
+          {{ 'auth.changePassword' | translate }}
+        </ion-button>
+      </ion-card-content>
+    </ion-card>
+  </div>
+
+  <!-- Login History Tab -->
+  <div *ngIf="activeTab === 'history'">
+    <ion-list>
+      <ion-item *ngFor="let entry of loginHistory">
+        <ion-label>
+          <h2>{{ entry.ip_address }}</h2>
+          <p>{{ formatDate(entry.login_time) }}</p>
+          <p *ngIf="entry.device_info"><small>{{ entry.device_info }}</small></p>
+        </ion-label>
+        <ion-badge slot="end" [color]="getStatusColor(entry.status)">{{ entry.status }}</ion-badge>
+        <ion-badge *ngIf="entry.is_current" slot="end" color="success" style="margin-left: 4px;">
+          {{ 'history.current' | translate }}
         </ion-badge>
       </ion-item>
+    </ion-list>
+    <div *ngIf="loginHistory.length === 0 && !historyLoading" class="ion-text-center ion-padding">
+      <p>{{ 'history.noData' | translate }}</p>
+    </div>
+  </div>
 
-      <!-- Setup 2FA -->
-      <div *ngIf="showQRCode && twoFASetupData">
-        <ion-item>
-          <ion-label>{{ 'twofa.setupDesc' | translate }}</ion-label>
-        </ion-item>
-        <div class="ion-text-center ion-padding">
-          <img [src]="twoFASetupData.qr_code" alt="QR Code" style="max-width: 200px;" />
-        </div>
-        <ion-item>
-          <ion-label position="stacked">{{ 'twofa.secretKey' | translate }}</ion-label>
-          <ion-input [value]="twoFASetupData.secret" readonly></ion-input>
-        </ion-item>
-        <ion-item>
-          <ion-label position="stacked">{{ 'twofa.verificationCode' | translate }}</ion-label>
-          <ion-input [(ngModel)]="verificationCode" type="text" maxlength="6" placeholder="000000"></ion-input>
-        </ion-item>
-        <ion-button expand="block" (click)="verify2FASetup()">
-          {{ 'twofa.verify' | translate }}
+  <!-- Active Sessions Tab -->
+  <div *ngIf="activeTab === 'sessions'">
+    <ion-list>
+      <ion-item *ngFor="let session of activeSessions">
+        <ion-icon slot="start" [name]="session.is_current ? 'person-circle' : 'laptop'" 
+          [color]="session.is_current ? 'warning' : 'success'"></ion-icon>
+        <ion-label>
+          <h2>{{ session.is_current ? ('history.current' | translate) : session.ip_address }}</h2>
+          <p *ngIf="session.device_info"><small>{{ session.device_info }}</small></p>
+          <p><small>{{ formatDate(session.last_active || '') }}</small></p>
+        </ion-label>
+        <ion-button *ngIf="!session.is_current" slot="end" color="danger" fill="clear" size="small"
+          (click)="revokeSession(session.jti || '')">
+          {{ 'history.revoke' | translate }}
         </ion-button>
-        <ion-button expand="block" fill="clear" (click)="cancel2FASetup()">
-          {{ 'common.cancel' | translate }}
-        </ion-button>
-      </div>
-
-      <!-- Backup Codes -->
-      <div *ngIf="twoFAEnabled && twoFASetupData?.backup_codes?.length">
-        <ion-item>
-          <ion-label>{{ 'twofa.backupCodes' | translate }}</ion-label>
-        </ion-item>
-        <ion-list>
-          <ion-item *ngFor="let code of twoFASetupData?.backup_codes">
-            <ion-label><code>{{ code }}</code></ion-label>
-          </ion-item>
-        </ion-list>
-      </div>
-
-      <!-- Actions -->
-      <ion-button *ngIf="!twoFAEnabled && !showQRCode" expand="block" (click)="setup2FA()">
-        {{ 'twofa.enable' | translate }}
-      </ion-button>
-      <ion-button *ngIf="twoFAEnabled && !showQRCode" expand="block" color="danger" (click)="disable2FA()">
-        {{ 'twofa.disable' | translate }}
-      </ion-button>
-    </ion-card-content>
-  </ion-card>
-
-  <!-- Change Password -->
-  <ion-card>
-    <ion-card-header>
-      <ion-card-title>{{ 'auth.changePassword' | translate }}</ion-card-title>
-    </ion-card-header>
-    <ion-card-content>
-      <ion-item>
-        <ion-label position="stacked">{{ 'auth.oldPassword' | translate }}</ion-label>
-        <ion-input [(ngModel)]="passwordData.current" type="password"></ion-input>
+        <ion-badge *ngIf="session.is_current" slot="end" color="success">
+          {{ 'history.statusActive' | translate }}
+        </ion-badge>
       </ion-item>
-      <ion-item>
-        <ion-label position="stacked">{{ 'auth.newPassword' | translate }}</ion-label>
-        <ion-input [(ngModel)]="passwordData.new" type="password"></ion-input>
-      </ion-item>
-      <ion-item>
-        <ion-label position="stacked">{{ 'auth.confirmPassword' | translate }}</ion-label>
-        <ion-input [(ngModel)]="passwordData.confirm" type="password"></ion-input>
-      </ion-item>
-      <ion-button expand="block" (click)="changePassword()">
-        {{ 'auth.changePassword' | translate }}
-      </ion-button>
-    </ion-card-content>
-  </ion-card>
+    </ion-list>
+    <div *ngIf="activeSessions.length === 0 && !historyLoading" class="ion-text-center ion-padding">
+      <p>{{ 'history.noActiveSessions' | translate }}</p>
+    </div>
+  </div>
 </ion-content>

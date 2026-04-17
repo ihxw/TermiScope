@@ -24,6 +24,11 @@ const routes: Routes = [
     loadChildren: () => import('./pages/forgot-password/forgot-password.module').then(m => m.ForgotPasswordPageModule)
   },
   {
+    path: 'reset-password',
+    canActivate: [PublicGuard],
+    loadChildren: () => import('./pages/reset-password/reset-password.module').then(m => m.ResetPasswordPageModule)
+  },
+  {
     path: 'dashboard',
     canActivate: [AuthGuard],
     loadChildren: () => import('./pages/dashboard/dashboard.module').then(m => m.DashboardPageModule)

@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
-import { Observable } from 'rxjs';
+import { Observable, from, switchMap } from 'rxjs';
 import { ApiService } from './api.service';
+import { AuthService } from './auth.service';
 import { ConnectionLog, Command, Recording, SFTPFile } from '../models';
 
 @Injectable({
@@ -9,10 +10,9 @@ import { ConnectionLog, Command, Recording, SFTPFile } from '../models';
 export class ConnectionLogService {
   constructor(private api: ApiService) {}
 
-  getLogs(page: number = 1, pageSize: number = 20, hostId?: number): Observable<any> {
-    let url = `/connection-logs?page=${page}&page_size=${pageSize}`;
-    if (hostId) url += `&host_id=${hostId}`;
-    return this.api.get(url);
+  getLogs(filters: any = {}): Observable<any> {
+    const params = new URLSearchParams(filters).toString();
+    return this.api.get(`/connection-logs${params ? '?' + params : ''}`);
   }
 
   getLog(id: number): Observable<ConnectionLog> {
@@ -26,39 +26,43 @@ export class ConnectionLogService {
 export class CommandService {
   constructor(private api: ApiService) {}
 
-  getCommands(page: number = 1, pageSize: number = 20): Observable<any> {
-    return this.api.get(`/commands?page=${page}&page_size=${pageSize}`);
+  // Web 端使用 /command-templates，无分页
+  getCommands(): Observable<any> {
+    return this.api.get('/command-templates');
   }
 
   getCommand(id: number): Observable<Command> {
-    return this.api.get<Command>(`/commands/${id}`);
+    return this.api.get<Command>(`/command-templates/${id}`);
   }
 
   createCommand(command: Partial<Command>): Observable<Command> {
-    return this.api.post<Command>('/commands', command);
+    return this.api.post<Command>('/command-templates', command);
   }
 
   updateCommand(id: number, command: Partial<Command>): Observable<Command> {
-    return this.api.put<Command>(`/commands/${id}`, command);
+    return this.api.put<Command>(`/command-templates/${id}`, command);
   }
 
   deleteCommand(id: number): Observable<any> {
-    return this.api.delete(`/commands/${id}`);
+    return this.api.delete(`/command-templates/${id}`);
   }
 
-  executeCommand(hostId: number, commandId: number): Observable<any> {
-    return this.api.post(`/ssh-hosts/${hostId}/execute`, { command_id: commandId });
-  }
+  // Note: Web 端没有 executeCommand 功能，命令模板仅在终端中手动使用
+  // 服务端不存在 /ssh-hosts/:id/execute 路由
 }
 
 @Injectable({
   providedIn: 'root'
 })
 export class RecordingService {
-  constructor(private api: ApiService) {}
+  constructor(
+    private api: ApiService,
+    private authService: AuthService
+  ) {}
 
-  getRecordings(page: number = 1, pageSize: number = 20): Observable<any> {
-    return this.api.get(`/recordings?page=${page}&page_size=${pageSize}`);
+  // Web 端使用 GET /recordings 无分页参数
+  getRecordings(): Observable<any> {
+    return this.api.get('/recordings');
   }
 
   getRecording(id: number): Observable<Recording> {
@@ -69,8 +73,18 @@ export class RecordingService {
     return this.api.delete(`/recordings/${id}`);
   }
 
-  getRecordingStreamUrl(sessionId: string): string {
-    return `${this.api.getServerUrl()}/api/recordings/${sessionId}/stream`;
+  // Web 端先获取 ws-ticket，然后拼接带 token 的 URL
+  getRecordingStreamUrl(id: number): Observable<string> {
+    return this.authService.getWSTicket().pipe(
+      switchMap((res: any) => {
+        const serverUrl = this.api.getServerUrl();
+        const url = `${serverUrl}/api/recordings/${id}/stream?token=${res.ticket}`;
+        return new Observable<string>(observer => {
+          observer.next(url);
+          observer.complete();
+        });
+      })
+    );
   }
 }
 
@@ -121,6 +135,7 @@ export class SFTPService {
     return this.api.get(`/sftp/size/${hostId}?path=${encodeURIComponent(path)}`);
   }
 
+  // Web 端使用 SSE 流式传输，Mobile 端简化为普通 POST
   transferFile(sourceHostId: number, destHostId: number, sourcePath: string, destPath: string, type: 'copy' | 'move' = 'copy'): Observable<any> {
     return this.api.post('/sftp/transfer', {
       source_host_id: String(sourceHostId),

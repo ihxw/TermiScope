@@ -13,8 +13,6 @@ import { Recording } from '../../../models';
 export class RecordingsPage implements OnInit {
   recordings: Recording[] = [];
   loading = false;
-  page = 1;
-  pageSize = 20;
 
   constructor(
     private recordingService: RecordingService,
@@ -30,10 +28,11 @@ export class RecordingsPage implements OnInit {
 
   async loadRecordings() {
     this.loading = true;
-    this.recordingService.getRecordings(this.page, this.pageSize)
+    // Web 端: GET /recordings 无分页，返回直接数组
+    this.recordingService.getRecordings()
       .subscribe({
         next: (result: any) => {
-          this.recordings = result.items || [];
+          this.recordings = result || [];
           this.loading = false;
         },
         error: async () => {
@@ -61,9 +60,11 @@ export class RecordingsPage implements OnInit {
 
   formatDuration(seconds: number): string {
     if (!seconds) return '-';
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = Math.floor(seconds % 60);
+    if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    return `${m}:${s.toString().padStart(2, '0')}`;
   }
 
   formatDate(dateStr: string): string {
@@ -71,9 +72,22 @@ export class RecordingsPage implements OnInit {
     return new Date(dateStr).toLocaleString();
   }
 
+  // Web 端: 先获取 ws-ticket 再用认证 URL 播放
   playRecording(recording: Recording) {
-    const url = this.recordingService.getRecordingStreamUrl(recording.session_id);
-    window.open(url, '_blank');
+    this.recordingService.getRecordingStreamUrl(recording.id)
+      .subscribe({
+        next: (url: string) => {
+          window.open(url, '_blank');
+        },
+        error: async () => {
+          const toast = await this.toastController.create({
+            message: 'Failed to get recording URL',
+            duration: 3000,
+            color: 'danger'
+          });
+          toast.present();
+        }
+      });
   }
 
   async deleteRecording(recording: Recording) {

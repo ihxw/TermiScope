@@ -1,4 +1,5 @@
 import { Injectable } from '@angular/core';
+import { HttpHeaders } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { ApiService } from './api.service';
 import { TwoFASetup } from '../models';
@@ -13,8 +14,11 @@ export class TwoFAService {
     return this.api.post<TwoFASetup>('/auth/2fa/setup', {});
   }
 
-  verify2FASetup(code: string): Observable<{ backup_codes: string[] }> {
-    return this.api.post<{ backup_codes: string[] }>('/auth/2fa/verify-setup', { code });
+  // Web 端: POST /auth/2fa/verify-setup + X-2FA-Secret header
+  verify2FASetup(code: string, secret: string): Observable<{ codes: string[] }> {
+    return this.api.post<{ codes: string[] }>('/auth/2fa/verify-setup', { code }, {
+      headers: { 'X-2FA-Secret': secret }
+    });
   }
 
   verify2FA(code: string): Observable<{ valid: boolean }> {
@@ -25,7 +29,8 @@ export class TwoFAService {
     return this.api.post('/auth/2fa/disable', { code });
   }
 
-  regenerateBackupCodes(code: string): Observable<{ backup_codes: string[] }> {
-    return this.api.post<{ backup_codes: string[] }>('/auth/2fa/backup-codes', { code });
+  // Web 端: POST /auth/2fa/backup-codes 无需 code 参数
+  regenerateBackupCodes(): Observable<{ codes: string[] }> {
+    return this.api.post<{ codes: string[] }>('/auth/2fa/backup-codes', {});
   }
 }

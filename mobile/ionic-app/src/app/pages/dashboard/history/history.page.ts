@@ -39,7 +39,7 @@ export class HistoryPage implements OnInit {
     });
     await loading.present();
 
-    this.connectionLogService.getLogs(this.page, this.pageSize)
+    this.connectionLogService.getLogs({ page: this.page, page_size: this.pageSize })
       .subscribe({
         next: (result: any) => {
           this.sshLogs = result.items || [];

@@ -78,12 +78,27 @@ export class HostsPage implements OnInit {
     }
 
     // Quick filter
+    const now = new Date();
+    const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
     switch (this.quickFilter) {
       case 'online':
         result = result.filter(h => h.is_active);
         break;
       case 'offline':
         result = result.filter(h => !h.is_active);
+        break;
+      case 'expiring':
+        result = result.filter(h => {
+          if (!h.expiration_date) return false;
+          const exp = new Date(h.expiration_date);
+          return exp > now && exp <= thirtyDaysFromNow;
+        });
+        break;
+      case 'expired':
+        result = result.filter(h => {
+          if (!h.expiration_date) return false;
+          return new Date(h.expiration_date) < now;
+        });
         break;
       case 'deleted':
         result = result.filter(h => h.deleted_at);
@@ -117,6 +132,7 @@ export class HostsPage implements OnInit {
         { name: 'port', type: 'number', value: '22', placeholder: 'Port' },
         { name: 'username', type: 'text', placeholder: await this.translate.get('host.placeholderUsername').toPromise() },
         { name: 'password', type: 'password', placeholder: await this.translate.get('host.placeholderPassword').toPromise() },
+        { name: 'private_key', type: 'textarea', placeholder: await this.translate.get('host.privateKey').toPromise() },
         { name: 'group', type: 'text', placeholder: await this.translate.get('host.placeholderGroup').toPromise() },
         { name: 'description', type: 'text', placeholder: await this.translate.get('host.description').toPromise() }
       ],
@@ -145,7 +161,7 @@ export class HostsPage implements OnInit {
     this.sshService.createHost({
       ...hostData,
       port: parseInt(hostData.port) || 22,
-      auth_type: hostData.password ? 'password' : 'key'
+      auth_type: hostData.private_key ? 'key' : 'password'
     })
       .pipe(finalize(() => loading.dismiss()))
       .subscribe({
@@ -178,6 +194,7 @@ export class HostsPage implements OnInit {
         { name: 'port', type: 'number', value: host.port.toString(), placeholder: 'Port' },
         { name: 'username', type: 'text', value: host.username, placeholder: await this.translate.get('host.placeholderUsername').toPromise() },
         { name: 'password', type: 'password', placeholder: await this.translate.get('host.placeholderKeepPassword').toPromise() },
+        { name: 'private_key', type: 'textarea', value: '', placeholder: await this.translate.get('host.privateKey').toPromise() },
         { name: 'group', type: 'text', value: host.group || '', placeholder: await this.translate.get('host.placeholderGroup').toPromise() },
         { name: 'description', type: 'text', value: host.description || '', placeholder: await this.translate.get('host.description').toPromise() }
       ],
@@ -194,7 +211,10 @@ export class HostsPage implements OnInit {
               group: data.group,
               description: data.description
             };
-            if (data.password) {
+            if (data.private_key) {
+              updateData.private_key = data.private_key;
+              updateData.auth_type = 'key';
+            } else if (data.password) {
               updateData.password = data.password;
               updateData.auth_type = 'password';
             }
@@ -345,9 +365,64 @@ export class HostsPage implements OnInit {
       });
   }
 
+  // 永久删除 - Web 端: DELETE /ssh-hosts/:id/permanent
+  async permanentDeleteHost(host: SSHHostExtended) {
+    const alert = await this.alertController.create({
+      header: await this.translate.get('host.permanentDelete').toPromise(),
+      message: await this.translate.get('host.permanentDeleteConfirm').toPromise(),
+      buttons: [
+        { text: await this.translate.get('common.cancel').toPromise(), role: 'cancel' },
+        {
+          text: await this.translate.get('common.delete').toPromise(),
+          role: 'destructive',
+          handler: () => {
+            this.sshService.permanentDeleteHost(host.id).subscribe({
+              next: async () => {
+                const toast = await this.toastController.create({
+                  message: await this.translate.get('host.hostDeleted').toPromise(),
+                  duration: 2000,
+                  color: 'success'
+                });
+                toast.present();
+                this.loadHosts();
+              },
+              error: async () => {
+                const toast = await this.toastController.create({
+                  message: await this.translate.get('common.deleteFailed').toPromise(),
+                  duration: 3000,
+                  color: 'danger'
+                });
+                toast.present();
+              }
+            });
+          }
+        }
+      ]
+    });
+    await alert.present();
+  }
+
   getAuthTypeLabel(host: SSHHostExtended): string {
     return host.auth_type === 'password' 
       ? this.translate.instant('host.authPassword') 
       : this.translate.instant('host.authKey');
+  }
+
+  getHostTypeLabel(host: SSHHostExtended): string {
+    if (host.host_type === 'monitor') return 'Monitor Only';
+    return 'Control + Monitor';
+  }
+
+  isExpired(host: SSHHostExtended): boolean {
+    if (!host.expiration_date) return false;
+    return new Date(host.expiration_date) < new Date();
+  }
+
+  isExpiring(host: SSHHostExtended): boolean {
+    if (!host.expiration_date) return false;
+    const exp = new Date(host.expiration_date);
+    const now = new Date();
+    const thirtyDays = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+    return exp > now && exp <= thirtyDays;
   }
 }

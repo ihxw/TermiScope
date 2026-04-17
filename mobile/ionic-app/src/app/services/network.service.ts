@@ -9,29 +9,30 @@ import { NetworkTemplate, NetworkTask, NetworkTaskStats } from '../models';
 export class NetworkService {
   constructor(private api: ApiService) {}
 
-  // Network Templates
+  // Network Templates - 路径与 Web 端一致: /monitor/network/templates
   getTemplates(): Observable<NetworkTemplate[]> {
-    return this.api.get<NetworkTemplate[]>('/network/templates');
+    return this.api.get<NetworkTemplate[]>('/monitor/network/templates');
   }
 
   createTemplate(template: Partial<NetworkTemplate>): Observable<NetworkTemplate> {
-    return this.api.post<NetworkTemplate>('/network/templates', template);
+    return this.api.post<NetworkTemplate>('/monitor/network/templates', template);
   }
 
   updateTemplate(id: number, template: Partial<NetworkTemplate>): Observable<NetworkTemplate> {
-    return this.api.put<NetworkTemplate>(`/network/templates/${id}`, template);
+    return this.api.put<NetworkTemplate>(`/monitor/network/templates/${id}`, template);
   }
 
   deleteTemplate(id: number): Observable<any> {
-    return this.api.delete(`/network/templates/${id}`);
+    return this.api.delete(`/monitor/network/templates/${id}`);
   }
 
-  deployTemplate(templateId: number, hostIds: number[]): Observable<any> {
-    return this.api.post('/network/templates/deploy', { template_id: templateId, host_ids: hostIds });
+  // Web 端使用 /monitor/network/apply-template
+  batchApplyTemplate(data: { template_id: number; host_ids: number[] }): Observable<any> {
+    return this.api.post('/monitor/network/apply-template', data);
   }
 
   getTemplateAssignments(id: number): Observable<any> {
-    return this.api.get(`/network/templates/${id}/assignments`);
+    return this.api.get(`/monitor/network/templates/${id}/assignments`);
   }
 
   // Network Tasks (Latency Monitoring)
@@ -53,9 +54,5 @@ export class NetworkService {
 
   getTaskStats(taskId: number, range: string = '24h'): Observable<NetworkTaskStats> {
     return this.api.get<NetworkTaskStats>(`/monitor/network/stats/${taskId}?range=${range}`);
-  }
-
-  batchApplyTemplate(data: { template_id: number; host_ids: number[] }): Observable<any> {
-    return this.api.post('/monitor/network/apply-template', data);
   }
 }

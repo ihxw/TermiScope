@@ -25,6 +25,7 @@ export class AuthService {
     return this.api.post('/auth/forgot-password', { email });
   }
 
+  // Web 端使用 params 传参
   getLoginHistory(page: number = 1, pageSize: number = 10): Observable<any> {
     return this.api.get(`/auth/login-history?page=${page}&page_size=${pageSize}`);
   }
@@ -64,31 +65,27 @@ export class AuthService {
     });
   }
 
-  setup2FA(): Observable<any> {
-    return this.api.post('/auth/2fa/setup', {});
-  }
-
-  verify2FASetup(code: string): Observable<any> {
-    return this.api.post('/auth/2fa/verify', { code });
-  }
-
-  disable2FA(code: string): Observable<any> {
-    return this.api.post('/auth/2fa/disable', { code });
+  // Reset password - Web 端: POST /auth/reset-password { token, password }
+  resetPassword(token: string, password: string): Observable<any> {
+    return this.api.post('/auth/reset-password', { token, password });
   }
 
   getSystemInfo(): Observable<SystemInfo> {
     return this.api.get<SystemInfo>('/system/info');
   }
 
+  // Web 端: POST /system/check-update (不是 GET /system/update/check)
   checkUpdate(): Observable<UpdateInfo> {
-    return this.api.get<UpdateInfo>('/system/update/check');
+    return this.api.post<UpdateInfo>('/system/check-update', {});
   }
 
+  // Web 端: POST /system/upgrade (不是 POST /system/update)
   performUpdate(downloadUrl: string): Observable<any> {
-    return this.api.post('/system/update', { download_url: downloadUrl });
+    return this.api.post('/system/upgrade', { download_url: downloadUrl });
   }
 
+  // Web 端: GET /system/update-status (不是 GET /system/update/status)
   getUpdateStatus(): Observable<UpdateStatus> {
-    return this.api.get<UpdateStatus>('/system/update/status');
+    return this.api.get<UpdateStatus>('/system/update-status');
   }
 }
