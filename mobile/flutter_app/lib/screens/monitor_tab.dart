@@ -36,7 +36,7 @@ class MonitorTab extends StatelessWidget {
               final monitorInfo = state.monitorData[hostId] ?? {};
               final isOnline = monitorInfo.isNotEmpty; // Simplify online check
               
-              final cpu = monitorInfo['cpu'] ?? 0.0;
+              final double cpu = (monitorInfo['cpu'] ?? 0).toDouble();
               
               double memUsed = (monitorInfo['mem_used'] ?? 0).toDouble();
               double memTotal = (monitorInfo['mem_total'] ?? 1).toDouble();

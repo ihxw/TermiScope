@@ -21,6 +21,7 @@ class TerminalSessionScreen extends StatefulWidget {
 class _TerminalSessionScreenState extends State<TerminalSessionScreen> {
   late final Terminal terminal;
   late final TerminalController terminalController;
+  final FocusNode _focusNode = FocusNode();
   TerminalService? _terminalService;
 
   @override
@@ -55,13 +56,18 @@ class _TerminalSessionScreenState extends State<TerminalSessionScreen> {
     };
 
     final success = await _terminalService?.connect() ?? false;
-    if (!success) {
+    if (success) {
+      // Must send initial resize AFTER connection in case onResize fired too early
+      _terminalService?.resize(terminal.viewWidth, terminal.viewHeight);
+      _focusNode.requestFocus();
+    } else {
       terminal.write('\r\nFailed to get WS ticket or connect.\r\n');
     }
   }
 
   @override
   void dispose() {
+    _focusNode.dispose();
     _terminalService?.dispose();
     super.dispose();
   }
@@ -80,15 +86,21 @@ class _TerminalSessionScreenState extends State<TerminalSessionScreen> {
         child: Column(
           children: [
             Expanded(
-              child: ColoredBox(
-                color: Colors.black, // true black for terminal
-                child: TerminalView(
-                  terminal,
-                  controller: terminalController,
-                  autofocus: true,
-                  backgroundOpacity: 1.0,
-                  textStyle: const TerminalStyle(
-                    fontSize: 14,
+              child: GestureDetector(
+                onTap: () {
+                  _focusNode.requestFocus();
+                },
+                child: ColoredBox(
+                  color: Colors.black, // true black for terminal
+                  child: TerminalView(
+                    terminal,
+                    controller: terminalController,
+                    autofocus: true,
+                    focusNode: _focusNode,
+                    backgroundOpacity: 1.0,
+                    textStyle: const TerminalStyle(
+                      fontSize: 14,
+                    ),
                   ),
                 ),
               ),
@@ -136,7 +148,7 @@ class _TerminalSessionScreenState extends State<TerminalSessionScreen> {
           borderRadius: BorderRadius.circular(6),
           onTap: () {
             _terminalService?.write(value);
-            // Autofocus back if needed
+            _focusNode.requestFocus();
           },
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 16),
