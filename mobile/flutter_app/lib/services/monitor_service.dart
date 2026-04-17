@@ -12,9 +12,11 @@ class MonitorService {
   void connect() async {
     if (_isConnected) return;
     final ticket = await appState.getTicket();
-    if (ticket == null || appState.apiService.baseUrl == null) return;
-    
-    final baseUrl = appState.apiService.baseUrl!;
+    final baseUrl = appState.apiService.baseUrl;
+    if (ticket == null || baseUrl == null || baseUrl.isEmpty) {
+      print('MonitorService: missing ticket or baseUrl (ticket: $ticket, baseUrl: $baseUrl)');
+      return;
+    }
     final uri = Uri.parse(baseUrl);
     final wsScheme = uri.scheme == 'https' ? 'wss' : 'ws';
     // TermiScope web uses /api/monitor/stream

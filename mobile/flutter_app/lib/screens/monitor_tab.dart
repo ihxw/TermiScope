@@ -328,7 +328,7 @@ class MonitorTab extends StatelessWidget {
   }
 
   String _getCurrencySymbol(String currency) {
-    const symbols = {'CNY': '¥', 'USD': '$', 'EUR': '€', 'GBP': '£', 'JPY': '¥'};
+    const symbols = {'CNY': '¥', 'USD': '\$', 'EUR': '€', 'GBP': '£', 'JPY': '¥'};
     return symbols[currency] ?? '¥';
   }
 
