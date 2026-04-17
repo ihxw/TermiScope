@@ -42,6 +42,30 @@ class MonitorTab extends StatelessWidget {
               double memTotal = (monitorInfo['mem_total'] ?? 1).toDouble();
               double memPct = memTotal > 0 ? (memUsed / memTotal) * 100 : 0.0;
 
+              final String os = monitorInfo['os'] ?? 'Unknown';
+              final int uptime = monitorInfo['uptime'] ?? 0;
+              
+              double diskUsed = 0.0;
+              double diskTotal = 0.0;
+              
+              // Handle multiple disks or single disk
+              if (monitorInfo['disks'] != null && (monitorInfo['disks'] as List).isNotEmpty) {
+                 final disks = monitorInfo['disks'] as List;
+                 for (var disk in disks) {
+                    diskUsed += (disk['used'] ?? 0).toDouble();
+                    diskTotal += (disk['total'] ?? 0).toDouble();
+                 }
+              } else {
+                 diskUsed = (monitorInfo['disk_used'] ?? 0).toDouble();
+                 diskTotal = (monitorInfo['disk_total'] ?? 1).toDouble();
+              }
+              double diskPct = diskTotal > 0 ? (diskUsed / diskTotal) * 100 : 0.0;
+
+              final double rxRate = (monitorInfo['net_rx_rate'] ?? 0).toDouble();
+              final double txRate = (monitorInfo['net_tx_rate'] ?? 0).toDouble();
+              final double rxTotal = (monitorInfo['net_monthly_rx'] ?? 0).toDouble();
+              final double txTotal = (monitorInfo['net_monthly_tx'] ?? 0).toDouble();
+
               return Card(
                 margin: const EdgeInsets.only(bottom: 12),
                 child: Padding(
@@ -73,11 +97,66 @@ class MonitorTab extends StatelessWidget {
                           ),
                         ],
                       ),
+                      const SizedBox(height: 8),
+                      // OS and Uptime
+                      Row(
+                        children: [
+                          Icon(Icons.desktop_windows, size: 14, color: Colors.grey),
+                          const SizedBox(width: 4),
+                          Text(os, style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                          const SizedBox(width: 12),
+                          Icon(Icons.access_time, size: 14, color: Colors.grey),
+                          const SizedBox(width: 4),
+                          Text(_formatUptime(uptime), style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                        ],
+                      ),
                       const SizedBox(height: 16),
                       // Metrics
                       _buildMetricBar('CPU', cpu, const Color(0xFF64D2FF)),
                       const SizedBox(height: 12),
                       _buildMetricBar('RAM', memPct, const Color(0xFFFF9500), labelRight: '${_formatBytes(memUsed)} / ${_formatBytes(memTotal)}'),
+                      const SizedBox(height: 12),
+                      _buildMetricBar('DISK', diskPct, const Color(0xFFBF5AF2), labelRight: '${_formatBytes(diskUsed)} / ${_formatBytes(diskTotal)}'),
+                      const SizedBox(height: 16),
+                      // Network Speed
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Icon(Icons.arrow_downward, size: 12, color: Color(0xFF32D74B)),
+                                    const SizedBox(width: 4),
+                                    Text('${_formatBytes(rxRate)}/s', style: const TextStyle(color: Color(0xFF32D74B), fontSize: 12, fontWeight: FontWeight.bold)),
+                                  ],
+                                ),
+                                const SizedBox(height: 2),
+                                Text('Total: ${_formatBytes(rxTotal)}', style: const TextStyle(color: Colors.grey, fontSize: 10)),
+                              ],
+                            ),
+                          ),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: [
+                                    const Icon(Icons.arrow_upward, size: 12, color: Color(0xFF64D2FF)),
+                                    const SizedBox(width: 4),
+                                    Text('${_formatBytes(txRate)}/s', style: const TextStyle(color: Color(0xFF64D2FF), fontSize: 12, fontWeight: FontWeight.bold)),
+                                  ],
+                                ),
+                                const SizedBox(height: 2),
+                                Text('Total: ${_formatBytes(txTotal)}', style: const TextStyle(color: Colors.grey, fontSize: 10)),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
@@ -110,6 +189,15 @@ class MonitorTab extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  String _formatUptime(int seconds) {
+    final int dys = (seconds / 86400).floor();
+    final int hrs = ((seconds % 86400) / 3600).floor();
+    final int min = ((seconds % 3600) / 60).floor();
+    if (dys > 0) return '${dys}d ${hrs}h';
+    if (hrs > 0) return '${hrs}h ${min}m';
+    return '${min}m';
   }
 
   String _formatBytes(double bytes) {
