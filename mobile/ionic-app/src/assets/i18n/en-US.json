@@ -99,7 +99,8 @@
     "confirmPasswordPlaceholder": "Confirm new password",
     "passwordResetSuccess": "Password reset successful",
     "logout": "Logout",
-    "logoutConfirm": "Are you sure you want to logout?"
+    "logoutConfirm": "Are you sure you want to logout?",
+    "serverUrl": "Server URL"
   },
   "terminal": {
     "title": "Terminal",
@@ -704,7 +705,8 @@
     "active": "Active",
     "error": "Error",
     "paused": "Paused",
-    "success": "Success"
+    "success": "Success",
+    "emptyFolder": "Empty folder"
   },
   "setup": {
     "title": "Setup",

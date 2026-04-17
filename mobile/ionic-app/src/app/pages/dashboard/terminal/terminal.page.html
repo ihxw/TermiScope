@@ -41,11 +41,11 @@
               </ion-item>
               <ion-item button detail="false" (click)="popover.dismiss(); copySelection()">
                 <ion-icon name="copy" slot="start"></ion-icon>
-                <ion-label>Copy</ion-label>
+                <ion-label>{{ 'common.copy' | translate }}</ion-label>
               </ion-item>
               <ion-item button detail="false" (click)="popover.dismiss(); pasteFromClipboard()">
                 <ion-icon name="clipboard" slot="start"></ion-icon>
-                <ion-label>Paste</ion-label>
+                <ion-label>{{ 'common.paste' | translate }}</ion-label>
               </ion-item>
             </ion-list>
           </ng-template>
@@ -115,15 +115,15 @@
         <!-- Action Buttons -->
         <ion-button size="small" (click)="copySelection()" color="secondary">
           <ion-icon name="copy" slot="start"></ion-icon>
-          Copy
+          {{ 'common.copy' | translate }}
         </ion-button>
         <ion-button size="small" (click)="pasteFromClipboard()" color="secondary">
           <ion-icon name="clipboard" slot="start"></ion-icon>
-          Paste
+          {{ 'common.paste' | translate }}
         </ion-button>
         <ion-button size="small" (click)="toggleKeyboardToolbar()" color="medium">
           <ion-icon name="close" slot="start"></ion-icon>
-          Hide
+          {{ 'common.close' | translate }}
         </ion-button>
       </div>
     </div>
@@ -138,21 +138,22 @@
 
   <!-- No Session - Host List -->
   <div *ngIf="!activeSession" class="ion-padding">
-    <ion-list>
-      <ion-list-header>
-        <ion-label>{{ 'terminal.selectHost' | translate }}</ion-label>
-      </ion-list-header>
-      
-      <ion-item *ngFor="let host of hosts" (click)="connectToHost(host)" button>
-        <ion-icon slot="start" name="desktop" [color]="host.is_active ? 'success' : 'medium'"></ion-icon>
-        <ion-label>
+    <div class="host-cards-container">
+      <div class="host-card" *ngFor="let host of hosts" (click)="connectToHost(host)">
+        <div class="host-icon" [class.active]="host.is_active">
+          <ion-icon [name]="getOsIcon(host.os)"></ion-icon>
+          <div class="status-dot" [class.online]="host.is_active"></div>
+        </div>
+        <div class="host-details">
           <h2>{{ host.name }}</h2>
-          <p>{{ host.host }}:{{ host.port }}</p>
-          <p>{{ host.username }}</p>
-        </ion-label>
-        <ion-icon slot="end" name="chevron-forward"></ion-icon>
-      </ion-item>
-    </ion-list>
+          <p class="host-address">{{ host.host }}:{{ host.port }}</p>
+          <p class="host-user"><ion-icon name="person-outline"></ion-icon> {{ host.username }}</p>
+        </div>
+        <div class="host-action">
+          <ion-icon name="chevron-forward"></ion-icon>
+        </div>
+      </div>
+    </div>
 
     <!-- Empty State -->
     <div class="ion-text-center ion-padding" *ngIf="hosts.length === 0 && !loading">
@@ -166,10 +167,4 @@
     </div>
   </div>
 
-  <!-- Quick Actions -->
-  <ion-fab vertical="bottom" horizontal="end" slot="fixed" *ngIf="!activeSession">
-    <ion-fab-button (click)="quickConnect()">
-      <ion-icon name="flash"></ion-icon>
-    </ion-fab-button>
-  </ion-fab>
 </ion-content>

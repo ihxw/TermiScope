@@ -99,7 +99,8 @@
     "confirmPasswordPlaceholder": "请确认新密码",
     "passwordResetSuccess": "密码重置成功",
     "logout": "退出登录",
-    "logoutConfirm": "确定要退出登录吗？"
+    "logoutConfirm": "确定要退出登录吗？",
+    "serverUrl": "服务器地址"
   },
   "terminal": {
     "title": "终端",
@@ -704,7 +705,8 @@
     "active": "处于活跃状态",
     "error": "发生错误",
     "paused": "已暂停",
-    "success": "操作成功"
+    "success": "操作成功",
+    "emptyFolder": "空文件夹"
   },
   "setup": {
     "title": "初始化设置",

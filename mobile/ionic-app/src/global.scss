@@ -37,23 +37,82 @@
 /* @import "@ionic/angular/css/palettes/dark.system.css"; */
 
 /* Custom Global Styles */
+:root {
+  /* Compact UI Variables - Inspired by Web UI (Ant Design) */
+  --ion-padding: 8px;
+  --ion-margin: 8px;
+  --ion-item-min-height: 40px;
+  --ion-toolbar-min-height: 44px;
+}
+
 ion-content {
   --background: var(--ion-background-color);
 }
 
-.compact-layout {
-  --header-height: 48px;
+/* Compact Card Styling (Flat, Bordered) */
+ion-card {
+  margin: var(--ion-margin) !important;
+  border-radius: 6px !important;
+  box-shadow: none !important;
+  border: 1px solid var(--ion-color-step-150, #e0e0e0);
+}
+
+ion-card-header {
+  padding: 8px 12px !important;
+}
+
+ion-card-content {
+  padding: 8px 12px !important;
+}
+
+/* Compact Items & Lists */
+ion-item {
+  --min-height: var(--ion-item-min-height);
+  --padding-start: 12px;
+  --inner-padding-end: 12px;
+  --padding-top: 4px;
+  --padding-bottom: 4px;
+  font-size: 14px;
+}
+
+ion-list-header {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ion-color-step-600);
+  margin-bottom: 2px;
+  margin-top: 8px;
+  --padding-start: 12px;
+}
+
+ion-label p {
+  font-size: 12px;
+}
+
+ion-label h2, ion-label h3 {
+  font-size: 14px;
 }
 
 /* Form Styles */
 ion-item {
-  --padding-start: 0;
-  --inner-padding-end: 0;
+  --padding-start: 12px;
+  --inner-padding-end: 12px;
+}
+
+ion-badge {
+  font-size: 11px;
+  font-weight: normal;
+  padding: 2px 6px;
+  border-radius: 4px;
 }
 
 /* Dark mode support */
 [data-theme="dark"] {
   ion-content {
-    --background: var(--ion-color-step-50);
+    --background: var(--ion-color-step-50, #121212);
+  }
+  
+  ion-card {
+    border-color: var(--ion-color-step-150, #2c2c2c);
+    background: var(--ion-color-step-100, #1e1e1e);
   }
 }

@@ -62,6 +62,15 @@ export class TerminalPage implements OnInit, OnDestroy {
     this.loadHosts();
   }
 
+  getOsIcon(os?: string): string {
+    if (!os) return 'server-outline';
+    const osLower = os.toLowerCase();
+    if (osLower.includes('windows')) return 'logo-windows';
+    if (osLower.includes('mac') || osLower.includes('darwin') || osLower.includes('apple')) return 'logo-apple';
+    if (osLower.includes('linux') || osLower.includes('ubuntu') || osLower.includes('centos') || osLower.includes('debian')) return 'logo-tux';
+    return 'server-outline';
+  }
+
   ngOnDestroy() {
     // Clean up all terminals
     this.sessions.forEach(session => {

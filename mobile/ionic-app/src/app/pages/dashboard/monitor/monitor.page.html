@@ -3,7 +3,13 @@
     <ion-buttons slot="start">
       <ion-menu-button></ion-menu-button>
     </ion-buttons>
-    <ion-title>{{ 'nav.monitor' | translate }}</ion-title>
+    <ion-title>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span>{{ 'nav.monitor' | translate }}</span>
+        <ion-badge color="primary">{{ totalHosts }}</ion-badge>
+        <ion-badge color="success">{{ onlineHosts }}</ion-badge>
+      </div>
+    </ion-title>
     <ion-buttons slot="end">
       <ion-button fill="clear" size="small" (click)="loadHosts()">
         <ion-icon name="refresh-outline"></ion-icon>
@@ -19,18 +25,6 @@
     <ion-label style="font-size: 13px;">{{ 'common.loading' | translate }}...</ion-label>
   </ion-item>
 
-  <!-- Stats Header -->
-  <div class="stats-header">
-    <div class="stat-item">
-      <span class="stat-value">{{ totalHosts }}</span>
-      <span class="stat-label">{{ 'monitor.total' | translate }}</span>
-    </div>
-    <div class="stat-divider"></div>
-    <div class="stat-item online">
-      <span class="stat-value">{{ onlineHosts }}</span>
-      <span class="stat-label">{{ 'monitor.online' | translate }}</span>
-    </div>
-  </div>
 
   <!-- Batch Actions -->
   <ion-toolbar *ngIf="hasSelection" class="batch-toolbar">
@@ -50,7 +44,7 @@
   <!-- Monitor Cards -->
   <ion-grid class="monitor-grid">
     <ion-row>
-      <ion-col size="12" *ngFor="let host of hosts">
+      <ion-col size="12" size-md="6" size-lg="4" size-xl="3" *ngFor="let host of hosts">
         <ion-card class="monitor-card" [class.offline]="!isOnline(host.id)">
           <!-- Card Header -->
           <div class="card-header">
@@ -164,17 +158,7 @@
             <span>{{ 'monitor.offline' | translate }}</span>
           </div>
 
-          <!-- Actions -->
-          <div class="card-actions">
-            <ion-button size="small" fill="outline" (click)="deployMonitor(host)" *ngIf="!isOnline(host.id)">
-              <ion-icon name="cloud-upload-outline" slot="start"></ion-icon>
-              {{ 'monitor.deployAgent' | translate }}
-            </ion-button>
-            <ion-button size="small" fill="clear" color="danger" (click)="stopMonitor(host)" *ngIf="isOnline(host.id)">
-              <ion-icon name="stop-circle-outline" slot="start"></ion-icon>
-              {{ 'monitor.stopMonitor' | translate }}
-            </ion-button>
-          </div>
+
         </ion-card>
       </ion-col>
     </ion-row>

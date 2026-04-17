@@ -78,7 +78,7 @@
     <!-- Empty Folder -->
     <div class="ion-text-center ion-padding" *ngIf="files.length === 0 && !loading">
       <ion-icon name="folder-open" style="font-size: 64px; color: var(--ion-color-medium);"></ion-icon>
-      <p>Empty folder</p>
+      <p>{{ 'sftp.emptyFolder' | translate }}</p>
     </div>
   </div>
 
