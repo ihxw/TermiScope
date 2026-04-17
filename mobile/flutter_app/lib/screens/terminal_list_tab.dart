@@ -31,48 +31,94 @@ class TerminalListTab extends StatelessWidget {
             );
           }
 
-          return ListView.separated(
-            itemCount: state.hosts.length,
-            separatorBuilder: (context, index) => const Divider(color: Color(0xFF333333), height: 1),
-            itemBuilder: (context, index) {
-              final host = state.hosts[index];
-              final hostName = host['name'] ?? 'Unnamed';
-              final address = host['host'] ?? '';
-              final port = host['port'] ?? 22;
-              final user = host['username'] ?? 'root';
-              final hostId = host['id'];
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              int crossAxisCount = 1;
+              if (constraints.maxWidth > 900) crossAxisCount = 3;
+              else if (constraints.maxWidth > 600) crossAxisCount = 2;
 
-              return ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                tileColor: const Color(0xFF1E1E1E),
-                leading: Container(
-                  width: 48,
-                  height: 48,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF2D2D2D),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(Icons.terminal, color: Color(0xFF64D2FF)),
+              return GridView.builder(
+                padding: const EdgeInsets.all(12),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: crossAxisCount,
+                  mainAxisSpacing: 12,
+                  crossAxisSpacing: 12,
+                  mainAxisExtent: 100,
                 ),
-                title: Text(
-                  hostName,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.white),
-                ),
-                subtitle: Padding(
-                  padding: const EdgeInsets.only(top: 4.0),
-                  child: Text(
-                    '$user@$address:$port',
-                    style: const TextStyle(color: Colors.grey, fontSize: 13),
-                  ),
-                ),
-                trailing: const Icon(Icons.chevron_right, color: Colors.grey),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => TerminalSessionScreen(
-                        hostId: hostId,
-                        hostName: hostName,
+                itemCount: state.hosts.length,
+                itemBuilder: (context, index) {
+                  final host = state.hosts[index];
+                  final hostName = host['name'] ?? 'Unnamed';
+                  final address = host['host'] ?? '';
+                  final port = host['port'] ?? 22;
+                  final user = host['username'] ?? 'root';
+                  final hostId = host['id'].toString();
+
+                  final monitorInfo = state.monitorData[hostId] ?? {};
+                  final isOnline = monitorInfo.isNotEmpty;
+
+                  IconData icon = Icons.terminal;
+                  final hostType = (host['host_type'] ?? '').toString().toLowerCase();
+                  if (hostType.contains('windows')) icon = Icons.desktop_windows;
+                  else if (hostType.contains('monitor')) icon = Icons.monitor_heart;
+                  else if (hostType.contains('sftp')) icon = Icons.folder;
+
+                  return Card(
+                    child: InkWell(
+                      onTap: () {
+                        // Add terminal tab (will activate existing if present)
+                        context.read<AppState>().addTerminal(host);
+                      },
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 56,
+                              height: 56,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF2D2D2D),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Stack(
+                                alignment: Alignment.center,
+                                children: [
+                                  Icon(icon, color: const Color(0xFF64D2FF), size: 28),
+                                  if (isOnline)
+                                    Positioned(
+                                      right: 6,
+                                      top: 6,
+                                      child: Container(
+                                        width: 10,
+                                        height: 10,
+                                        decoration: BoxDecoration(color: const Color(0xFF32D74B), shape: BoxShape.circle, border: Border.all(color: const Color(0xFF2D2D2D), width: 2)),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Text(hostName, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                                  const SizedBox(height: 6),
+                                  Text('$user@$address:$port', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                                ],
+                              ),
+                            ),
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF64D2FF)),
+                              child: const Text('Connect', style: TextStyle(color: Colors.white)),
+                              onPressed: () {
+                                // Quick connect / open tab
+                                context.read<AppState>().addTerminal(host);
+                              },
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   );

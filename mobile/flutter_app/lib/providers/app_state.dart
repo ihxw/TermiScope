@@ -9,6 +9,7 @@ class AppState extends ChangeNotifier {
 
   // Terminal Tab Management
   List<Map<String, dynamic>> activeTerminals = [];
+  String? activeTabId;
 
   Future<void> init() async {
     await apiService.init();
@@ -81,17 +82,51 @@ class AppState extends ChangeNotifier {
 
   // Terminal Tab Helpers
   void addTerminal(Map<String, dynamic> host) {
-    final String id = '${host['id']}_${DateTime.now().millisecondsSinceEpoch}';
+    final hostIdVal = host['id'];
+    // For quick-connect (host id 0) we always create a new session
+    if (hostIdVal == 0) {
+      final String id = '${hostIdVal}_${DateTime.now().millisecondsSinceEpoch}';
+      activeTerminals.add({
+        'tabId': id,
+        'hostId': hostIdVal,
+        'name': host['name'] ?? 'Unnamed',
+      });
+      activeTabId = id;
+      notifyListeners();
+      return;
+    }
+
+    // If a terminal for this host already exists, activate it instead of creating a duplicate
+    final existing = activeTerminals.firstWhere(
+      (t) => t['hostId'].toString() == hostIdVal.toString(),
+      orElse: () => {},
+    );
+    if (existing.isNotEmpty) {
+      activeTabId = existing['tabId'];
+      notifyListeners();
+      return;
+    }
+
+    final String id = '${hostIdVal}_${DateTime.now().millisecondsSinceEpoch}';
     activeTerminals.add({
       'tabId': id,
-      'hostId': host['id'],
+      'hostId': hostIdVal,
       'name': host['name'] ?? 'Unnamed',
     });
+    activeTabId = id;
     notifyListeners();
   }
 
   void removeTerminal(String tabId) {
     activeTerminals.removeWhere((t) => t['tabId'] == tabId);
+    if (activeTabId == tabId) {
+      activeTabId = activeTerminals.isNotEmpty ? activeTerminals.last['tabId'] : null;
+    }
+    notifyListeners();
+  }
+
+  void setActiveTabId(String? tabId) {
+    activeTabId = tabId;
     notifyListeners();
   }
 }

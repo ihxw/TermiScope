@@ -27,8 +27,16 @@ class _TerminalTabsScreenState extends State<TerminalTabsScreen> with TickerProv
       _tabController = TabController(
         length: count,
         vsync: this,
-        initialIndex: count > 0 ? (oldIndex < count ? oldIndex : count - 1) : 0,
+        initialIndex: 0,
       );
+      _tabController!.addListener(() {
+        if (!_tabController!.indexIsChanging) return;
+        final idx = _tabController!.index;
+        final terminals = context.read<AppState>().activeTerminals;
+        if (idx >= 0 && idx < terminals.length) {
+          context.read<AppState>().setActiveTabId(terminals[idx]['tabId']);
+        }
+      });
     }
   }
 
@@ -40,13 +48,29 @@ class _TerminalTabsScreenState extends State<TerminalTabsScreen> with TickerProv
         if (_prevTabCount != terminals.length) {
           _updateTabController(terminals.length);
           _prevTabCount = terminals.length;
-          // When a new terminal is added, usually it's at the end, jump to it
           if (terminals.isNotEmpty) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
-               if(mounted && _tabController != null) {
-                  _tabController!.index = terminals.length - 1;
+               if (mounted && _tabController != null) {
+                 final activeId = context.read<AppState>().activeTabId;
+                 int desired = terminals.length - 1;
+                 if (activeId != null) {
+                   final idx = terminals.indexWhere((t) => t['tabId'] == activeId);
+                   if (idx != -1) desired = idx;
+                 }
+                 _tabController!.index = desired;
                }
             });
+          }
+        } else {
+          // If tabs count unchanged but activeTabId changed, ensure controller reflects it
+          final activeId = context.read<AppState>().activeTabId;
+          if (activeId != null && _tabController != null) {
+            final idx = terminals.indexWhere((t) => t['tabId'] == activeId);
+            if (idx != -1 && _tabController!.index != idx) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) _tabController!.index = idx;
+              });
+            }
           }
         }
 
