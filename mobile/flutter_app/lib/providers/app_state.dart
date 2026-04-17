@@ -7,6 +7,9 @@ class AppState extends ChangeNotifier {
   List<dynamic> hosts = [];
   Map<String, dynamic> monitorData = {}; // host_id -> monitor info
 
+  // Terminal Tab Management
+  List<Map<String, dynamic>> activeTerminals = [];
+
   Future<void> init() async {
     await apiService.init();
     isInitialized = true;
@@ -73,6 +76,22 @@ class AppState extends ChangeNotifier {
     } else {
       monitorData[hostId] = update;
     }
+    notifyListeners();
+  }
+
+  // Terminal Tab Helpers
+  void addTerminal(Map<String, dynamic> host) {
+    final String id = '${host['id']}_${DateTime.now().millisecondsSinceEpoch}';
+    activeTerminals.add({
+      'tabId': id,
+      'hostId': host['id'],
+      'name': host['name'] ?? 'Unnamed',
+    });
+    notifyListeners();
+  }
+
+  void removeTerminal(String tabId) {
+    activeTerminals.removeWhere((t) => t['tabId'] == tabId);
     notifyListeners();
   }
 }

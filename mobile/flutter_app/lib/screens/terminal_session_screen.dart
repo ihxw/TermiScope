@@ -6,21 +6,19 @@ import 'package:xterm/xterm.dart';
 import '../providers/app_state.dart';
 import '../services/terminal_service.dart';
 
-class TerminalSessionScreen extends StatefulWidget {
+class TerminalSessionView extends StatefulWidget {
   final int hostId;
-  final String hostName;
 
-  const TerminalSessionScreen({
+  const TerminalSessionView({
     super.key,
     required this.hostId,
-    required this.hostName,
   });
 
   @override
-  State<TerminalSessionScreen> createState() => _TerminalSessionScreenState();
+  State<TerminalSessionView> createState() => _TerminalSessionViewState();
 }
 
-class _TerminalSessionScreenState extends State<TerminalSessionScreen> {
+class _TerminalSessionViewState extends State<TerminalSessionView> {
   late final Terminal terminal;
   late final TerminalController terminalController;
   final FocusNode _focusNode = FocusNode();
@@ -72,42 +70,31 @@ class _TerminalSessionScreenState extends State<TerminalSessionScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.hostName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-        leading: IconButton(
-          icon: const Icon(Icons.close),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: GestureDetector(
-                onTap: () {
-                  _focusNode.requestFocus();
-                },
-                child: ColoredBox(
-                  color: Colors.black, // true black for terminal
-                  child: TerminalView(
-                    terminal,
-                    controller: terminalController,
-                    focusNode: _focusNode,
-                    hardwareKeyboardOnly: !kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux),
-                    backgroundOpacity: 1.0,
-                    textStyle: const TerminalStyle(
-                      fontSize: 14,
-                    ),
-                  ),
+    return Column(
+      children: [
+        Expanded(
+          child: GestureDetector(
+            onTap: () {
+              _focusNode.requestFocus();
+            },
+            child: ColoredBox(
+              color: Colors.black, // true black for terminal
+              child: TerminalView(
+                terminal,
+                controller: terminalController,
+                focusNode: _focusNode,
+                hardwareKeyboardOnly: !kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux),
+                backgroundOpacity: 1.0,
+                textStyle: const TerminalStyle(
+                  fontSize: 14,
                 ),
               ),
             ),
-            // Termius-style virtual keyboard bar
-            _buildVirtualKeyboard(),
-          ],
+          ),
         ),
-      ),
+        // Termius-style virtual keyboard bar
+        _buildVirtualKeyboard(),
+      ],
     );
   }
 

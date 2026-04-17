@@ -8,27 +8,55 @@ class MonitorTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Monitor', style: TextStyle(fontWeight: FontWeight.bold)),
-      ),
-      body: Consumer<AppState>(
-        builder: (context, state, child) {
-          final monitorHosts = state.hosts.where((h) => h['monitor_enabled'] == true).toList();
-          
-          if (monitorHosts.isEmpty) {
-            return const Center(
-              child: Text(
-                'No monitored hosts.',
-                style: TextStyle(color: Colors.grey, fontSize: 16),
+    return Consumer<AppState>(
+      builder: (context, state, child) {
+        final monitorHosts = state.hosts.where((h) => h['monitor_enabled'] == true).toList();
+        final onlineHosts = monitorHosts.where((h) {
+          final hostId = h['id'].toString();
+          return state.monitorData.containsKey(hostId) && state.monitorData[hostId].isNotEmpty;
+        }).length;
+        
+        return Column(
+          children: [
+            // Top Stats Bar
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              color: const Color(0xFF2D2D2D), // Equivalent to web top bar
+              child: Row(
+                children: [
+                   const Icon(Icons.app_registration, size: 20, color: Colors.grey),
+                   const SizedBox(width: 8),
+                   Text('Total: ${monitorHosts.length}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                   const SizedBox(width: 16),
+                   const Text('|', style: TextStyle(color: Colors.grey)),
+                   const SizedBox(width: 16),
+                   Text('Online: $onlineHosts', style: const TextStyle(color: Color(0xFF32D74B), fontWeight: FontWeight.bold, fontSize: 13)),
+                ],
               ),
-            );
-          }
+            ),
+            
+            Expanded(
+              child: monitorHosts.isEmpty ? const Center(
+                  child: Text('No monitored hosts.', style: TextStyle(color: Colors.grey, fontSize: 16)),
+                ) : LayoutBuilder(
+                builder: (context, constraints) {
+                  int crossAxisCount = 1;
+                  if (constraints.maxWidth > 900) {
+                    crossAxisCount = 3;
+                  } else if (constraints.maxWidth > 600) {
+                    crossAxisCount = 2;
+                  }
 
-          return ListView.builder(
-            padding: const EdgeInsets.all(12),
-            itemCount: monitorHosts.length,
-            itemBuilder: (context, index) {
+                  return GridView.builder(
+                    padding: const EdgeInsets.all(12),
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: crossAxisCount,
+                      mainAxisSpacing: 12,
+                      crossAxisSpacing: 12,
+                      mainAxisExtent: 240, // Fixed height that fits all monitor stats
+                    ),
+                    itemCount: monitorHosts.length,
+                    itemBuilder: (context, index) {
               final host = monitorHosts[index];
               final hostId = host['id'].toString();
               final hostName = host['name'] ?? 'Unknown';
@@ -161,11 +189,15 @@ class MonitorTab extends StatelessWidget {
                   ),
                 ),
               );
-            },
-          );
-        },
-      ),
-    );
+                    },
+                  ); // GridView.builder
+                },
+              ), // LayoutBuilder
+            ), // Expanded
+          ],
+        ); // Column
+      },
+    ); // Consumer
   }
 
   Widget _buildMetricBar(String label, double percent, Color color, {String? labelRight}) {
