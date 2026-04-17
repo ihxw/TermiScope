@@ -53,7 +53,7 @@ class MonitorTab extends StatelessWidget {
                       crossAxisCount: crossAxisCount,
                       mainAxisSpacing: 12,
                       crossAxisSpacing: 12,
-                      mainAxisExtent: 240, // Fixed height that fits all monitor stats
+                      mainAxisExtent: 280, // Increased to fix bottom overflow
                     ),
                     itemCount: monitorHosts.length,
                     itemBuilder: (context, index) {
