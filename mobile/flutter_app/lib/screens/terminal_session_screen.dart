@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:xterm/xterm.dart';
@@ -56,11 +58,7 @@ class _TerminalSessionScreenState extends State<TerminalSessionScreen> {
     };
 
     final success = await _terminalService?.connect() ?? false;
-    if (success) {
-      // Must send initial resize AFTER connection in case onResize fired too early
-      _terminalService?.resize(terminal.viewWidth, terminal.viewHeight);
-      _focusNode.requestFocus();
-    } else {
+    if (!success) {
       terminal.write('\r\nFailed to get WS ticket or connect.\r\n');
     }
   }
@@ -95,8 +93,8 @@ class _TerminalSessionScreenState extends State<TerminalSessionScreen> {
                   child: TerminalView(
                     terminal,
                     controller: terminalController,
-                    autofocus: true,
                     focusNode: _focusNode,
+                    hardwareKeyboardOnly: !kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux),
                     backgroundOpacity: 1.0,
                     textStyle: const TerminalStyle(
                       fontSize: 14,
