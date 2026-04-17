@@ -4,11 +4,17 @@
       <ion-menu-button></ion-menu-button>
     </ion-buttons>
     
-    <!-- Title: simple page title or session info -->
-    <ion-title *ngIf="!activeSession">{{ 'nav.terminal' | translate }}</ion-title>
-    <ion-title *ngIf="activeSession" class="session-title">
-      <span class="status-dot" [class.connected]="activeSession.connected"></span>
-      <span class="host-name">{{ activeSession.hostName }}</span>
+    <!-- Host Selection -->
+    <ion-title style="padding: 0 8px;">
+      <ion-select 
+        interface="action-sheet" 
+        [placeholder]="'terminal.selectHost' | translate" 
+        (ionChange)="handleHostSelect($event)" 
+        class="host-selector">
+        <ion-select-option *ngFor="let host of hosts" [value]="host">
+          {{ host.name }} ({{ host.host }})
+        </ion-select-option>
+      </ion-select>
     </ion-title>
     
     <ion-buttons slot="end">
@@ -61,10 +67,42 @@
 </ion-header>
 
 <ion-content>
-  <!-- Active Terminal -->
-  <div *ngIf="activeSession" class="terminal-wrapper">
-    <!-- Terminal Container -->
-    <div #terminalContainer class="terminal-container"></div>
+  <!-- Web-style Tabs (VS Code style) -->
+  <div class="web-tabs-container" *ngIf="sessions.length > 0">
+    <div class="web-tabs-scrollable">
+      <div 
+        class="web-tab" 
+        *ngFor="let session of sessions" 
+        [class.active]="session.id === activeSessionId"
+        (click)="setActiveSession(session.id)">
+        <div class="status-dot" [class.connected]="session.connected"></div>
+        <span class="tab-title">{{ session.hostName }}</span>
+        <ion-icon name="close" class="close-tab" (click)="closeSession(session.id); $event.stopPropagation()"></ion-icon>
+      </div>
+    </div>
+  </div>
+
+  <!-- Empty State -->
+  <div class="empty-terminal-state" *ngIf="sessions.length === 0 && !loading">
+    <ion-icon name="terminal-outline"></ion-icon>
+    <h3>{{ 'terminal.noActiveTerminals' | translate }}</h3>
+    <p>{{ 'terminal.selectHost' | translate }}</p>
+    <ion-button (click)="quickConnect()">
+      <ion-icon name="flash" slot="start"></ion-icon>
+      {{ 'terminal.quickConnect' | translate }}
+    </ion-button>
+  </div>
+
+  <div *ngIf="sessions.length > 0" class="terminal-wrapper">
+    <!-- Terminal Containers -->
+    <div class="terminals-container">
+      <div 
+        *ngFor="let session of sessions" 
+        [id]="'term-wrap-' + session.id" 
+        class="terminal-container-slot"
+        [class.active-terminal]="session.id === activeSessionId">
+      </div>
+    </div>
     
     <!-- Virtual Keyboard Toolbar -->
     <div class="keyboard-toolbar" *ngIf="showKeyboardToolbar">
@@ -104,7 +142,7 @@
         
         <!-- Special Characters -->
         <ion-button size="small" (click)="sendChar('|')">|</ion-button>
-        <ion-button size="small" (click)="sendChar('&')">&amp;</ion-button>
+        <ion-button size="small" (click)="sendChar('&amp;')">&amp;amp;</ion-button>
         <ion-button size="small" (click)="sendChar('~')">~</ion-button>
         <ion-button size="small" (click)="sendChar('/')">/</ion-button>
         <ion-button size="small" (click)="sendChar('-')">-</ion-button>
@@ -135,36 +173,4 @@
       </ion-fab-button>
     </ion-fab>
   </div>
-
-  <!-- No Session - Host List -->
-  <div *ngIf="!activeSession" class="ion-padding">
-    <div class="host-cards-container">
-      <div class="host-card" *ngFor="let host of hosts" (click)="connectToHost(host)">
-        <div class="host-icon" [class.active]="host.is_active">
-          <ion-icon [name]="getOsIcon(host.os)"></ion-icon>
-          <div class="status-dot" [class.online]="host.is_active"></div>
-        </div>
-        <div class="host-details">
-          <h2>{{ host.name }}</h2>
-          <p class="host-address">{{ host.host }}:{{ host.port }}</p>
-          <p class="host-user"><ion-icon name="person-outline"></ion-icon> {{ host.username }}</p>
-        </div>
-        <div class="host-action">
-          <ion-icon name="chevron-forward"></ion-icon>
-        </div>
-      </div>
-    </div>
-
-    <!-- Empty State -->
-    <div class="ion-text-center ion-padding" *ngIf="hosts.length === 0 && !loading">
-      <ion-icon name="desktop" style="font-size: 64px; color: var(--ion-color-medium);"></ion-icon>
-      <h3>{{ 'terminal.noActiveTerminals' | translate }}</h3>
-      <p>{{ 'terminal.selectHost' | translate }}</p>
-      <ion-button (click)="quickConnect()">
-        <ion-icon name="flash" slot="start"></ion-icon>
-        {{ 'terminal.quickConnect' | translate }}
-      </ion-button>
-    </div>
-  </div>
-
 </ion-content>

@@ -27,7 +27,6 @@ interface TerminalSession {
   standalone: false
 })
 export class TerminalPage implements OnInit, OnDestroy {
-  @ViewChild('terminalContainer', { static: false }) terminalContainer!: ElementRef;
   hosts: SSHHostExtended[] = [];
   sessions: TerminalSession[] = [];
   activeSessionId: string | null = null;
@@ -115,7 +114,7 @@ export class TerminalPage implements OnInit, OnDestroy {
   }
 
   async connectToHost(host: SSHHostExtended) {
-    // Check if already connected
+    // Optional: focus already connected session instead of duplicating (mimics part of Web logic)
     const existingSession = this.sessions.find(s => s.hostId === host.id);
     if (existingSession) {
       this.activeSessionId = existingSession.id;
@@ -170,7 +169,7 @@ export class TerminalPage implements OnInit, OnDestroy {
           this.activeSessionId = sessionId;
           
           // Terminal will be attached in the view after render
-          setTimeout(() => this.attachTerminal(session), 100);
+          setTimeout(() => this.attachTerminal(session), 200);
         };
 
         ws.onmessage = (event) => {
@@ -226,9 +225,10 @@ export class TerminalPage implements OnInit, OnDestroy {
   }
   
   attachTerminal(session: TerminalSession) {
-    if (!this.terminalContainer || !session.terminal) return;
+    if (!session.terminal) return;
     
-    const container = this.terminalContainer.nativeElement;
+    const container = document.getElementById('term-wrap-' + session.id);
+    if (!container) return;
     container.innerHTML = '';
     session.terminal.open(container);
     session.container = container;
@@ -268,8 +268,21 @@ export class TerminalPage implements OnInit, OnDestroy {
     }
   }
 
-  setActiveSession(sessionId: any) {
-    this.activeSessionId = sessionId as string;
+  setActiveSession(event: any) {
+    const sessionId = event.detail ? event.detail.value : event;
+    this.activeSessionId = sessionId;
+    setTimeout(() => {
+      this.fitActiveTerminal();
+    }, 100);
+  }
+
+  handleHostSelect(event: any) {
+    const host = event.detail.value;
+    if (host && host.id) {
+      this.connectToHost(host);
+      // Reset the select so user can re-trigger
+      event.target.value = null;
+    }
   }
 
   get activeSession(): TerminalSession | undefined {
