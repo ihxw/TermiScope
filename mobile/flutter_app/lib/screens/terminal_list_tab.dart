@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/app_state.dart';
 import 'terminal_session_screen.dart';
+import '../utils/responsive.dart';
 
 class TerminalListTab extends StatelessWidget {
   const TerminalListTab({super.key});
@@ -33,9 +34,7 @@ class TerminalListTab extends StatelessWidget {
 
           return LayoutBuilder(
             builder: (context, constraints) {
-              int crossAxisCount = 1;
-              if (constraints.maxWidth > 900) crossAxisCount = 3;
-              else if (constraints.maxWidth > 600) crossAxisCount = 2;
+              final crossAxisCount = Responsive.crossAxisCountFromWidth(constraints.maxWidth);
 
               return GridView.builder(
                 padding: const EdgeInsets.all(12),
@@ -66,54 +65,52 @@ class TerminalListTab extends StatelessWidget {
                   return Card(
                     child: InkWell(
                       onTap: () {
-                        // Add terminal tab (will activate existing if present)
                         context.read<AppState>().addTerminal(host);
                       },
                       child: Padding(
-                        padding: const EdgeInsets.all(12),
+                        padding: const EdgeInsets.all(8),
                         child: Row(
                           children: [
                             Container(
-                              width: 56,
-                              height: 56,
+                              width: 48,
+                              height: 48,
                               decoration: BoxDecoration(
                                 color: const Color(0xFF2D2D2D),
-                                borderRadius: BorderRadius.circular(8),
+                                borderRadius: BorderRadius.circular(6),
                               ),
                               child: Stack(
                                 alignment: Alignment.center,
                                 children: [
-                                  Icon(icon, color: const Color(0xFF64D2FF), size: 28),
+                                  Icon(icon, color: const Color(0xFF64D2FF), size: 22),
                                   if (isOnline)
                                     Positioned(
                                       right: 6,
                                       top: 6,
                                       child: Container(
-                                        width: 10,
-                                        height: 10,
-                                        decoration: BoxDecoration(color: const Color(0xFF32D74B), shape: BoxShape.circle, border: Border.all(color: const Color(0xFF2D2D2D), width: 2)),
+                                        width: 8,
+                                        height: 8,
+                                        decoration: BoxDecoration(color: const Color(0xFF32D74B), shape: BoxShape.circle, border: Border.all(color: const Color(0xFF2D2D2D), width: 1.5)),
                                       ),
                                     ),
                                 ],
                               ),
                             ),
-                            const SizedBox(width: 12),
+                            const SizedBox(width: 10),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Text(hostName, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
-                                  const SizedBox(height: 6),
-                                  Text('$user@$address:$port', style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                                  Text(hostName, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white, fontSize: 14)),
+                                  const SizedBox(height: 4),
+                                  Text('$user@$address:$port', style: const TextStyle(color: Colors.grey, fontSize: 11)),
                                 ],
                               ),
                             ),
                             ElevatedButton(
-                              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF64D2FF)),
+                              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF64D2FF), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), textStyle: const TextStyle(fontSize: 12)),
                               child: const Text('Connect', style: TextStyle(color: Colors.white)),
                               onPressed: () {
-                                // Quick connect / open tab
                                 context.read<AppState>().addTerminal(host);
                               },
                             ),

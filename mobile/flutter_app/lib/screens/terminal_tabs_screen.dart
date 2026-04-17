@@ -90,19 +90,19 @@ class _TerminalTabsScreenState extends State<TerminalTabsScreen> with TickerProv
                      labelColor: Colors.white,
                      unselectedLabelColor: Colors.grey,
                      tabAlignment: TabAlignment.start,
-                     tabs: terminals.map((t) => Tab(
-                       child: Row(
-                         mainAxisSize: MainAxisSize.min,
-                         children: [
-                            Text(t['name']),
-                            const SizedBox(width: 8),
-                            InkWell(
-                              onTap: () => state.removeTerminal(t['tabId']),
-                              child: const Icon(Icons.close, size: 14),
-                            ),
-                         ],
-                       )
-                     )).toList(),
+                    tabs: terminals.map((t) => Tab(
+                           child: Row(
+                             mainAxisSize: MainAxisSize.min,
+                             children: [
+                                Text(t['name'], style: const TextStyle(fontSize: 13)),
+                                const SizedBox(width: 6),
+                                InkWell(
+                                  onTap: () => state.removeTerminal(t['tabId']),
+                                  child: const Icon(Icons.close, size: 12),
+                                ),
+                             ],
+                           )
+                         )).toList(),
                    ),
                  ),
                ),

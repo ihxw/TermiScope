@@ -57,6 +57,9 @@ class AppState extends ChangeNotifier {
       }
     } catch (e) {
       print('Fetch hosts error: $e');
+      if (e is UnauthorizedException) {
+        await logout();
+      }
     }
   }
 
@@ -66,6 +69,9 @@ class AppState extends ChangeNotifier {
       return data['ticket'];
     } catch (e) {
       print('Get ticket error: $e');
+      if (e is UnauthorizedException) {
+        await logout();
+      }
       return null;
     }
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'dart:math';
 import '../providers/app_state.dart';
+import '../utils/responsive.dart';
 
 class MonitorTab extends StatelessWidget {
   const MonitorTab({super.key});
@@ -18,19 +19,19 @@ class MonitorTab extends StatelessWidget {
         
         return Column(
           children: [
-            // Top Stats Bar
+            // Top Stats Bar (compact)
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              color: const Color(0xFF2D2D2D), // Equivalent to web top bar
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              color: const Color(0xFF2D2D2D),
               child: Row(
                 children: [
-                   const Icon(Icons.app_registration, size: 20, color: Colors.grey),
-                   const SizedBox(width: 8),
-                   Text('Total: ${monitorHosts.length}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                   const SizedBox(width: 16),
-                   const Text('|', style: TextStyle(color: Colors.grey)),
-                   const SizedBox(width: 16),
-                   Text('Online: $onlineHosts', style: const TextStyle(color: Color(0xFF32D74B), fontWeight: FontWeight.bold, fontSize: 13)),
+                   const Icon(Icons.app_registration, size: 16, color: Colors.grey),
+                   const SizedBox(width: 6),
+                   Text('Total: ${monitorHosts.length}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                   const SizedBox(width: 12),
+                   const Text('|', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                   const SizedBox(width: 12),
+                   Text('Online: $onlineHosts', style: const TextStyle(color: Color(0xFF32D74B), fontWeight: FontWeight.bold, fontSize: 12)),
                 ],
               ),
             ),
@@ -40,12 +41,7 @@ class MonitorTab extends StatelessWidget {
                   child: Text('No monitored hosts.', style: TextStyle(color: Colors.grey, fontSize: 16)),
                 ) : LayoutBuilder(
                 builder: (context, constraints) {
-                  int crossAxisCount = 1;
-                  if (constraints.maxWidth > 900) {
-                    crossAxisCount = 3;
-                  } else if (constraints.maxWidth > 600) {
-                    crossAxisCount = 2;
-                  }
+                  final crossAxisCount = Responsive.crossAxisCountFromWidth(constraints.maxWidth);
 
                   return GridView.builder(
                     padding: const EdgeInsets.all(12),
@@ -53,7 +49,7 @@ class MonitorTab extends StatelessWidget {
                       crossAxisCount: crossAxisCount,
                       mainAxisSpacing: 12,
                       crossAxisSpacing: 12,
-                      mainAxisExtent: 440,
+                      mainAxisExtent: 280,
                     ),
                     itemCount: monitorHosts.length,
                     itemBuilder: (context, index) {
@@ -109,23 +105,23 @@ class MonitorTab extends StatelessWidget {
                       final String currency = host['currency'] ?? 'CNY';
 
                       return Card(
-                        margin: const EdgeInsets.only(bottom: 12),
+                        margin: const EdgeInsets.only(bottom: 8),
                         child: Column(
                           children: [
                             Padding(
-                              padding: const EdgeInsets.all(16.0),
+                              padding: const EdgeInsets.all(12.0),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Row(
                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
-                                      Text(hostName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                      Text(hostName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                                       Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                                         decoration: BoxDecoration(
                                           color: isOnline ? const Color(0xFF32D74B).withAlpha(51) : Colors.red.withAlpha(51),
-                                          borderRadius: BorderRadius.circular(12),
+                                          borderRadius: BorderRadius.circular(10),
                                         ),
                                         child: Text(
                                           isOnline ? 'ONLINE' : 'OFFLINE',
@@ -134,25 +130,25 @@ class MonitorTab extends StatelessWidget {
                                       ),
                                     ],
                                   ),
-                                  const SizedBox(height: 8),
+                                  const SizedBox(height: 6),
                                   Row(
                                     children: [
-                                      const Icon(Icons.desktop_windows, size: 14, color: Colors.grey),
+                                      const Icon(Icons.desktop_windows, size: 12, color: Colors.grey),
                                       const SizedBox(width: 4),
-                                      Text(os, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-                                      const SizedBox(width: 12),
-                                      const Icon(Icons.access_time, size: 14, color: Colors.grey),
+                                      Text(os, style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                                      const SizedBox(width: 8),
+                                      const Icon(Icons.access_time, size: 12, color: Colors.grey),
                                       const SizedBox(width: 4),
-                                      Text(_formatUptime(uptime), style: const TextStyle(color: Colors.grey, fontSize: 12)),
+                                      Text(_formatUptime(uptime), style: const TextStyle(color: Colors.grey, fontSize: 11)),
                                     ],
                                   ),
-                                  const SizedBox(height: 16),
+                                  const SizedBox(height: 12),
                                   _buildMetricBar('CPU', cpu, const Color(0xFF64D2FF)),
-                                  const SizedBox(height: 12),
+                                  const SizedBox(height: 8),
                                   _buildMetricBar('RAM', memPct, const Color(0xFFFF9500), labelRight: '${_formatBytes(memUsed)} / ${_formatBytes(memTotal)}'),
-                                  const SizedBox(height: 12),
+                                  const SizedBox(height: 8),
                                   _buildMetricBar('DISK', diskPct, const Color(0xFFBF5AF2), labelRight: '${_formatBytes(diskUsed)} / ${_formatBytes(diskTotal)}'),
-                                  const SizedBox(height: 16),
+                                  const SizedBox(height: 8),
                                   Row(
                                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
@@ -162,9 +158,9 @@ class MonitorTab extends StatelessWidget {
                                           children: [
                                             Row(
                                               children: [
-                                                const Icon(Icons.arrow_downward, size: 12, color: Color(0xFF32D74B)),
+                                                const Icon(Icons.arrow_downward, size: 11, color: Color(0xFF32D74B)),
                                                 const SizedBox(width: 4),
-                                                Text('${_formatBytes(rxRate)}/s', style: const TextStyle(color: Color(0xFF32D74B), fontSize: 12, fontWeight: FontWeight.bold)),
+                                                Text('${_formatBytes(rxRate)}/s', style: const TextStyle(color: Color(0xFF32D74B), fontSize: 11, fontWeight: FontWeight.bold)),
                                               ],
                                             ),
                                             Text('Total: ${_formatBytes(rxTotal)}', style: const TextStyle(color: Colors.grey, fontSize: 10)),
@@ -178,9 +174,9 @@ class MonitorTab extends StatelessWidget {
                                             Row(
                                               mainAxisAlignment: MainAxisAlignment.end,
                                               children: [
-                                                const Icon(Icons.arrow_upward, size: 12, color: Color(0xFF64D2FF)),
+                                                const Icon(Icons.arrow_upward, size: 11, color: Color(0xFF64D2FF)),
                                                 const SizedBox(width: 4),
-                                                Text('${_formatBytes(txRate)}/s', style: const TextStyle(color: Color(0xFF64D2FF), fontSize: 12, fontWeight: FontWeight.bold)),
+                                                Text('${_formatBytes(txRate)}/s', style: const TextStyle(color: Color(0xFF64D2FF), fontSize: 11, fontWeight: FontWeight.bold)),
                                               ],
                                             ),
                                             Text('Total: ${_formatBytes(txTotal)}', style: const TextStyle(color: Colors.grey, fontSize: 10)),
@@ -283,8 +279,8 @@ class MonitorTab extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-            Text(labelRight ?? '${percent.toStringAsFixed(1)}%', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+            Text(labelRight ?? '${percent.toStringAsFixed(1)}%', style: const TextStyle(fontSize: 11, color: Colors.grey)),
           ],
         ),
         const SizedBox(height: 6),
@@ -292,7 +288,7 @@ class MonitorTab extends StatelessWidget {
           value: percent / 100.0,
           backgroundColor: const Color(0xFF1E1E1E),
           valueColor: AlwaysStoppedAnimation<Color>(color),
-          minHeight: 6,
+          minHeight: 4,
           borderRadius: BorderRadius.circular(3),
         ),
       ],

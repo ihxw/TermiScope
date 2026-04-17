@@ -24,6 +24,17 @@ class TermiScopeApp extends StatelessWidget {
   Widget build(BuildContext context) {
     // Termius-like Dark Theme
     final darkTheme = ThemeData.dark().copyWith(
+      visualDensity: VisualDensity.compact,
+      // smaller default text sizes for compact mode
+      textTheme: ThemeData.dark().textTheme.copyWith(
+        bodyMedium: const TextStyle(fontSize: 12),
+        bodySmall: const TextStyle(fontSize: 11),
+        titleMedium: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+      ),
+      inputDecorationTheme: const InputDecorationTheme(isDense: true, contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8)),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8), textStyle: const TextStyle(fontSize: 12)),
+      ),
       scaffoldBackgroundColor: const Color(0xFF1E1E1E), // Dark background
       primaryColor: const Color(0xFF2D2D2D), // Slightly lighter for appbar/cards
       colorScheme: const ColorScheme.dark(
@@ -35,6 +46,7 @@ class TermiScopeApp extends StatelessWidget {
         backgroundColor: Color(0xFF2D2D2D),
         elevation: 0,
         centerTitle: true,
+        toolbarHeight: 44,
       ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
         backgroundColor: Color(0xFF2D2D2D),
@@ -44,9 +56,9 @@ class TermiScopeApp extends StatelessWidget {
       ),
       cardTheme: CardThemeData(
         color: const Color(0xFF2D2D2D),
-        elevation: 0,
+        elevation: 1,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
         ),
       ),
     );
