@@ -780,7 +780,52 @@ func (h *MonitorHandler) AgentEvent(c *gin.Context) {
 }
 
 // Stream WebSocket for Dashboard
+// Authentication: Uses one-time ticket (from query param "token") or falls back to
+// Authorization header / access_token cookie. This handler is NOT behind AuthMiddleware
+// because WebSocket connections cannot set custom HTTP headers cross-origin.
+// Security: Ticket is one-time use and short-lived, matching the SSH WebSocket pattern.
 func (h *MonitorHandler) Stream(c *gin.Context) {
+	// Try ticket-based auth first (primary method for WebSocket)
+	authenticated := false
+	tokenStr := c.Query("token")
+
+	if tokenStr != "" {
+		// Validate as one-time ticket (consumed on use)
+		if _, ok := utils.ValidateTicket(tokenStr); ok {
+			authenticated = true
+		}
+	}
+
+	// Fallback: check Authorization header (same-origin or API clients)
+	if !authenticated {
+		authHeader := c.GetHeader("Authorization")
+		if authHeader != "" {
+			parts := strings.SplitN(authHeader, " ", 2)
+			if len(parts) == 2 && parts[0] == "Bearer" {
+				if _, err := utils.ValidateToken(parts[1], h.Config.Security.JWTSecret); err == nil {
+					authenticated = true
+				}
+			}
+		}
+	}
+
+	// Fallback: check access_token cookie (same-origin browser)
+	if !authenticated {
+		if cookie, err := c.Cookie("access_token"); err == nil && cookie != "" {
+			if _, err := utils.ValidateToken(cookie, h.Config.Security.JWTSecret); err == nil {
+				authenticated = true
+			}
+		}
+	}
+
+	if !authenticated {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"error":   "invalid or expired ticket",
+		})
+		return
+	}
+
 	upgrader := createUpgrader(h.Config.Server.AllowedOrigins)
 
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)

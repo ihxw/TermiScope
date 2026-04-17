@@ -60,13 +60,13 @@
       <ion-badge [color]="log.status === 'active' ? 'success' : 'medium'" slot="end">
         {{ log.status }}
       </ion-badge>
-      <ion-icon *ngIf="log.is_current" name="checkmark-circle" color="success" slot="end"></ion-icon>
+      <ion-icon *ngIf="log.is_current" name="checkmark-circle-outline" color="success" slot="end"></ion-icon>
     </ion-item>
   </ion-list>
 
   <!-- Empty State -->
   <div class="ion-text-center ion-padding" *ngIf="(activeTab === 'ssh' && sshLogs.length === 0) || (activeTab === 'web' && webLogs.length === 0)">
-    <ion-icon name="time" style="font-size: 64px; color: var(--ion-color-medium);"></ion-icon>
+    <ion-icon name="time-outline" style="font-size: 64px; color: var(--ion-color-medium);"></ion-icon>
     <p>{{ 'history.title' | translate }}</p>
   </div>
 

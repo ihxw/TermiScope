@@ -160,8 +160,12 @@ func main() {
 	sshWSHandler := handlers.NewSSHWebSocketHandler(db, cfg)
 	router.GET("/api/ws/ssh/:hostId", sshWSHandler.HandleWebSocket)
 
-	// Monitor routes
+	// WebSocket Monitor stream (authenticated via one-time ticket in handler)
+	// Moved out of protected group: WebSocket cannot set Authorization headers cross-origin
 	monitorHandler := handlers.NewMonitorHandler(db, cfg)
+	router.GET("/api/monitor/stream", monitorHandler.Stream)
+
+	// Monitor routes
 	router.POST("/api/monitor/pulse", agentRateLimiter.RateLimitMiddleware(), monitorHandler.Pulse)                          // Agent reports here using Secret Header
 	router.POST("/api/monitor/agent-event", agentRateLimiter.RateLimitMiddleware(), monitorHandler.AgentEvent)               // Agent reports status events here
     router.GET("/api/monitor/agent-commands", agentRateLimiter.RateLimitMiddleware(), monitorHandler.GetAgentCommands)     // Agent polls for server-issued commands
@@ -200,8 +204,7 @@ func main() {
 		protected.PUT("/ssh-hosts/reorder", sshHostHandler.Reorder)
 		protected.DELETE("/ssh-hosts/:id/permanent", sshHostHandler.PermanentDelete)
 
-		// Monitor Management
-		protected.GET("/monitor/stream", monitorHandler.Stream)
+		// Monitor Management (stream is in public routes above)
 		protected.POST("/ssh-hosts/:id/monitor/deploy", monitorHandler.Deploy)
 		protected.POST("/ssh-hosts/:id/monitor/update", monitorHandler.TriggerAgentUpdate)
 		protected.POST("/ssh-hosts/:id/monitor/stop", monitorHandler.Stop)

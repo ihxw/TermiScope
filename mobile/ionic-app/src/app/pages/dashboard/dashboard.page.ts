@@ -15,15 +15,15 @@ import { AuthService } from '../../services/auth.service';
 })
 export class DashboardPage implements OnInit {
   appPages = [
-    { title: 'nav.terminal', url: '/dashboard/terminal', icon: 'terminal', requiresAdmin: false },
-    { title: 'nav.monitor', url: '/dashboard/monitor', icon: 'pulse', requiresAdmin: false },
-    { title: 'nav.fileTransfer', url: '/dashboard/transfer', icon: 'swap-horizontal', requiresAdmin: false },
-    { title: 'nav.hosts', url: '/dashboard/hosts', icon: 'server', requiresAdmin: false },
-    { title: 'nav.history', url: '/dashboard/history', icon: 'time', requiresAdmin: false },
-    { title: 'nav.commands', url: '/dashboard/commands', icon: 'flash', requiresAdmin: false },
-    { title: 'nav.recordings', url: '/dashboard/recordings', icon: 'videocam', requiresAdmin: false },
-    { title: 'nav.users', url: '/dashboard/users', icon: 'people', requiresAdmin: true },
-    { title: 'nav.system', url: '/dashboard/system', icon: 'settings', requiresAdmin: true },
+    { title: 'nav.terminal', url: '/dashboard/terminal', icon: 'terminal-outline', requiresAdmin: false },
+    { title: 'nav.monitor', url: '/dashboard/monitor', icon: 'pulse-outline', requiresAdmin: false },
+    { title: 'nav.fileTransfer', url: '/dashboard/transfer', icon: 'swap-horizontal-outline', requiresAdmin: false },
+    { title: 'nav.hosts', url: '/dashboard/hosts', icon: 'server-outline', requiresAdmin: false },
+    { title: 'nav.history', url: '/dashboard/history', icon: 'time-outline', requiresAdmin: false },
+    { title: 'nav.commands', url: '/dashboard/commands', icon: 'code-slash-outline', requiresAdmin: false },
+    { title: 'nav.recordings', url: '/dashboard/recordings', icon: 'videocam-outline', requiresAdmin: false },
+    { title: 'nav.users', url: '/dashboard/users', icon: 'people-outline', requiresAdmin: true },
+    { title: 'nav.system', url: '/dashboard/system', icon: 'settings-outline', requiresAdmin: true },
   ];
 
   backendVersion = '...';

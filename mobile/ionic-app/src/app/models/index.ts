@@ -151,36 +151,51 @@ export interface SSHHostExtended extends SSHHost {
 
 // Monitor Status Extended
 export interface MonitorStatusExtended {
-  id?: number;
-  host_id?: number;
-  status: 'running' | 'stopped' | 'error' | 'offline' | 'online';
-  cpu_usage?: number;
-  memory_usage?: number;
-  disk_usage?: number;
-  network_rx?: number;
-  network_tx?: number;
-  network_rx_speed?: number;
-  network_tx_speed?: number;
-  uptime?: number;
-  os?: string;
-  hostname?: string;
+  host_id: number;
+  timestamp?: number;
   agent_version?: string;
   agent_update_status?: string;
-  primary_interface?: string;
-  interfaces?: NetworkInterface[];
-  last_updated?: string;
-  latency?: number;
-  error?: string;
+  uptime?: number;
+  cpu?: number;
+  cpu_count?: number;
+  cpu_model?: string;
+  cpu_mhz?: number;
+  mem_used?: number;
+  mem_total?: number;
+  disk_used?: number;
+  disk_total?: number;
+  disks?: DiskData[];
+  net_rx?: number;
+  net_tx?: number;
+  net_rx_rate?: number;
+  net_tx_rate?: number;
+  net_monthly_rx?: number;
+  net_monthly_tx?: number;
+  net_traffic_limit?: number;
+  net_traffic_used_adjustment?: number;
+  net_traffic_counter_mode?: string;
+  interfaces?: MonitorInterface[];
+  os?: string;
+  hostname?: string;
+  last_updated?: number;
+  _clientLastUpdated?: number;
+  status?: string;
 }
 
-export interface NetworkInterface {
+export interface DiskData {
+  mount_point: string;
+  used: number;
+  total: number;
+}
+
+export interface MonitorInterface {
   name: string;
-  mac_address?: string;
-  ip_address?: string;
-  rx_bytes: number;
-  tx_bytes: number;
-  rx_speed: number;
-  tx_speed: number;
+  rx: number;
+  tx: number;
+  ips?: string[];
+  mac?: string;
+  rx_rate?: number;
+  tx_rate?: number;
 }
 
 // Network Template

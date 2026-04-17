@@ -80,6 +80,7 @@ export class ApiService {
 
     return {
       ...options,
+      withCredentials: true,
       headers: new HttpHeaders({ ...headers, ...options.headers })
     };
   }

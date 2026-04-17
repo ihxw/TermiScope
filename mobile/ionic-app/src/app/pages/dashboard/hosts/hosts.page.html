@@ -6,7 +6,7 @@
     <ion-title>{{ 'nav.hosts' | translate }}</ion-title>
     <ion-buttons slot="end">
       <ion-button fill="clear" size="small" (click)="openAddHostModal()">
-        <ion-icon name="add"></ion-icon>
+        <ion-icon name="add-outline"></ion-icon>
       </ion-button>
     </ion-buttons>
   </ion-toolbar>
@@ -46,7 +46,7 @@
     <ion-item-sliding *ngFor="let host of filteredHosts">
       <ion-item class="host-item">
         <div slot="start" class="host-status-indicator" [class.online]="host.is_active">
-          <ion-icon [name]="host.is_active ? 'wifi' : 'wifi-outline'"></ion-icon>
+          <ion-icon [name]="host.is_active ? 'radio-button-on-outline' : 'radio-button-off-outline'"></ion-icon>
         </div>
         <ion-label>
           <div class="host-header">
@@ -63,26 +63,26 @@
             <span>{{ getAuthTypeLabel(host) }}</span>
           </div>
           <ion-text color="medium" *ngIf="host.group" class="host-group">
-            <ion-icon name="folder"></ion-icon> {{ host.group }}
+            <ion-icon name="folder-outline"></ion-icon> {{ host.group }}
           </ion-text>
         </ion-label>
       </ion-item>
 
       <ion-item-options side="end">
         <ion-item-option color="primary" (click)="testConnection(host)">
-          <ion-icon name="pulse" slot="icon-only"></ion-icon>
+          <ion-icon name="pulse-outline" slot="icon-only"></ion-icon>
         </ion-item-option>
         <ion-item-option color="secondary" (click)="deployMonitor(host)" *ngIf="host.host_type !== 'monitor'">
-          <ion-icon name="cloud-upload" slot="icon-only"></ion-icon>
+          <ion-icon name="cloud-upload-outline" slot="icon-only"></ion-icon>
         </ion-item-option>
         <ion-item-option color="warning" (click)="editHost(host)">
-          <ion-icon name="create" slot="icon-only"></ion-icon>
+          <ion-icon name="create-outline" slot="icon-only"></ion-icon>
         </ion-item-option>
         <ion-item-option color="danger" (click)="deleteHost(host)" *ngIf="!host.deleted_at">
-          <ion-icon name="trash" slot="icon-only"></ion-icon>
+          <ion-icon name="trash-outline" slot="icon-only"></ion-icon>
         </ion-item-option>
         <ion-item-option color="danger" (click)="permanentDeleteHost(host)" *ngIf="host.deleted_at">
-          <ion-icon name="close-circle" slot="icon-only"></ion-icon>
+          <ion-icon name="close-circle-outline" slot="icon-only"></ion-icon>
         </ion-item-option>
       </ion-item-options>
     </ion-item-sliding>
@@ -90,7 +90,7 @@
 
   <!-- Empty State -->
   <div class="ion-text-center ion-padding" *ngIf="filteredHosts.length === 0 && !loading">
-    <ion-icon name="server" style="font-size: 64px; color: var(--ion-color-medium);"></ion-icon>
+    <ion-icon name="server-outline" style="font-size: 64px; color: var(--ion-color-medium);"></ion-icon>
     <h3>{{ 'nav.hosts' | translate }}</h3>
     <p>{{ 'host.searchPlaceholder' | translate }}</p>
     <ion-button (click)="openAddHostModal()">

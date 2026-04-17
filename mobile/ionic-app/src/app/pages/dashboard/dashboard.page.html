@@ -31,13 +31,13 @@
             {{ localeStore.nextLanguage }}
           </ion-button>
           <ion-button (click)="themeStore.toggleTheme()">
-            <ion-icon [name]="themeStore.isDark ? 'sunny' : 'moon'"></ion-icon>
+            <ion-icon [name]="themeStore.isDark ? 'sunny-outline' : 'moon-outline'"></ion-icon>
           </ion-button>
           <ion-button (click)="goToProfile()">
-            <ion-icon name="person"></ion-icon>
+            <ion-icon name="person-outline"></ion-icon>
           </ion-button>
           <ion-button (click)="logout()">
-            <ion-icon name="log-out"></ion-icon>
+            <ion-icon name="log-out-outline"></ion-icon>
           </ion-button>
         </ion-buttons>
       </ion-toolbar>
