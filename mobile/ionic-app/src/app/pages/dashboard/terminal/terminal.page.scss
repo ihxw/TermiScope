@@ -12,8 +12,6 @@
 // App Header Styles
 ion-header {
   ion-toolbar {
-    --background: #1e1e1e;
-    --color: #d4d4d4;
     --border-width: 0;
     --min-height: 44px;
     
@@ -28,6 +26,12 @@ ion-header {
         }
       }
     }
+  }
+  
+  // Terminal-active header: dark bg to blend with terminal
+  &.terminal-active ion-toolbar {
+    --background: #1e1e1e;
+    --color: #d4d4d4;
   }
   
   ion-title {
