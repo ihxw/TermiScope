@@ -59,7 +59,37 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_tabs[_currentIndex]['title'], style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: _currentIndex == 1 
+          ? Consumer<AppState>(
+              builder: (context, state, child) => DropdownButtonHideUnderline(
+                child: DropdownButton<String>(
+                  hint: const Text('Select a host to connect', style: TextStyle(color: Colors.white70, fontSize: 16)),
+                  isExpanded: true,
+                  value: null,
+                  icon: const Icon(Icons.add_circle_outline, color: Color(0xFF64D2FF)),
+                  items: state.hosts.where((h) => h['host_type'] != 'monitor_only').map((h) {
+                    return DropdownMenuItem<String>(
+                      value: h['id'].toString(),
+                      child: Container(
+                        constraints: const BoxConstraints(maxWidth: 250),
+                        child: Text(
+                          '${h['name']} (${h['host']})', 
+                          style: const TextStyle(fontSize: 14),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (val) {
+                    if (val != null) {
+                      final host = state.hosts.firstWhere((h) => h['id'].toString() == val);
+                      state.addTerminal(host);
+                    }
+                  },
+                ),
+              ),
+            )
+          : Text(_tabs[_currentIndex]['title'], style: const TextStyle(fontWeight: FontWeight.bold)),
       ),
       drawer: Drawer(
         backgroundColor: const Color(0xFF1E1E1E),

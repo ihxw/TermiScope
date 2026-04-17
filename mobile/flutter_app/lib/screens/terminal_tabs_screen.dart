@@ -52,44 +52,6 @@ class _TerminalTabsScreenState extends State<TerminalTabsScreen> with TickerProv
 
         return Column(
           children: [
-            // Toolbar matching web "Terminal.vue"
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              color: const Color(0xFF2D2D2D), // Top toolbar
-              child: Row(
-                children: [
-                   Expanded(
-                     child: DropdownButtonHideUnderline(
-                       child: DropdownButton<String>(
-                         hint: const Text('Select a host to connect'),
-                         isExpanded: true,
-                         value: null, // Always null (acts as a dropdown menu)
-                         icon: const Icon(Icons.add, color: Color(0xFF64D2FF)),
-                         items: state.hosts.where((h) => h['host_type'] != 'monitor_only').map((h) {
-                           return DropdownMenuItem<String>(
-                             value: h['id'].toString(),
-                             child: Row(
-                               children: [
-                                 const Icon(Icons.terminal, size: 16),
-                                 const SizedBox(width: 8),
-                                 Text('${h['name']} (${h['host']})'),
-                               ],
-                             ),
-                           );
-                         }).toList(),
-                         onChanged: (val) {
-                           if (val != null) {
-                             final host = state.hosts.firstWhere((h) => h['id'].toString() == val);
-                             state.addTerminal(host);
-                           }
-                         },
-                       ),
-                     ),
-                   ),
-                ],
-              ),
-            ),
-            
             // TabBar matching VS Code / Web style
             if (terminals.isNotEmpty)
                Container(
