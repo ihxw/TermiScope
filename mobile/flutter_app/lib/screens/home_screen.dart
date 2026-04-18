@@ -16,6 +16,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
   MonitorService? _monitorService;
+  bool _quickToggle = false;
 
   final List<Map<String, dynamic>> _tabs = [
     {
@@ -56,53 +57,104 @@ class _HomeScreenState extends State<HomeScreen> {
     Navigator.pop(context); // Close the drawer
   }
 
+  Widget _buildHostSelector() {
+    return Consumer<AppState>(
+      builder: (context, state, child) {
+        String? selectedHostId;
+        if (state.activeTabId != null) {
+          final existing = state.activeTerminals.firstWhere((t) => t['tabId'] == state.activeTabId, orElse: () => {});
+          if (existing.isNotEmpty) selectedHostId = existing['hostId'].toString();
+        }
+
+        return DropdownButtonHideUnderline(
+          child: DropdownButton<String>(
+            hint: const Text('选择主机', style: TextStyle(color: Colors.white70, fontSize: 14)),
+            isExpanded: true,
+            value: selectedHostId,
+            icon: const Icon(Icons.keyboard_arrow_down, color: Color(0xFF64D2FF), size: 20),
+            items: state.hosts.where((h) => h['host_type'] != 'monitor_only').map((h) {
+              return DropdownMenuItem<String>(
+                value: h['id'].toString(),
+                child: Container(
+                  constraints: const BoxConstraints(maxWidth: 250),
+                  child: Text(
+                    '${h['name']} (${h['host']})',
+                    style: const TextStyle(fontSize: 13),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              );
+            }).toList(),
+            onChanged: (val) {
+              if (val != null) {
+                final host = state.hosts.firstWhere((h) => h['id'].toString() == val);
+                state.addTerminal(host);
+              }
+            },
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: _currentIndex == 1 
-          ? Consumer<AppState>(
-              builder: (context, state, child) {
-                // Determine selected host based on activeTabId
-                String? selectedHostId;
-                if (state.activeTabId != null) {
-                  final existing = state.activeTerminals.firstWhere(
-                    (t) => t['tabId'] == state.activeTabId,
-                    orElse: () => {},
-                  );
-                  if (existing.isNotEmpty) selectedHostId = existing['hostId'].toString();
-                }
-
-                return DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    hint: const Text('Select host', style: TextStyle(color: Colors.white70, fontSize: 14)),
-                    isExpanded: true,
-                    value: selectedHostId,
-                    icon: const Icon(Icons.keyboard_arrow_down, color: Color(0xFF64D2FF), size: 20),
-                    items: state.hosts.where((h) => h['host_type'] != 'monitor_only').map((h) {
-                      return DropdownMenuItem<String>(
-                        value: h['id'].toString(),
-                        child: Container(
-                          constraints: const BoxConstraints(maxWidth: 250),
-                          child: Text(
-                            '${h['name']} (${h['host']})', 
-                            style: const TextStyle(fontSize: 13),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                    onChanged: (val) {
-                      if (val != null) {
-                        final host = state.hosts.firstWhere((h) => h['id'].toString() == val);
-                        state.addTerminal(host);
-                      }
-                    },
+        title: Responsive.isMobile(context)
+          ? (_currentIndex == 1 ? _buildHostSelector() : Text(_tabs[_currentIndex]['title'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)))
+          : Row(
+              children: [
+                Expanded(child: _buildHostSelector()),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF64D2FF),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    minimumSize: const Size(36, 36),
                   ),
-                );
-              }
-            )
-          : Text(_tabs[_currentIndex]['title'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  onPressed: () {
+                    final appState = context.read<AppState>();
+                    // Quick add: create a quick-connect pseudo-host (id 0)
+                    appState.addTerminal({'id': 0, 'name': 'Quick Connect', 'host': 'quick'});
+                  },
+                  child: const Icon(Icons.add, color: Colors.white, size: 18),
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  icon: const Icon(Icons.flash_on_outlined, color: Colors.white),
+                  onPressed: () {
+                    final appState = context.read<AppState>();
+                    if (appState.hosts.isNotEmpty) {
+                      appState.addTerminal(appState.hosts.first);
+                    } else {
+                      appState.fetchHosts();
+                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('正在加载主机列表...')));
+                    }
+                  },
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: Colors.white12),
+                    color: const Color(0xFF2D2D2D),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.screen_share_outlined, color: Colors.white70, size: 18),
+                      const SizedBox(width: 8),
+                      Switch(
+                        value: _quickToggle,
+                        activeColor: const Color(0xFF64D2FF),
+                        onChanged: (v) => setState(() => _quickToggle = v),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
       ),
       drawer: Drawer(
         backgroundColor: const Color(0xFF1E1E1E),

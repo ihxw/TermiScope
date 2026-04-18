@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../providers/app_state.dart';
 import 'terminal_session_screen.dart';
 
@@ -110,7 +111,56 @@ class _TerminalTabsScreenState extends State<TerminalTabsScreen> with TickerProv
             // TabBarView
             Expanded(
               child: terminals.isEmpty
-                ? const Center(child: Text('No active terminals. Select a host to connect.', style: TextStyle(color: Colors.grey)))
+                ? Center(
+                    child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            SvgPicture.asset(
+                              'assets/illustrations/empty_terminal.svg',
+                              width: 140,
+                              height: 140,
+                            ),
+                            const SizedBox(height: 18),
+                            const Text('没有活动的终端', style: TextStyle(color: Colors.white60, fontSize: 14, fontWeight: FontWeight.w500)),
+                            const SizedBox(height: 18),
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF64D2FF),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                              onPressed: () {
+                                final hosts = context.read<AppState>().hosts.where((h) => h['host_type'] != 'monitor_only').toList();
+                                if (hosts.isEmpty) {
+                                  context.read<AppState>().fetchHosts();
+                                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('未找到主机，正在刷新...')));
+                                  return;
+                                }
+
+                                showModalBottomSheet(
+                                  context: context,
+                                  builder: (ctx) {
+                                    return SafeArea(
+                                      child: ListView(
+                                        children: hosts.map((h) => ListTile(
+                                          title: Text(h['name'] ?? ''),
+                                          subtitle: Text(h['host'] ?? ''),
+                                          onTap: () {
+                                            Navigator.of(ctx).pop();
+                                            context.read<AppState>().addTerminal(h);
+                                          },
+                                        )).toList(),
+                                      ),
+                                    );
+                                  }
+                                );
+                              },
+                              child: const Text('+ 连接到 SSH 主机', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+                            )
+                          ],
+                        ),
+                  )
                 : TabBarView(
                     controller: _tabController,
                     physics: const NeverScrollableScrollPhysics(), // Prevent accidental sliding during terminal interaction
