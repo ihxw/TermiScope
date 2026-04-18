@@ -147,7 +147,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       const SizedBox(width: 8),
                       Switch(
                         value: _quickToggle,
-                        activeColor: const Color(0xFF64D2FF),
+                        activeThumbColor: const Color(0xFF64D2FF),
                         onChanged: (v) => setState(() => _quickToggle = v),
                       ),
                     ],

@@ -92,8 +92,9 @@ class MonitorTab extends StatelessWidget {
                       final double trafficUsedAdjustment = (host['net_traffic_used_adjustment'] ?? 0).toDouble();
                       
                       double measuredTraffic = 0;
-                      if (counterMode == 'rx') measuredTraffic = rxTotal;
-                      else if (counterMode == 'tx') measuredTraffic = txTotal;
+                      if (counterMode == 'rx') {
+                        measuredTraffic = rxTotal;
+                      } else if (counterMode == 'tx') measuredTraffic = txTotal;
                       else measuredTraffic = rxTotal + txTotal;
                       
                       final double totalTrafficUsed = measuredTraffic + trafficUsedAdjustment;

@@ -58,8 +58,9 @@ class TerminalListTab extends StatelessWidget {
 
                   IconData icon = Icons.terminal;
                   final hostType = (host['host_type'] ?? '').toString().toLowerCase();
-                  if (hostType.contains('windows')) icon = Icons.desktop_windows;
-                  else if (hostType.contains('monitor')) icon = Icons.monitor_heart;
+                  if (hostType.contains('windows')) {
+                    icon = Icons.desktop_windows;
+                  } else if (hostType.contains('monitor')) icon = Icons.monitor_heart;
                   else if (hostType.contains('sftp')) icon = Icons.folder;
 
                   return Card(
