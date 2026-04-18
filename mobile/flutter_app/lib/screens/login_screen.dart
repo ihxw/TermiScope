@@ -10,7 +10,7 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _urlController = TextEditingController(text: 'http://192.168.1.100:8080');
+  final _urlController = TextEditingController(text: 'https://');
   final _userController = TextEditingController(text: 'admin');
   final _passController = TextEditingController();
   bool _isLoading = false;
