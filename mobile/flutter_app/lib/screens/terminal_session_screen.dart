@@ -36,7 +36,7 @@ class _TerminalSessionViewState extends State<TerminalSessionView> {
     terminal.onOutput = (data) {
       _terminalService?.write(data);
     };
-    
+
     // Setup resize routing: from terminal view -> websocket
     terminal.onResize = (width, height, pixelWidth, pixelHeight) {
       _terminalService?.resize(width, height);
@@ -70,31 +70,35 @@ class _TerminalSessionViewState extends State<TerminalSessionView> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Expanded(
-          child: GestureDetector(
-            onTap: () {
-              _focusNode.requestFocus();
-            },
-            child: ColoredBox(
-              color: Colors.black, // true black for terminal
-              child: TerminalView(
-                terminal,
-                controller: terminalController,
-                focusNode: _focusNode,
-                hardwareKeyboardOnly: !kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux),
-                backgroundOpacity: 1.0,
-                textStyle: const TerminalStyle(
-                  fontSize: 14,
+    return Consumer<AppState>(
+      builder: (context, state, child) {
+        return Column(
+          children: [
+            Expanded(
+              child: GestureDetector(
+                onTap: () {
+                  _focusNode.requestFocus();
+                },
+                child: ColoredBox(
+                  color: Colors.black, // true black for terminal
+                  child: TerminalView(
+                    terminal,
+                    controller: terminalController,
+                    focusNode: _focusNode,
+                    hardwareKeyboardOnly: !kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux),
+                    backgroundOpacity: 1.0,
+                    textStyle: TerminalStyle(
+                      fontSize: state.terminalFontSize,
+                    ),
+                  ),
                 ),
               ),
             ),
-          ),
-        ),
-        // Termius-style virtual keyboard bar
-        _buildVirtualKeyboard(),
-      ],
+            // Termius-style virtual keyboard bar
+            _buildVirtualKeyboard(),
+          ],
+        );
+      },
     );
   }
 

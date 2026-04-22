@@ -163,7 +163,7 @@ class _TerminalTabsScreenState extends State<TerminalTabsScreen> with TickerProv
                   )
                 : TabBarView(
                     controller: _tabController,
-                    physics: const NeverScrollableScrollPhysics(), // Prevent accidental sliding during terminal interaction
+                    physics: const BouncingScrollPhysics(), // Enable swipe gesture for tab switching
                     children: terminals.map((t) => TerminalSessionView(
                       key: ValueKey(t['tabId']),
                       hostId: int.parse(t['hostId'].toString()), 

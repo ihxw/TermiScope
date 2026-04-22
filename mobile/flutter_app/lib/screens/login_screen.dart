@@ -10,10 +10,11 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _urlController = TextEditingController(text: 'https://');
+  final _urlController = TextEditingController();
   final _userController = TextEditingController(text: 'admin');
   final _passController = TextEditingController();
   bool _isLoading = false;
+  bool _rememberMe = true;
 
   @override
   void initState() {
@@ -21,6 +22,15 @@ class _LoginScreenState extends State<LoginScreen> {
     final appState = context.read<AppState>();
     if (appState.apiService.baseUrl?.isNotEmpty == true) {
       _urlController.text = appState.apiService.baseUrl!;
+    }
+    // Load saved username if available
+    final savedUsername = appState.apiService.savedUsername;
+    if (savedUsername?.isNotEmpty == true) {
+      _userController.text = savedUsername!;
+      // Auto-fill password if saved (indicate with placeholder)
+      if (appState.apiService.decryptedPassword != null) {
+        _passController.text = appState.apiService.decryptedPassword!;
+      }
     }
   }
 
@@ -32,7 +42,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (url.isEmpty || user.isEmpty || pass.isEmpty) return;
 
     setState(() => _isLoading = true);
-    final success = await context.read<AppState>().login(url, user, pass);
+    final success = await context.read<AppState>().login(url, user, pass, _rememberMe);
     if (!mounted) return;
     setState(() => _isLoading = false);
 
@@ -68,6 +78,17 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 16),
                 _buildTextField('密码', _passController, Icons.lock, obscureText: true),
                 const SizedBox(height: 32),
+                Row(
+                  children: [
+                    Checkbox(
+                      value: _rememberMe,
+                      activeColor: const Color(0xFF64D2FF),
+                      onChanged: (v) => setState(() => _rememberMe = v == true),
+                    ),
+                    const Text('记住我', style: TextStyle(color: Colors.grey, fontSize: 14)),
+                  ],
+                ),
+                const SizedBox(height: 16),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF64D2FF),

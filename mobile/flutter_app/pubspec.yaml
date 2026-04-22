@@ -40,6 +40,8 @@ dependencies:
   provider: ^6.1.5+1
   shared_preferences: ^2.5.5
   http: ^1.6.0
+  encrypt: ^5.0.3
+  crypto: ^3.0.3
 
 dev_dependencies:
   flutter_test:
@@ -67,11 +69,12 @@ flutter:
   # Application illustrations and images
   assets:
     - assets/illustrations/empty_terminal.svg
+    - assets/icons/logo.png
 
 flutter_icons:
   android: true
   ios: true
-  image_path: "../../web/public/logo.png"
+  image_path: "assets/icons/logo.png"
 
   # To add assets to your application, add an assets section, like this:
   # assets:

@@ -5,6 +5,7 @@ import '../services/monitor_service.dart';
 import '../utils/responsive.dart';
 import 'monitor_tab.dart';
 import 'terminal_tabs_screen.dart';
+import 'settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -16,7 +17,6 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
   MonitorService? _monitorService;
-  bool _quickToggle = false;
 
   final List<Map<String, dynamic>> _tabs = [
     {
@@ -28,6 +28,11 @@ class _HomeScreenState extends State<HomeScreen> {
       'title': 'SSH Terminal',
       'icon': Icons.terminal,
       'widget': const TerminalTabsScreen(),
+    },
+    {
+      'title': '设置',
+      'icon': Icons.settings,
+      'widget': const SettingsScreen(),
     },
   ];
 
@@ -102,57 +107,38 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Responsive.isMobile(context)
-          ? (_currentIndex == 1 ? _buildHostSelector() : Text(_tabs[_currentIndex]['title'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)))
+          ? Text(_tabs[_currentIndex]['title'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))
           : Row(
               children: [
-                Expanded(child: _buildHostSelector()),
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF64D2FF),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                    minimumSize: const Size(36, 36),
+                Expanded(child: _currentIndex == 1 ? _buildHostSelector() : Text(_tabs[_currentIndex]['title'], style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16))),
+                if (_currentIndex == 1) ...[
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF64D2FF),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      minimumSize: const Size(36, 36),
+                    ),
+                    onPressed: () {
+                      final appState = context.read<AppState>();
+                      appState.addTerminal({'id': 0, 'name': 'Quick Connect', 'host': 'quick'});
+                    },
+                    child: const Icon(Icons.add, color: Colors.white, size: 18),
                   ),
-                  onPressed: () {
-                    final appState = context.read<AppState>();
-                    // Quick add: create a quick-connect pseudo-host (id 0)
-                    appState.addTerminal({'id': 0, 'name': 'Quick Connect', 'host': 'quick'});
-                  },
-                  child: const Icon(Icons.add, color: Colors.white, size: 18),
-                ),
-                const SizedBox(width: 8),
-                IconButton(
-                  icon: const Icon(Icons.flash_on_outlined, color: Colors.white),
-                  onPressed: () {
-                    final appState = context.read<AppState>();
-                    if (appState.hosts.isNotEmpty) {
-                      appState.addTerminal(appState.hosts.first);
-                    } else {
-                      appState.fetchHosts();
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('正在加载主机列表...')));
-                    }
-                  },
-                ),
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.white12),
-                    color: const Color(0xFF2D2D2D),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.flash_on_outlined, color: Colors.white),
+                    onPressed: () {
+                      final appState = context.read<AppState>();
+                      if (appState.hosts.isNotEmpty) {
+                        appState.addTerminal(appState.hosts.first);
+                      } else {
+                        appState.fetchHosts();
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('正在加载主机列表...')));
+                      }
+                    },
                   ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.screen_share_outlined, color: Colors.white70, size: 18),
-                      const SizedBox(width: 8),
-                      Switch(
-                        value: _quickToggle,
-                        activeThumbColor: const Color(0xFF64D2FF),
-                        onChanged: (v) => setState(() => _quickToggle = v),
-                      ),
-                    ],
-                  ),
-                ),
+                ],
               ],
             ),
       ),

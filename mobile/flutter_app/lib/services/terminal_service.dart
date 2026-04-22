@@ -28,11 +28,14 @@ class TerminalService {
               final msg = jsonDecode(data);
               if (msg['type'] == 'connected' || msg['type'] == 'error') {
                 onData?.call('\r\n[${msg['type'].toUpperCase()}] ${msg['data']}\r\n');
-              } else {
-                 onData?.call(data);
+              } else if (msg['type'] == 'data') {
+                // Handle data type messages separately
+                onData?.call(msg['data']?.toString() ?? '');
               }
+              // Skip calling onData for already-handled message types to avoid duplicates
             } catch (e) {
-               onData?.call(data);
+              // If JSON parsing fails, treat as raw data
+              onData?.call(data);
             }
           } else if (data is List<int>) {
              onData?.call(utf8.decode(data, allowMalformed: true));

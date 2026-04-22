@@ -1,10 +1,13 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../utils/encryption.dart';
 
 class ApiService {
   String? baseUrl;
   String? token;
+  String? _encryptedPassword;
+  String? savedUsername;
 
   ApiService();
 
@@ -12,12 +15,23 @@ class ApiService {
     final prefs = await SharedPreferences.getInstance();
     baseUrl = prefs.getString('server_url') ?? '';
     token = prefs.getString('token') ?? '';
+    savedUsername = prefs.getString('username') ?? '';
+    _encryptedPassword = prefs.getString('encrypted_password');
   }
 
-  Future<void> saveSettings(String url, String newToken) async {
+  Future<void> saveSettings(String url, String newToken, {String? username, String? password}) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('server_url', url);
     await prefs.setString('token', newToken);
+    if (username != null) {
+      await prefs.setString('username', username);
+      savedUsername = username;
+    }
+    if (password != null && password.isNotEmpty) {
+      final encrypted = EncryptionUtil.encrypt(password);
+      await prefs.setString('encrypted_password', encrypted);
+      _encryptedPassword = encrypted;
+    }
     baseUrl = url;
     token = newToken;
   }
@@ -25,7 +39,15 @@ class ApiService {
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('token');
+    await prefs.remove('password');
+    await prefs.remove('encrypted_password');
+    _encryptedPassword = null;
     token = '';
+  }
+
+  String? get decryptedPassword {
+    if (_encryptedPassword == null) return null;
+    return EncryptionUtil.decrypt(_encryptedPassword!);
   }
 
   Map<String, String> get _headers => {
@@ -65,8 +87,8 @@ class ApiService {
       try {
         final prefs = await SharedPreferences.getInstance();
         await prefs.remove('token');
-      } catch (e) {
-        // ignore prefs errors
+      } catch (_) {
+        // Ignore prefs errors but continue to clear in-memory token
       }
       token = '';
       throw _unauthorizedError(response);
