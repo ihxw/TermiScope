@@ -140,7 +140,10 @@
     "manageTemplates": "Templates",
     "fileExplorer": "File Explorer",
     "fontFamily": "Font",
-    "fontSize": "Size"
+    "fontSize": "Size",
+    "selectAll": "Select All",
+    "done": "Done",
+    "copied": "Copied to clipboard"
   },
   "host": {
     "name": "Name",

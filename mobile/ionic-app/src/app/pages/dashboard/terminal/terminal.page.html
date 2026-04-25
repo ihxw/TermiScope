@@ -100,16 +100,19 @@
         *ngFor="let session of sessions"
         [id]="'term-wrap-' + session.id"
         class="terminal-container-slot"
-        [class.active-terminal]="session.id === activeSessionId"
-        (touchstart)="onTerminalTouchStart($event, session.id)"
-        (touchend)="onTerminalTouchEnd($event, session.id)"
-        (touchmove)="onTerminalTouchMove($event, session.id)">
+        [class.active-terminal]="session.id === activeSessionId">
       </div>
     </div>
     
     <!-- Virtual Keyboard Toolbar -->
     <div class="keyboard-toolbar" *ngIf="showKeyboardToolbar">
       <div class="keyboard-row">
+        <!-- Selection Mode Button -->
+        <ion-button size="small" (click)="toggleSelectionMode()" [class.selection-active-btn]="selectionModeActive" style="--background:#007aff;--color:#fff;">
+          <ion-icon name="create-outline" slot="start"></ion-icon>
+          {{ selectionModeActive ? ('terminal.done' | translate) : '选择' }}
+        </ion-button>
+
         <!-- Modifier Keys -->
         <ion-button size="small" [class.active]="modifiers.ctrl" (click)="toggleModifier('ctrl')" class="modifier-btn">Ctrl</ion-button>
         <ion-button size="small" [class.active]="modifiers.alt" (click)="toggleModifier('alt')" class="modifier-btn">Alt</ion-button>

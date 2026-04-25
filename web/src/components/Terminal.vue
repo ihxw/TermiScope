@@ -35,25 +35,25 @@
     </div>
     
     <!-- Mobile Virtual Keyboard Toolbar -->
-    <div v-if="isMobileDevice" class="mobile-keyboard-toolbar" :style="{ 
+    <div v-if="isMobileDevice" class="mobile-keyboard-toolbar" :style="{
       background: themeStore.isDark ? '#2d2d2d' : '#f0f0f0',
       borderTop: themeStore.isDark ? '1px solid #404040' : '1px solid #d9d9d9'
     }">
       <div class="keyboard-row">
         <!-- Modifier Keys -->
-        <button 
-          class="key-btn modifier" 
-          :class="{ active: modifiers.ctrl, 'dark-mode': themeStore.isDark }" 
+        <button
+          class="key-btn modifier"
+          :class="{ active: modifiers.ctrl, 'dark-mode': themeStore.isDark }"
           @click="toggleModifier('ctrl')"
         >Ctrl</button>
-        <button 
-          class="key-btn modifier" 
-          :class="{ active: modifiers.alt, 'dark-mode': themeStore.isDark }" 
+        <button
+          class="key-btn modifier"
+          :class="{ active: modifiers.alt, 'dark-mode': themeStore.isDark }"
           @click="toggleModifier('alt')"
         >Alt</button>
-        <button 
-          class="key-btn modifier" 
-          :class="{ active: modifiers.shift, 'dark-mode': themeStore.isDark }" 
+        <button
+          class="key-btn modifier"
+          :class="{ active: modifiers.shift, 'dark-mode': themeStore.isDark }"
           @click="toggleModifier('shift')"
         >Shift</button>
         
@@ -187,6 +187,7 @@
           <template #icon><FolderOpenOutlined /></template>
           {{ t('terminal.sftp') }}
         </a-button>
+        <a-divider type="vertical" class="status-divider" :style="{ background: themeStore.isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.1)' }" />
         <a-divider type="vertical" class="status-divider" :style="{ background: themeStore.isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.1)' }" />
         <a-dropdown :disabled="connectionStatus !== 'Connected'" placement="topRight">
           <a-button class="status-btn" :class="{ 'light-mode': !themeStore.isDark }" size="small" type="text">
@@ -600,16 +601,16 @@ const disconnect = () => {
 const cleanup = () => {
   window.removeEventListener('resize', handleResize)
   window.removeEventListener('resize', detectMobileDevice)
-  
+
   if (terminal.value && terminal.value._resizeObserver) {
     terminal.value._resizeObserver.disconnect()
   }
-  
+
   if (ws.value) {
     ws.value.close()
     ws.value = null
   }
-  
+
   if (terminal.value) {
     terminal.value.dispose()
     terminal.value = null
@@ -711,18 +712,15 @@ const sendChar = (char) => {
 // Copy selected text to clipboard (for mobile)
 const copySelection = async () => {
   if (!terminal.value) return
-  
   const selection = terminal.value.getSelection()
   if (!selection) {
     message.warning('No text selected')
     return
   }
-  
   try {
     await navigator.clipboard.writeText(selection)
     message.success('Copied to clipboard')
   } catch (err) {
-    console.error('Failed to copy:', err)
     message.error('Failed to copy')
   }
 }

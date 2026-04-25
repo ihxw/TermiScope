@@ -9,6 +9,184 @@ import { finalize } from 'rxjs/operators';
 import { Terminal } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 
+/**
+ * Calculates character cell dimensions from a rendered xterm.js terminal.
+ */
+function getCharSize(terminal: Terminal): { w: number; h: number } | null {
+  const screen = (terminal as any).element?.querySelector('.xterm-screen') as HTMLElement | null;
+  if (!screen) return null;
+  const cols = terminal.cols;
+  const rows = terminal.rows;
+  if (!cols || !rows) return null;
+  return {
+    w: screen.clientWidth / cols,
+    h: screen.clientHeight / rows,
+  };
+}
+
+/**
+ * Button-triggered selection mode for xterm.js on mobile.
+ * When active, intercepts touch events on the terminal to let the user
+ * tap-and-drag to select text, similar to mobile file picker.
+ */
+class SelectionMode {
+  private container: HTMLElement;
+  private terminal: Terminal;
+  private overlay: HTMLElement | null = null;
+  private toolbar: HTMLElement | null = null;
+  private anchor: { col: number; row: number } | null = null;
+  private charSize: { w: number; h: number } | null = null;
+  private isActive = false;
+  private isDragging = false;
+  private onCopy: (text: string) => void;
+  private onExit: () => void;
+
+  constructor(
+    container: HTMLElement,
+    terminal: Terminal,
+    onCopy: (text: string) => void,
+    onExit: () => void
+  ) {
+    this.container = container;
+    this.terminal = terminal;
+    this.onCopy = onCopy;
+    this.onExit = onExit;
+  }
+
+  /** Activate selection mode — creates overlay and binds listeners */
+  start() {
+    if (this.isActive) return;
+    this.isActive = true;
+    this.terminal.clearSelection();
+
+    // Create semi-transparent overlay that captures touch events
+    this.overlay = document.createElement('div');
+    this.overlay.className = 'selection-overlay';
+    this.overlay.addEventListener('touchstart', this.onTouchStart, { passive: false });
+    this.overlay.addEventListener('touchmove', this.onTouchMove, { passive: false });
+    this.overlay.addEventListener('touchend', this.onTouchEnd);
+
+    // Create toolbar at the bottom with Done / Select All buttons
+    this.toolbar = document.createElement('div');
+    this.toolbar.className = 'selection-toolbar';
+    this.toolbar.innerHTML = `
+      <button class="sel-btn sel-cancel">${this.getTrans('common.cancel')}</button>
+      <span class="sel-preview"></span>
+      <button class="sel-btn sel-all">${this.getTrans('terminal.selectAll')}</button>
+      <button class="sel-btn sel-done">${this.getTrans('terminal.done')}</button>
+    `;
+    // Cancel button
+    (this.toolbar.querySelector('.sel-cancel') as HTMLElement).addEventListener('click', () => this.exit());
+    // Select All button
+    (this.toolbar.querySelector('.sel-all') as HTMLElement).addEventListener('click', () => {
+      const cols = this.terminal.cols;
+      const rows = this.terminal.rows;
+      this.terminal.select(0, 0, cols * rows);
+      this.updatePreview();
+    });
+    // Done button
+    (this.toolbar.querySelector('.sel-done') as HTMLElement).addEventListener('click', () => {
+      const text = this.terminal.getSelection();
+      if (text) {
+        this.onCopy(text);
+      }
+      this.exit();
+    });
+
+    this.container.appendChild(this.overlay);
+    this.container.appendChild(this.toolbar);
+  }
+
+  private exit() {
+    this.isActive = false;
+    this.isDragging = false;
+    this.anchor = null;
+    if (this.overlay) {
+      this.overlay.remove();
+      this.overlay = null;
+    }
+    if (this.toolbar) {
+      this.toolbar.remove();
+      this.toolbar = null;
+    }
+    this.onExit();
+  }
+
+  private getTrans(key: string): string {
+    // Minimal translation fallback — keys are in en-US/zh-CN
+    const map: Record<string, Record<string, string>> = {
+      'en': {
+        'common.cancel': 'Cancel',
+        'terminal.selectAll': 'Select All',
+        'terminal.done': 'Done',
+      },
+      'zh': {
+        'common.cancel': '取消',
+        'terminal.selectAll': '全选',
+        'terminal.done': '完成',
+      }
+    };
+    const lang = navigator.language.startsWith('zh') ? 'zh' : 'en';
+    return map[lang][key] || key;
+  }
+
+  private getCellFromTouch(e: TouchEvent): { col: number; row: number } | null {
+    if (!this.charSize || e.touches.length !== 1) return null;
+    const rect = this.container.getBoundingClientRect();
+    const x = Math.max(0, e.touches[0].clientX - rect.left);
+    const y = Math.max(0, e.touches[0].clientY - rect.top);
+    const col = Math.min(this.terminal.cols - 1, Math.floor(x / this.charSize.w));
+    const row = Math.min(this.terminal.rows - 1, Math.floor(y / this.charSize.h));
+    return { col, row };
+  }
+
+  private onTouchStart = (e: TouchEvent) => {
+    e.preventDefault();
+    this.isDragging = true;
+    this.charSize = getCharSize(this.terminal);
+    const cell = this.getCellFromTouch(e);
+    if (cell) {
+      this.anchor = cell;
+      this.terminal.select(cell.col, cell.row, 1);
+    }
+  };
+
+  private onTouchMove = (e: TouchEvent) => {
+    e.preventDefault();
+    if (!this.isDragging || !this.anchor) return;
+    const cell = this.getCellFromTouch(e);
+    if (!cell) return;
+
+    const { col: startCol, row: startRow } = this.anchor;
+    const startPos = startRow * this.terminal.cols + startCol;
+    const endPos = cell.row * this.terminal.cols + cell.col;
+
+    if (endPos >= startPos) {
+      this.terminal.select(startCol, startRow, endPos - startPos + 1);
+    } else {
+      this.terminal.select(cell.col, cell.row, startPos - endPos + 1);
+    }
+    this.updatePreview();
+  };
+
+  private onTouchEnd = () => {
+    this.isDragging = false;
+    this.updatePreview();
+  };
+
+  private updatePreview() {
+    const text = this.terminal.getSelection();
+    const preview = this.toolbar?.querySelector('.sel-preview') as HTMLElement | null;
+    if (preview) {
+      preview.textContent = text ? text.substring(0, 50) + (text.length > 50 ? '…' : '') : '';
+    }
+  }
+
+  dispose() {
+    this.exit();
+  }
+}
+
 interface TerminalSession {
   id: string;
   hostId: number;
@@ -18,6 +196,7 @@ interface TerminalSession {
   terminal?: Terminal;
   fitAddon?: FitAddon;
   container?: HTMLElement;
+  selectionMode?: SelectionMode;
 }
 
 @Component({
@@ -33,6 +212,7 @@ export class TerminalPage implements OnInit, OnDestroy {
   loading = false;
   showKeyboardToolbar = true;
   showSftp = false;
+  selectionModeActive = false;
   terminalSize = '';
   modifiers = {
     ctrl: false,
@@ -73,6 +253,9 @@ export class TerminalPage implements OnInit, OnDestroy {
   ngOnDestroy() {
     // Clean up all terminals
     this.sessions.forEach(session => {
+      if (session.selectionMode) {
+        session.selectionMode.dispose();
+      }
       if (session.terminal) {
         session.terminal.dispose();
       }
@@ -145,6 +328,7 @@ export class TerminalPage implements OnInit, OnDestroy {
           cursorBlink: true,
           fontSize: 14,
           fontFamily: 'monospace',
+          allowProposedApi: true,
           theme: {
             background: '#1e1e1e',
             foreground: '#d4d4d4'
@@ -226,13 +410,28 @@ export class TerminalPage implements OnInit, OnDestroy {
   
   attachTerminal(session: TerminalSession) {
     if (!session.terminal) return;
-    
+
     const container = document.getElementById('term-wrap-' + session.id);
     if (!container) return;
     container.innerHTML = '';
+
+    // Clean up any previous selection mode
+    if (session.selectionMode) {
+      session.selectionMode.dispose();
+    }
+    this.selectionModeActive = false;
+
     session.terminal.open(container);
     session.container = container;
-    
+
+    // Initialize selection mode handler (button-triggered, not long-press)
+    session.selectionMode = new SelectionMode(
+      container,
+      session.terminal,
+      (text: string) => this.copyText(text),
+      () => { this.selectionModeActive = false; }
+    );
+
     setTimeout(() => {
       if (session.fitAddon) {
         session.fitAddon.fit();
@@ -257,6 +456,9 @@ export class TerminalPage implements OnInit, OnDestroy {
     const index = this.sessions.findIndex(s => s.id === sessionId);
     if (index > -1) {
       const session = this.sessions[index];
+      if (session.selectionMode) {
+        session.selectionMode.dispose();
+      }
       if (session.ws) {
         session.ws.close();
       }
@@ -515,13 +717,33 @@ export class TerminalPage implements OnInit, OnDestroy {
 
     const selection = session.terminal.getSelection();
     if (selection) {
-      await navigator.clipboard.writeText(selection);
-      const toast = await this.toastController.create({
-        message: 'Copied to clipboard',
-        duration: 1500,
-        color: 'success'
-      });
-      toast.present();
+      await this.copyText(selection);
+    }
+  }
+
+  async copyText(text: string) {
+    await navigator.clipboard.writeText(text);
+    const toast = await this.toastController.create({
+      message: await this.translate.get('terminal.copied').toPromise() || '已复制到剪贴板',
+      duration: 1500,
+      color: 'success'
+    });
+    toast.present();
+  }
+
+  /** Toggle selection mode — button-triggered, not long-press */
+  toggleSelectionMode() {
+    const session = this.activeSession;
+    if (!session?.selectionMode) return;
+
+    if (this.selectionModeActive) {
+      // Exit selection mode
+      session.selectionMode.dispose();
+      this.selectionModeActive = false;
+    } else {
+      // Enter selection mode
+      session.selectionMode.start();
+      this.selectionModeActive = true;
     }
   }
 
@@ -550,96 +772,8 @@ export class TerminalPage implements OnInit, OnDestroy {
     const rows = session.terminal.rows;
     const cols = session.terminal.cols;
     // Select the visible portion of the terminal buffer
-    session.terminal.select(0, 0, cols, rows);
+    session.terminal.select(0, 0, cols * rows);
     session.terminal.focus();
-  }
-
-  // Long-press gesture detection for text selection on mobile
-  private longPressTimer: any = null;
-  private longPressTargetId: string | null = null;
-
-  onTerminalTouchStart(event: TouchEvent, sessionId: string) {
-    // Only handle single-finger long-press, let multi-touch work normally
-    if (event.touches.length !== 1) return;
-    this.longPressTargetId = sessionId;
-    this.longPressTimer = setTimeout(async () => {
-      this.longPressTargetId = null;
-      await this.showLongPressMenu();
-    }, 600);
-  }
-
-  onTerminalTouchEnd(event: TouchEvent, sessionId: string) {
-    if (this.longPressTargetId === sessionId) {
-      clearTimeout(this.longPressTimer);
-      this.longPressTimer = null;
-      this.longPressTargetId = null;
-    }
-  }
-
-  onTerminalTouchMove(event: TouchEvent, sessionId: string) {
-    // If finger moves significantly, cancel long-press (user is scrolling)
-    if (this.longPressTargetId === sessionId) {
-      clearTimeout(this.longPressTimer);
-      this.longPressTimer = null;
-      this.longPressTargetId = null;
-    }
-  }
-
-  async showLongPressMenu() {
-    const session = this.activeSession;
-    if (!session?.terminal) return;
-
-    const hasSelection = session.terminal.getSelection().length > 0;
-
-    const buttons: any[] = [];
-
-    if (hasSelection) {
-      buttons.push({
-        text: await this.translate.get('common.copy').toPromise(),
-        icon: 'copy',
-        handler: async () => {
-          await this.copySelection();
-        }
-      });
-      buttons.push({
-        text: 'Select All',
-        icon: 'resize',
-        handler: () => {
-          this.selectAll();
-          // After selecting all, copy it
-          setTimeout(() => this.copySelection(), 100);
-        }
-      });
-    } else {
-      buttons.push({
-        text: 'Select All',
-        icon: 'resize',
-        handler: () => {
-          this.selectAll();
-          setTimeout(() => this.copySelection(), 100);
-        }
-      });
-    }
-
-    buttons.push({
-      text: await this.translate.get('common.paste').toPromise(),
-      icon: 'clipboard',
-      handler: async () => {
-        await this.pasteFromClipboard();
-      }
-    });
-
-    buttons.push({
-      text: await this.translate.get('common.cancel').toPromise(),
-      role: 'cancel',
-      icon: 'close'
-    });
-
-    const actionSheet = await this.alertController.create({
-      header: 'Terminal Actions',
-      buttons: buttons
-    });
-    await actionSheet.present();
   }
 
   updateTerminalSize(cols: number, rows: number) {

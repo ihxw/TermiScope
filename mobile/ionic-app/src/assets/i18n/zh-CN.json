@@ -140,7 +140,10 @@
     "manageTemplates": "管理模板",
     "fileExplorer": "文件浏览器",
     "fontFamily": "字体",
-    "fontSize": "字体大小"
+    "fontSize": "字体大小",
+    "selectAll": "全选",
+    "done": "完成",
+    "copied": "已复制到剪贴板"
   },
   "host": {
     "name": "名称",
