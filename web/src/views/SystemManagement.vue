@@ -467,21 +467,31 @@ const executeBackup = async () => {
 }
 
 const beforeRestoreUpload = (file) => {
-  const isDb = file.name.endsWith('.db')
-  if (!isDb) {
+  const isValid = file.name.endsWith('.db') || file.name.endsWith('.db.enc') || file.name.endsWith('.enc')
+  if (!isValid) {
     message.error(t('system.invalidFileType'))
   }
-  return isDb
+  return isValid
 }
 
 const handleRestoreChange = (info) => {
   if (info.file.status === 'uploading') {
     return
   }
-  
+
   // Store file and show password modal
   restoreFile.value = info.file.originFileObj
   restorePassword.value = ''
+
+  // Warn for unencrypted .db files
+  const isEncrypted = restoreFile.value.name.endsWith('.enc')
+  if (!isEncrypted) {
+    Modal.warning({
+      title: t('system.restoreUnencryptedWarningTitle'),
+      content: t('system.restoreUnencryptedWarning'),
+    })
+  }
+
   restorePasswordModalVisible.value = true
 }
 

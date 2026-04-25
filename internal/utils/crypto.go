@@ -257,3 +257,66 @@ func DecryptFile(srcPath, dstPath, password string) error {
 
 	return nil
 }
+
+// BackupMagic is the magic header prefix identifying wrapped backup data
+const BackupMagic = "TSBACKUP"
+
+// AppendKeyTrailer appends the encryption key as a trailer to a database file.
+// Format: [SQLite DB bytes][8-byte magic][32-byte key]
+func AppendKeyTrailer(filePath, encryptionKey string) error {
+	f, err := os.OpenFile(filePath, os.O_APPEND|os.O_WRONLY, 0)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	_, err = f.Write([]byte(BackupMagic + encryptionKey))
+	return err
+}
+
+// ExtractAndTruncateKeyTrailer reads the last 40 bytes of a file for the backup key trailer.
+// If found, extracts the key, truncates the trailer from the file, and returns the key.
+// Returns ("", nil) if no trailer found (old backup format).
+func ExtractAndTruncateKeyTrailer(filePath string) (string, error) {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return "", err
+	}
+	if len(data) < 40 {
+		return "", nil
+	}
+	trailer := data[len(data)-40:]
+	if string(trailer[:8]) == BackupMagic {
+		key := string(trailer[8:40])
+		if err := os.WriteFile(filePath, data[:len(data)-40], 0600); err != nil {
+			return "", err
+		}
+		return key, nil
+	}
+	return "", nil
+}
+
+// WrapBackupData prepends a magic header and the server's encryption key
+// to raw database bytes. Format: [8-byte magic][32-byte key][raw db]
+func WrapBackupData(dbBytes []byte, encryptionKey string) []byte {
+	keyBytes := []byte(encryptionKey)
+	header := make([]byte, 8+32)
+	copy(header[0:8], []byte(BackupMagic))
+	copy(header[8:40], keyBytes)
+	result := make([]byte, 0, 40+len(dbBytes))
+	result = append(result, header...)
+	result = append(result, dbBytes...)
+	return result
+}
+
+// UnwrapBackupData extracts the encryption key and raw database bytes
+// from wrapped backup data. Returns ("", dbBytes, nil) if no magic header
+// found (backward compatibility with old unwrapped backups).
+func UnwrapBackupData(wrappedData []byte) (encryptionKey string, dbBytes []byte, err error) {
+	if len(wrappedData) < 40 {
+		return "", nil, fmt.Errorf("backup data too short")
+	}
+	if string(wrappedData[:8]) == BackupMagic {
+		return string(wrappedData[8:40]), wrappedData[40:], nil
+	}
+	return "", wrappedData, nil
+}

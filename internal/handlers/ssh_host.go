@@ -156,13 +156,17 @@ func (h *SSHHostHandler) Get(c *gin.Context) {
 	if reveal {
 		if host.PasswordEncrypted != "" {
 			password, err := utils.DecryptAES(host.PasswordEncrypted, h.config.Security.EncryptionKey)
-			if err == nil {
+			if err != nil {
+				log.Printf("Warning: failed to decrypt password for host %d: %v", host.ID, err)
+			} else {
 				host.Password = password
 			}
 		}
 		if host.PrivateKeyEncrypted != "" {
 			privateKey, err := utils.DecryptAES(host.PrivateKeyEncrypted, h.config.Security.EncryptionKey)
-			if err == nil {
+			if err != nil {
+				log.Printf("Warning: failed to decrypt private key for host %d: %v", host.ID, err)
+			} else {
 				host.PrivateKey = privateKey
 			}
 		}

@@ -135,18 +135,42 @@ func (h *SystemHandler) Backup(c *gin.Context) {
 	finalPath := tmpBackup
 
 	if password != "" {
-		// Encrypt vacuumFile -> tmpBackup (which has .enc)
-		if err := utils.EncryptFile(vacuumFile, tmpBackup, password); err != nil {
+		// Read the vacuum file and wrap it with the server's encryption key
+		dbBytes, err := os.ReadFile(vacuumFile)
+		if err != nil {
 			os.Remove(vacuumFile)
+			utils.ErrorResponse(c, http.StatusInternalServerError, "failed to read backup data: "+err.Error())
+			return
+		}
+		wrappedData := utils.WrapBackupData(dbBytes, h.config.Security.EncryptionKey)
+
+		// Write wrapped data to a temp file, then encrypt
+		tmpWrappedFile := filepath.Join(tmpDir, fmt.Sprintf("termiscope_wrapped_%s.db", timestamp))
+		if err := os.WriteFile(tmpWrappedFile, wrappedData, 0600); err != nil {
+			os.Remove(vacuumFile)
+			os.Remove(tmpWrappedFile)
+			utils.ErrorResponse(c, http.StatusInternalServerError, "failed to wrap backup: "+err.Error())
+			return
+		}
+
+		if err := utils.EncryptFile(tmpWrappedFile, tmpBackup, password); err != nil {
+			os.Remove(vacuumFile)
+			os.Remove(tmpWrappedFile)
 			utils.ErrorResponse(c, http.StatusInternalServerError, "failed to encrypt backup: "+err.Error())
 			return
 		}
-		os.Remove(vacuumFile) // Remove unencrypted intermediate
+		os.Remove(vacuumFile)
+		os.Remove(tmpWrappedFile)
 	} else {
-		// Just rename vacuumFile to finalPath
+		// Rename vacuumFile to finalPath, then append key trailer
 		if err := os.Rename(vacuumFile, finalPath); err != nil {
 			os.Remove(vacuumFile)
 			utils.ErrorResponse(c, http.StatusInternalServerError, "failed to rename backup: "+err.Error())
+			return
+		}
+		// Append encryption key as trailer so restore can recover it
+		if err := utils.AppendKeyTrailer(finalPath, h.config.Security.EncryptionKey); err != nil {
+			utils.ErrorResponse(c, http.StatusInternalServerError, "failed to append encryption key: "+err.Error())
 			return
 		}
 	}
@@ -206,37 +230,77 @@ func (h *SystemHandler) Restore(c *gin.Context) {
 	}
 	password := c.PostForm("password")
 
-	// Basic validation: check file extension
-	if filepath.Ext(file.Filename) != ".db" {
-		utils.ErrorResponse(c, http.StatusBadRequest, "invalid file type, must be .db")
+	// Validate file extension
+	ext := filepath.Ext(file.Filename)
+	if ext != ".db" && ext != ".enc" {
+		utils.ErrorResponse(c, http.StatusBadRequest, "invalid file type, must be .db or .enc")
 		return
 	}
 
 	// Save uploaded file to temporary location
-	tmpFile := filepath.Join(os.TempDir(), "termiscope_restore.db")
+	tmpFile := filepath.Join(os.TempDir(), "termiscope_restore"+ext)
 	if err := c.SaveUploadedFile(file, tmpFile); err != nil {
 		utils.ErrorResponse(c, http.StatusInternalServerError, "failed to save uploaded file")
 		return
 	}
 	defer os.Remove(tmpFile)
 
-	// Validate SQLite file integrity (check magic header before accepting)
-	if err := validateSQLiteFile(tmpFile); err != nil {
-		utils.ErrorResponse(c, http.StatusBadRequest, "invalid database file: "+err.Error())
-		return
-	}
-
 	targetFile := tmpFile
+	var extractedKey string
 
-	// If password provided, attempt decryption
-	if password != "" {
+	// If encrypted file, decrypt first
+	if ext == ".enc" {
+		if password == "" {
+			utils.ErrorResponse(c, http.StatusBadRequest, "password required for encrypted backup")
+			return
+		}
 		tmpDecFile := tmpFile + ".dec"
 		if err := utils.DecryptFile(tmpFile, tmpDecFile, password); err != nil {
-			utils.ErrorResponse(c, http.StatusForbidden, "incorrect password")
+			utils.ErrorResponse(c, http.StatusForbidden, "incorrect password or corrupted backup")
 			return
 		}
 		defer os.Remove(tmpDecFile)
 		targetFile = tmpDecFile
+
+		// Unwrap decrypted data to extract encryption key
+		data, err := os.ReadFile(targetFile)
+		if err != nil {
+			utils.ErrorResponse(c, http.StatusInternalServerError, "failed to read decrypted data: "+err.Error())
+			return
+		}
+		key, dbData, err := utils.UnwrapBackupData(data)
+		if err != nil {
+			utils.ErrorResponse(c, http.StatusBadRequest, "invalid backup data: "+err.Error())
+			return
+		}
+		extractedKey = key
+
+		// If key was extracted, write unwrapped database to a new temp file
+		if extractedKey != "" {
+			tmpDbFile := targetFile + ".unwrapped"
+			if err := os.WriteFile(tmpDbFile, dbData, 0600); err != nil {
+				utils.ErrorResponse(c, http.StatusInternalServerError, "failed to unwrap backup: "+err.Error())
+				return
+			}
+			defer os.Remove(tmpDbFile)
+			targetFile = tmpDbFile
+		}
+	}
+
+	// For .db files, check for embedded key trailer
+	if ext == ".db" {
+		key, err := utils.ExtractAndTruncateKeyTrailer(targetFile)
+		if err != nil {
+			fmt.Printf("Warning: failed to extract key trailer: %v\n", err)
+		} else if key != "" {
+			extractedKey = key
+		}
+	}
+
+	// Validate SQLite file integrity
+	if err := validateSQLiteFile(targetFile); err != nil {
+		utils.ErrorResponse(c, http.StatusBadRequest, "invalid database file: "+err.Error())
+		return
 	}
 
 	// Close current DB connections before replacing the file
@@ -252,20 +316,27 @@ func (h *SystemHandler) Restore(c *gin.Context) {
 		return
 	}
 
+	// If encryption key was extracted, save it to config
+	if extractedKey != "" {
+		h.config.Security.EncryptionKey = extractedKey
+		if err := h.config.SaveConfig(); err != nil {
+			fmt.Printf("Warning: failed to save encryption key to config: %v\n", err)
+		}
+	} else if ext == ".enc" {
+		fmt.Println("Warning: restored encrypted backup does not contain embedded encryption key. " +
+			"Ensure the server's TERMISCOPE_ENCRYPTION_KEY matches the original server.")
+	}
+
 	utils.SuccessResponse(c, http.StatusOK, gin.H{
 		"message": "database restored successfully, server is restarting...",
 	})
 
 	// Restart server to reload database
 	go func() {
-		// Attempt to spawn the restarter script
 		if err := utils.RestartSelf(); err != nil {
-			// If we can't restart, at least we log it. The process will still exit,
-			// forcing a manual restart which is better than undefined state.
 			utils.LogError("Failed to initiate self-restart: %v", err)
 		}
 
-		// Give the response a moment to flush
 		time.Sleep(1 * time.Second)
 		os.Exit(0)
 	}()
