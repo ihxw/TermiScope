@@ -36,6 +36,13 @@ func NewSftpHandler(db *gorm.DB, cfg *config.Config) *SftpHandler {
 	}
 }
 
+// saveDB safely saves a record, logging errors without failing
+func (h *SftpHandler) saveDB(value interface{}) {
+	if err := h.db.Save(value).Error; err != nil {
+		utils.LogError("DB save failed: %v", err)
+	}
+}
+
 type FileInfo struct {
 	Name    string    `json:"name"`
 	Size    int64     `json:"size"`
@@ -76,21 +83,7 @@ func (h *SftpHandler) getSftpClient(userID uint, hostID string) (*sftp.Client, *
 	}
 
 	// Decrypt credentials
-	var password, privateKey string
-	if host.PasswordEncrypted != "" {
-		decrypted, err := utils.DecryptAES(host.PasswordEncrypted, h.config.Security.EncryptionKey)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to decrypt password")
-		}
-		password = decrypted
-	}
-	if host.PrivateKeyEncrypted != "" {
-		decrypted, err := utils.DecryptAES(host.PrivateKeyEncrypted, h.config.Security.EncryptionKey)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to decrypt private key")
-		}
-		privateKey = decrypted
-	}
+	password, privateKey := decryptHostCredentials(&host, h.config.Security.EncryptionKey)
 
 	// Create SSH client
 	timeout, _ := time.ParseDuration(h.config.SSH.Timeout)
@@ -126,7 +119,7 @@ func (h *SftpHandler) getSftpClient(userID uint, hostID string) (*sftp.Client, *
 		newFp := sshClient.GetFingerprint()
 		if newFp != "" {
 			host.Fingerprint = newFp
-			h.db.Save(&host)
+			h.saveDB(&host)
 		}
 	}
 

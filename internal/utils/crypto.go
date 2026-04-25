@@ -261,38 +261,89 @@ func DecryptFile(srcPath, dstPath, password string) error {
 // BackupMagic is the magic header prefix identifying wrapped backup data
 const BackupMagic = "TSBACKUP"
 
-// AppendKeyTrailer appends the encryption key as a trailer to a database file.
-// Format: [SQLite DB bytes][8-byte magic][32-byte key]
+// Fixed salt for trailer key derivation (prevents rainbow table attacks)
+var trailerSalt = []byte("termiscope_trailer_key_salt_v1")
+
+// AppendKeyTrailer encrypts the server's encryption key using a key derived
+// from the first 100 bytes of the DB file, then appends it.
+// Format: [SQLite DB bytes][8-byte magic][16-byte salt][12-byte nonce][48-byte ciphertext]
+// This prevents trivial extraction of the key from a stolen .db file.
 func AppendKeyTrailer(filePath, encryptionKey string) error {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return err
+	}
+	if len(data) < 100 {
+		return fmt.Errorf("database file too small")
+	}
+	// Derive encryption key from first 100 bytes of DB
+	derivedKey := DeriveKey(string(data[:100]), trailerSalt)
+	block, err := aes.NewCipher(derivedKey)
+	if err != nil {
+		return err
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return err
+	}
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return err
+	}
+	ciphertext := gcm.Seal(nonce, nonce, []byte(encryptionKey), nil)
+
+	// Build trailer
+	trailer := make([]byte, 0, 8+len(trailerSalt)+len(ciphertext))
+	trailer = append(trailer, []byte(BackupMagic)...)
+	trailer = append(trailer, trailerSalt...)
+	trailer = append(trailer, ciphertext...)
+
 	f, err := os.OpenFile(filePath, os.O_APPEND|os.O_WRONLY, 0)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
-	_, err = f.Write([]byte(BackupMagic + encryptionKey))
+	_, err = f.Write(trailer)
 	return err
 }
 
-// ExtractAndTruncateKeyTrailer reads the last 40 bytes of a file for the backup key trailer.
-// If found, extracts the key, truncates the trailer from the file, and returns the key.
-// Returns ("", nil) if no trailer found (old backup format).
+// ExtractAndTruncateKeyTrailer extracts the encrypted key trailer from a .db file.
+// Uses the first 100 bytes of the file to derive the decryption key.
+// Returns ("", nil) if no valid trailer found (old backup format).
 func ExtractAndTruncateKeyTrailer(filePath string) (string, error) {
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return "", err
 	}
-	if len(data) < 40 {
+	trailerLen := 8 + len(trailerSalt) + 12 + 32 + 16 // magic + salt + nonce + plaintext + GCM tag
+	if len(data) < trailerLen {
 		return "", nil
 	}
-	trailer := data[len(data)-40:]
-	if string(trailer[:8]) == BackupMagic {
-		key := string(trailer[8:40])
-		if err := os.WriteFile(filePath, data[:len(data)-40], 0600); err != nil {
-			return "", err
-		}
-		return key, nil
+	trailer := data[len(data)-trailerLen:]
+	if string(trailer[:8]) != BackupMagic {
+		return "", nil
 	}
-	return "", nil
+	// Derive key from first 100 bytes
+	derivedKey := DeriveKey(string(data[:100]), trailerSalt)
+	block, err := aes.NewCipher(derivedKey)
+	if err != nil {
+		return "", nil
+	}
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", nil
+	}
+	nonce := trailer[8+len(trailerSalt) : 8+len(trailerSalt)+gcm.NonceSize()]
+	ciphertext := trailer[8+len(trailerSalt)+gcm.NonceSize():]
+	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return "", nil
+	}
+	// Truncate trailer from file
+	if err := os.WriteFile(filePath, data[:len(data)-trailerLen], 0600); err != nil {
+		return "", err
+	}
+	return string(plaintext), nil
 }
 
 // WrapBackupData prepends a magic header and the server's encryption key

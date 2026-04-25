@@ -39,6 +39,9 @@ type UpdateUserRequest struct {
 func (h *UserHandler) GetUsers(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
+	if pageSize <= 0 || pageSize > 100 {
+		pageSize = 20
+	}
 	search := c.Query("search")
 
 	query := h.db.Model(&models.User{})

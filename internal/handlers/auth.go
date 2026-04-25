@@ -45,6 +45,52 @@ func NewAuthHandler(db *gorm.DB, cfg *config.Config) *AuthHandler {
 	}
 }
 
+type LoginInfo struct {
+	JTI        string
+	RefreshJTI string
+	ExpiresAt  *time.Time
+}
+
+// recordLoginHistory updates last login time, creates login history, and returns login info
+func (h *AuthHandler) recordLoginHistory(c *gin.Context, user *models.User, accessToken, refreshToken string) LoginInfo {
+	var info LoginInfo
+
+	// Update last login time
+	now := time.Now()
+	user.LastLoginAt = &now
+	if err := h.db.Save(user).Error; err != nil {
+		utils.LogError("Failed to update last login for user %s: %v", user.Username, err)
+	}
+
+	// Parse tokens to get JTI (once, not in loops)
+	if claims, _ := utils.ValidateToken(accessToken, h.config.Security.JWTSecret); claims != nil {
+		info.JTI = claims.ID
+		if claims.ExpiresAt != nil {
+			t := claims.ExpiresAt.Time
+			info.ExpiresAt = &t
+		}
+	}
+	if claims, _ := utils.ValidateToken(refreshToken, h.config.Security.JWTSecret); claims != nil {
+		info.RefreshJTI = claims.ID
+	}
+
+	loginHistory := models.LoginHistory{
+		UserID:          user.ID,
+		Username:        user.Username,
+		IPAddress:       c.ClientIP(),
+		UserAgent:       c.Request.UserAgent(),
+		JTI:             info.JTI,
+		RefreshTokenJTI: info.RefreshJTI,
+		LoginAt:         time.Now(),
+		ExpiresAt:       info.ExpiresAt,
+	}
+	if err := h.db.Create(&loginHistory).Error; err != nil {
+		utils.LogError("Failed to create login history for user %s: %v", user.Username, err)
+	}
+
+	return info
+}
+
 type LoginRequest struct {
 	Username string `json:"username" binding:"required"`
 	Password string `json:"password" binding:"required"`
@@ -159,7 +205,9 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	if needsUpgrade {
 		// Silently update password to direct bcrypt hashing
 		if err := user.SetPassword(req.Password); err == nil {
-			h.db.Save(&user)
+			if err := h.db.Save(&user).Error; err != nil {
+				utils.LogError("Failed to upgrade password for user %s: %v", user.Username, err)
+			}
 		}
 	}
 
@@ -194,10 +242,8 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// Update last login time
-	now := time.Now()
-	user.LastLoginAt = &now
-	h.db.Save(&user)
+	// Update last login time and record login history
+	h.recordLoginHistory(c, &user, accessToken, refreshToken)
 
 	// Record successful login
 	models.SecurityEventLog(h.db, models.LoginSuccess, models.SeverityLow,
@@ -206,44 +252,6 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	// Auto-add origin if not already present (run in background)
 	// Security Risk: Disable TOFU (Trust on First Use) for CORS to prevent phishing attacks adding malicious origins
 	// go h.autoAddOrigin(c)
-
-	// Record Login History
-	// We need to parse the token to get JTI, but GenerateToken returns string.
-	// To avoid re-parsing, we might need to refactor GenerateToken or just parse it here.
-	// Actually, for simplicity and since we just generated it, we can parse it back or update GenerateToken to return JTI.
-	// But `utils.GenerateToken` is used elsewhere. Let's just parse it back quickly or extract JTI if we change GenerateToken.
-	// A better way: The previous step modified `GenerateToken` to put JTI in claims.
-	// Let's parse it to get JTI.
-	var jti string
-	var refreshJti string
-
-	claimsParsed, _ := utils.ValidateToken(accessToken, h.config.Security.JWTSecret)
-	if claimsParsed != nil {
-		jti = claimsParsed.ID
-	}
-
-	refreshClaimsParsed, _ := utils.ValidateToken(refreshToken, h.config.Security.JWTSecret)
-	if refreshClaimsParsed != nil {
-		refreshJti = refreshClaimsParsed.ID
-	}
-
-	var expiresAt *time.Time
-	if claimsParsed != nil && claimsParsed.ExpiresAt != nil {
-		t := claimsParsed.ExpiresAt.Time
-		expiresAt = &t
-	}
-
-	loginHistory := models.LoginHistory{
-		UserID:          user.ID,
-		Username:        user.Username,
-		IPAddress:       c.ClientIP(),
-		UserAgent:       c.Request.UserAgent(),
-		JTI:             jti,
-		RefreshTokenJTI: refreshJti,
-		LoginAt:         time.Now(),
-		ExpiresAt:       expiresAt,
-	}
-	h.db.Create(&loginHistory)
 
 	// Set access_token cookie for browser-based access (e.g. Swagger UI, Media Stream)
 	// Path: "/" so it works for all routes
@@ -438,6 +446,9 @@ func (h *AuthHandler) GetLoginHistory(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "10"))
+	if pageSize <= 0 || pageSize > 100 {
+		pageSize = 20
+	}
 
 	// Check user role for admin access? Usually users see their own.
 	// If admin wants to see others, that's a different endpoint usually.
@@ -455,10 +466,6 @@ func (h *AuthHandler) GetLoginHistory(c *gin.Context) {
 	query.Order("login_at desc").Offset(offset).Limit(pageSize).Find(&logs)
 
 	// Check status of each log (Active/Revoked/Expired)
-	// This is a bit expensive if we check DB for each, but we can check RevokedToken table for JTI.
-	// Or we can allow the frontend to check active/revoked if we return JTI status.
-	// Let's do a left join or just iterate if page size is small.
-
 	// Fetch revoked JTIs for these logs
 	var jtis []string
 	for _, log := range logs {
@@ -476,6 +483,16 @@ func (h *AuthHandler) GetLoginHistory(c *gin.Context) {
 		}
 	}
 
+	// Extract current session JTI once (not N times in the loop)
+	currentJTI := ""
+	if authHeader := c.GetHeader("Authorization"); authHeader != "" {
+		if parts := strings.Split(authHeader, " "); len(parts) == 2 {
+			if claims, _ := utils.ValidateToken(parts[1], h.config.Security.JWTSecret); claims != nil {
+				currentJTI = claims.ID
+			}
+		}
+	}
+
 	// Prepare response with detailed status
 	var result []map[string]interface{}
 	for _, l := range logs {
@@ -484,25 +501,6 @@ func (h *AuthHandler) GetLoginHistory(c *gin.Context) {
 			status = "Revoked"
 		} else if l.ExpiresAt != nil && l.ExpiresAt.Before(time.Now()) {
 			status = "Expired"
-		}
-
-		// Check if it's CURRENT session
-		currentJTI := ""
-		// Extract JTI from current context token?
-		// We can get token from header again
-		authHeader := c.GetHeader("Authorization")
-		if authHeader != "" {
-			parts := strings.Split(authHeader, " ")
-			if len(parts) == 2 {
-				// We don't want to parse fully again, but we could if needed.
-				// Middleware could set JTI in context.
-				// For now let's just leave "Current" logic to frontend or verify token here.
-				// Since we need to match JTI.
-				claims, _ := utils.ValidateToken(parts[1], h.config.Security.JWTSecret)
-				if claims != nil {
-					currentJTI = claims.ID
-				}
-			}
 		}
 
 		isCurrent := (l.JTI == currentJTI)
@@ -746,41 +744,8 @@ func (h *AuthHandler) Verify2FALogin(c *gin.Context) {
 		return
 	}
 
-	// Update last login time
-	now := time.Now()
-	user.LastLoginAt = &now
-	h.db.Save(&user)
-
-	// Record Login History for 2FA login
-	var jti string
-	var refreshJti string
-	var expiresAt *time.Time
-
-	claimsParsed, _ := utils.ValidateToken(accessToken, h.config.Security.JWTSecret)
-	if claimsParsed != nil {
-		jti = claimsParsed.ID
-		if claimsParsed.ExpiresAt != nil {
-			t := claimsParsed.ExpiresAt.Time
-			expiresAt = &t
-		}
-	}
-
-	refreshClaimsParsed, _ := utils.ValidateToken(refreshToken, h.config.Security.JWTSecret)
-	if refreshClaimsParsed != nil {
-		refreshJti = refreshClaimsParsed.ID
-	}
-
-	loginHistory := models.LoginHistory{
-		UserID:          user.ID,
-		Username:        user.Username,
-		IPAddress:       c.ClientIP(),
-		UserAgent:       c.Request.UserAgent(),
-		JTI:             jti,
-		RefreshTokenJTI: refreshJti,
-		LoginAt:         time.Now(),
-		ExpiresAt:       expiresAt,
-	}
-	h.db.Create(&loginHistory)
+	// Update last login time and record login history
+	h.recordLoginHistory(c, &user, accessToken, refreshToken)
 
 	// Set cookie
 	accessDuration, _ := time.ParseDuration(h.config.Security.AccessExpiration)
@@ -931,10 +896,8 @@ func (h *AuthHandler) Initialize(c *gin.Context) {
 		return
 	}
 
-	// Update last login
-	now := time.Now()
-	user.LastLoginAt = &now
-	h.db.Save(user)
+	// Record login history
+	h.recordLoginHistory(c, user, accessToken, refreshToken)
 
 	// Set cookie
 	accessDuration, _ := time.ParseDuration(h.config.Security.AccessExpiration)

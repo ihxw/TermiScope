@@ -441,7 +441,7 @@ export default {
         smtpPassword: 'SMTP Password',
         smtpFrom: 'Sender Email',
         smtpTo: 'Recipient Email',
-        smtpToPlaceholder: 'admin@example.com',
+        smtpToPlaceholder: 'admin{\'@\'}example.com',
         smtpTlsSkipVerify: 'Skip TLS Verification (Self-Signed)',
         telegramToken: 'Telegram Bot Token',
         telegramChatId: 'Telegram Chat ID',

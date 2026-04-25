@@ -43,9 +43,9 @@ type SecurityEvent struct {
 	ID        uint                  `gorm:"primaryKey" json:"id"`
 	UserID    uint                  `gorm:"index" json:"user_id"`
 	Username  string                `gorm:"size:100" json:"username"`
-	EventType SecurityEventType     `gorm:"size:50;not null;index" json:"event_type"`
+	EventType SecurityEventType     `gorm:"size:50;not null;index:idx_security_event_lookup" json:"event_type"`
 	Severity  SecurityEventSeverity `gorm:"size:20;not null" json:"severity"`
-	IPAddress string                `gorm:"size:45" json:"ip_address"` // IPv6
+	IPAddress string                `gorm:"size:45;index:idx_security_event_lookup" json:"ip_address"` // IPv6
 	UserAgent string                `gorm:"type:text" json:"user_agent"`
 	Details   string                `gorm:"type:text" json:"details"`
 	Metadata  string                `gorm:"type:text" json:"metadata"` // JSON

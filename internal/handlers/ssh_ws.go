@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -77,6 +78,20 @@ func NewSSHWebSocketHandler(db *gorm.DB, cfg *config.Config) *SSHWebSocketHandle
 	}
 }
 
+// saveDB safely saves a record to DB, logging errors without failing the operation
+func (h *SSHWebSocketHandler) saveDB(value interface{}) {
+	if err := h.db.Save(value).Error; err != nil {
+		utils.LogError("DB save failed: %v", err)
+	}
+}
+
+// createDB safely creates a record, logging errors without failing the operation
+func (h *SSHWebSocketHandler) createDB(value interface{}) {
+	if err := h.db.Create(value).Error; err != nil {
+		utils.LogError("DB create failed: %v", err)
+	}
+}
+
 type WSMessage struct {
 	Type string      `json:"type"` // input, resize
 	Data interface{} `json:"data"`
@@ -141,22 +156,10 @@ func (h *SSHWebSocketHandler) HandleWebSocket(c *gin.Context) {
 	}
 
 	// Decrypt credentials
-	var password, privateKey string
-	if host.PasswordEncrypted != "" {
-		decrypted, err := utils.DecryptAES(host.PasswordEncrypted, h.config.Security.EncryptionKey)
-		if err != nil {
-			utils.ErrorResponse(c, http.StatusInternalServerError, "failed to decrypt password")
-			return
-		}
-		password = decrypted
-	}
-	if host.PrivateKeyEncrypted != "" {
-		decrypted, err := utils.DecryptAES(host.PrivateKeyEncrypted, h.config.Security.EncryptionKey)
-		if err != nil {
-			utils.ErrorResponse(c, http.StatusInternalServerError, "failed to decrypt private key")
-			return
-		}
-		privateKey = decrypted
+	password, privateKey := decryptHostCredentials(&host, h.config.Security.EncryptionKey)
+	if password == "" && privateKey == "" {
+		utils.ErrorResponse(c, http.StatusInternalServerError, "host has no credentials configured")
+		return
 	}
 
 	// Create upgrader with origin validation
@@ -228,13 +231,13 @@ func (h *SSHWebSocketHandler) HandleWebSocket(c *gin.Context) {
 		Status:      "connecting",
 		ConnectedAt: time.Now(),
 	}
-	h.db.Create(connLog)
+	h.createDB(connLog)
 
 	// Connect to SSH server
 	if err := sshClient.Connect(); err != nil {
 		connLog.Status = "failed"
 		connLog.ErrorMessage = err.Error()
-		h.db.Save(connLog)
+		h.saveDB(connLog)
 
 		// Check for host key mismatch
 		errMsg := err.Error()
@@ -264,7 +267,7 @@ func (h *SSHWebSocketHandler) HandleWebSocket(c *gin.Context) {
 		newFp := sshClient.GetFingerprint()
 		if newFp != "" {
 			host.Fingerprint = newFp
-			h.db.Save(&host)
+			h.saveDB(&host)
 			log.Printf("TOFU: Saved new fingerprint for host %s: %s", host.Host, newFp)
 		}
 	}
@@ -273,7 +276,7 @@ func (h *SSHWebSocketHandler) HandleWebSocket(c *gin.Context) {
 	if err := sshClient.NewSession(); err != nil {
 		connLog.Status = "failed"
 		connLog.ErrorMessage = err.Error()
-		h.db.Save(connLog)
+		h.saveDB(connLog)
 		writeJSON(gin.H{"type": "error", "data": "Failed to create session: " + err.Error()})
 		return
 	}
@@ -288,7 +291,7 @@ func (h *SSHWebSocketHandler) HandleWebSocket(c *gin.Context) {
 	if err := sshClient.RequestPTY("xterm-256color", 24, 80); err != nil {
 		connLog.Status = "failed"
 		connLog.ErrorMessage = err.Error()
-		h.db.Save(connLog)
+		h.saveDB(connLog)
 		writeJSON(gin.H{"type": "error", "data": "Failed to request PTY: " + err.Error()})
 		return
 	}
@@ -298,7 +301,7 @@ func (h *SSHWebSocketHandler) HandleWebSocket(c *gin.Context) {
 	if err != nil {
 		connLog.Status = "failed"
 		connLog.ErrorMessage = err.Error()
-		h.db.Save(connLog)
+		h.saveDB(connLog)
 		writeJSON(gin.H{"type": "error", "data": "Failed to get stdin pipe: " + err.Error()})
 		return
 	}
@@ -307,7 +310,7 @@ func (h *SSHWebSocketHandler) HandleWebSocket(c *gin.Context) {
 	if err != nil {
 		connLog.Status = "failed"
 		connLog.ErrorMessage = err.Error()
-		h.db.Save(connLog)
+		h.saveDB(connLog)
 		writeJSON(gin.H{"type": "error", "data": "Failed to get stdout pipe: " + err.Error()})
 		return
 	}
@@ -316,7 +319,7 @@ func (h *SSHWebSocketHandler) HandleWebSocket(c *gin.Context) {
 	if err != nil {
 		connLog.Status = "failed"
 		connLog.ErrorMessage = err.Error()
-		h.db.Save(connLog)
+		h.saveDB(connLog)
 		writeJSON(gin.H{"type": "error", "data": "Failed to get stderr pipe: " + err.Error()})
 		return
 	}
@@ -325,14 +328,14 @@ func (h *SSHWebSocketHandler) HandleWebSocket(c *gin.Context) {
 	if err := sshClient.Shell(); err != nil {
 		connLog.Status = "failed"
 		connLog.ErrorMessage = err.Error()
-		h.db.Save(connLog)
+		h.saveDB(connLog)
 		writeJSON(gin.H{"type": "error", "data": "Failed to start shell: " + err.Error()})
 		return
 	}
 
 	// Update connection log
 	connLog.Status = "success"
-	h.db.Save(connLog)
+	h.saveDB(connLog)
 
 	// Send success message
 	writeJSON(gin.H{"type": "connected", "data": "Connected successfully"})
@@ -343,7 +346,7 @@ func (h *SSHWebSocketHandler) HandleWebSocket(c *gin.Context) {
 	// Handle recording
 	record := c.Query("record") == "true"
 	var recording *models.TerminalRecording
-	var recordFile *os.File
+	var recordBuf *bufio.Writer
 	if record {
 		recordingDir := "data/recordings"
 		os.MkdirAll(recordingDir, 0700)
@@ -353,7 +356,8 @@ func (h *SSHWebSocketHandler) HandleWebSocket(c *gin.Context) {
 
 		f, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 		if err == nil {
-			recordFile = f
+			recordBuf = bufio.NewWriter(f)
+			defer f.Close()
 			recording = &models.TerminalRecording{
 				UserID:    userID,
 				SSHHostID: host.ID,
@@ -362,7 +366,7 @@ func (h *SSHWebSocketHandler) HandleWebSocket(c *gin.Context) {
 				FilePath:  filePath,
 				StartTime: time.Now(),
 			}
-			h.db.Create(recording)
+			h.createDB(recording)
 		}
 	}
 
@@ -407,12 +411,12 @@ func (h *SSHWebSocketHandler) HandleWebSocket(c *gin.Context) {
 			}
 			if n > 0 {
 				data := buf[:n]
-				if recordFile != nil {
+				if recordBuf != nil {
 					// Store as [time_offset, "o", "data"]
 					offset := time.Since(start).Seconds()
 					entry, _ := json.Marshal([]interface{}{offset, "o", string(data)})
-					recordFile.Write(entry)
-					recordFile.WriteString("\n")
+					recordBuf.Write(entry)
+					recordBuf.WriteString("\n")
 				}
 				if err := writeParams(websocket.BinaryMessage, data); err != nil {
 					utils.LogError("Error writing to WebSocket: %v", err)
@@ -506,13 +510,13 @@ func (h *SSHWebSocketHandler) HandleWebSocket(c *gin.Context) {
 	<-done
 
 	// Finalize recording
-	if recordFile != nil {
-		recordFile.Close()
+	if recordBuf != nil {
+		recordBuf.Flush()
 		if recording != nil {
 			now := time.Now()
 			recording.EndTime = &now
 			recording.Duration = int(now.Sub(recording.StartTime).Seconds())
-			h.db.Save(recording)
+			h.saveDB(recording)
 		}
 	}
 
@@ -521,7 +525,7 @@ func (h *SSHWebSocketHandler) HandleWebSocket(c *gin.Context) {
 	connLog.DisconnectedAt = &now
 	connLog.Duration = int(now.Sub(connLog.ConnectedAt).Seconds())
 	connLog.Status = "disconnected"
-	h.db.Save(connLog)
+	h.saveDB(connLog)
 
 	log.Printf("SSH session closed for user %d, host %s", userID, host.Host)
 }

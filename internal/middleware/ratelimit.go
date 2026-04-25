@@ -8,6 +8,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const maxTrackedIPs = 10000 // Cap on number of tracked IPs
+
 // RateLimiter stores request counts and timestamps by IP
 type RateLimiter struct {
 	requests map[string][]time.Time
@@ -51,6 +53,31 @@ func (rl *RateLimiter) cleanup() {
 			delete(rl.requests, ip)
 		} else {
 			rl.requests[ip] = valid
+		}
+	}
+
+	// If still too many IPs after cleanup, evict oldest (by first timestamp)
+	if len(rl.requests) > maxTrackedIPs {
+		type ipEntry struct {
+			ip  string
+			ts  time.Time
+		}
+		oldest := make([]ipEntry, 0, len(rl.requests))
+		for ip, times := range rl.requests {
+			oldest = append(oldest, ipEntry{ip, times[0]})
+		}
+		// Sort by timestamp (oldest first)
+		for i := 0; i < len(oldest); i++ {
+			for j := i + 1; j < len(oldest); j++ {
+				if oldest[j].ts.Before(oldest[i].ts) {
+					oldest[i], oldest[j] = oldest[j], oldest[i]
+				}
+			}
+		}
+		// Delete oldest entries to get back under limit
+		toDelete := len(rl.requests) - maxTrackedIPs
+		for i := 0; i < toDelete; i++ {
+			delete(rl.requests, oldest[i].ip)
 		}
 	}
 }

@@ -30,6 +30,26 @@ func NewSSHHostHandler(db *gorm.DB, cfg *config.Config) *SSHHostHandler {
 	}
 }
 
+// decryptHostCredentials decrypts password and private key for a host
+func decryptHostCredentials(host *models.SSHHost, encryptionKey string) (password, privateKey string) {
+	if host.PasswordEncrypted != "" {
+		if p, err := utils.DecryptAES(host.PasswordEncrypted, encryptionKey); err == nil {
+			password = p
+		}
+	}
+	if host.PrivateKeyEncrypted != "" {
+		if k, err := utils.DecryptAES(host.PrivateKeyEncrypted, encryptionKey); err == nil {
+			privateKey = k
+		}
+	}
+	return
+}
+
+// decryptCredentials decrypts password and private key for a host
+func (h *SSHHostHandler) decryptCredentials(host *models.SSHHost) (password, privateKey string) {
+	return decryptHostCredentials(host, h.config.Security.EncryptionKey)
+}
+
 type CreateSSHHostRequest struct {
 	Name        string `json:"name" binding:"required"`
 	Host        string `json:"host"`
@@ -154,22 +174,7 @@ func (h *SSHHostHandler) Get(c *gin.Context) {
 	// Only decrypt and return credentials when explicitly requested
 	reveal := c.Query("reveal") == "true"
 	if reveal {
-		if host.PasswordEncrypted != "" {
-			password, err := utils.DecryptAES(host.PasswordEncrypted, h.config.Security.EncryptionKey)
-			if err != nil {
-				log.Printf("Warning: failed to decrypt password for host %d: %v", host.ID, err)
-			} else {
-				host.Password = password
-			}
-		}
-		if host.PrivateKeyEncrypted != "" {
-			privateKey, err := utils.DecryptAES(host.PrivateKeyEncrypted, h.config.Security.EncryptionKey)
-			if err != nil {
-				log.Printf("Warning: failed to decrypt private key for host %d: %v", host.ID, err)
-			} else {
-				host.PrivateKey = privateKey
-			}
-		}
+		host.Password, host.PrivateKey = h.decryptCredentials(&host)
 	} else {
 		// Return masked indicators so frontend knows credentials exist
 		if host.PasswordEncrypted != "" {

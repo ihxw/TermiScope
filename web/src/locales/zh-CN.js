@@ -442,7 +442,7 @@ export default {
         smtpPassword: 'SMTP 密码',
         smtpFrom: '发件人邮箱',
         smtpTo: '接收通知邮箱',
-        smtpToPlaceholder: 'admin@example.com',
+        smtpToPlaceholder: 'admin{\'@\'}example.com',
         smtpTlsSkipVerify: '跳过 TLS 验证 (自签名证书)',
         telegramToken: 'Telegram Bot Token',
         telegramChatId: 'Telegram Chat ID',

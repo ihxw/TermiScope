@@ -27,6 +27,9 @@ func (h *ConnectionLogHandler) List(c *gin.Context) {
 
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	if pageSize <= 0 || pageSize > 100 {
+		pageSize = 20
+	}
 	startDate := c.Query("start_date")
 	endDate := c.Query("end_date")
 	hostID := c.Query("host_id")

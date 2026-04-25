@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"image/png"
+	"math/big"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -127,7 +128,7 @@ func (h *TwoFactorHandler) VerifySetup2FA(c *gin.Context) {
 	}
 
 	// Generate 1 backup code
-	backupCodes := generateBackupCodes(1)
+	backupCodes := generateBackupCodes(10)
 	hashedCodes := make([]string, len(backupCodes))
 	for i, code := range backupCodes {
 		hash, _ := bcrypt.GenerateFromPassword([]byte(code), bcrypt.DefaultCost)
@@ -265,7 +266,7 @@ func (h *TwoFactorHandler) RegenerateBackupCodes(c *gin.Context) {
 	}
 
 	// Generate 1 new backup code
-	backupCodes := generateBackupCodes(1)
+	backupCodes := generateBackupCodes(10)
 	hashedCodes := make([]string, len(backupCodes))
 	for i, code := range backupCodes {
 		hash, _ := bcrypt.GenerateFromPassword([]byte(code), bcrypt.DefaultCost)
@@ -297,15 +298,14 @@ func generateBackupCodes(count int) []string {
 	codes := make([]string, count)
 
 	for i := 0; i < count; i++ {
-		// Generate 32 random characters
+		// Generate 32 random characters using rand.Intn to avoid modulo bias
 		code := make([]byte, 32)
 		for j := range code {
-			randomByte := make([]byte, 1)
-			if _, err := rand.Read(randomByte); err != nil {
-				// Fallback to a simple random if crypto fails
+			n, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
+			if err != nil {
 				code[j] = charset[i*j%len(charset)]
 			} else {
-				code[j] = charset[int(randomByte[0])%len(charset)]
+				code[j] = charset[n.Int64()]
 			}
 		}
 

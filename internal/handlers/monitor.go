@@ -690,19 +690,31 @@ func (h *MonitorHandler) Pulse(c *gin.Context) {
 	}
 
 	if dbUpdated {
-		h.DB.Model(&host).Select(
-			"MonitorEnabled",
-			"NetMonthlyRx", "NetMonthlyTx",
-			"NetLastRawRx", "NetLastRawTx",
-			"NetLastResetDate",
-			"TrafficAlerted",
-			"AgentVersion",
-			"Status",
-			"LastPulse",
-			"LastAgentTimestamp",
-			"OfflineAt",
-			"OfflineNotified",
-		).Updates(&host)
+		updateFields := map[string]interface{}{
+			"monitor_enabled":     host.MonitorEnabled,
+			"net_last_raw_rx":     host.NetLastRawRx,
+			"net_last_raw_tx":     host.NetLastRawTx,
+			"net_last_reset_date": host.NetLastResetDate,
+			"traffic_alerted":     host.TrafficAlerted,
+			"agent_version":       host.AgentVersion,
+			"status":              host.Status,
+			"last_pulse":          host.LastPulse,
+			"last_agent_timestamp": host.LastAgentTimestamp,
+			"offline_at":          host.OfflineAt,
+			"offline_notified":    host.OfflineNotified,
+		}
+
+		// Use atomic SQL increments for traffic counters to avoid race condition
+		// between concurrent pulse handlers from the same host
+		if deltaRx > 0 || deltaTx > 0 {
+			updateFields["net_monthly_rx"] = gorm.Expr("net_monthly_rx + ?", deltaRx)
+			updateFields["net_monthly_tx"] = gorm.Expr("net_monthly_tx + ?", deltaTx)
+		} else {
+			updateFields["net_monthly_rx"] = host.NetMonthlyRx
+			updateFields["net_monthly_tx"] = host.NetMonthlyTx
+		}
+
+		h.DB.Model(&models.SSHHost{}).Where("id = ?", host.ID).Updates(updateFields)
 	}
 
 	// 4. Update Data for View
