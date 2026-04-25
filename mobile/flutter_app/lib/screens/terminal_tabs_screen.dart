@@ -23,7 +23,6 @@ class _TerminalTabsScreenState extends State<TerminalTabsScreen> with TickerProv
 
   void _updateTabController(int count) {
     if (_tabController == null || _tabController!.length != count) {
-      final oldIndex = _tabController?.index ?? 0;
       _tabController?.dispose();
       _tabController = TabController(
         length: count,
@@ -131,7 +130,7 @@ class _TerminalTabsScreenState extends State<TerminalTabsScreen> with TickerProv
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                               ),
                               onPressed: () {
-                                final hosts = context.read<AppState>().hosts.where((h) => h['host_type'] != 'monitor_only').toList();
+                                final hosts = context.read<AppState>().hosts.where((h) => h.hostType != 'monitor_only').toList();
                                 if (hosts.isEmpty) {
                                   context.read<AppState>().fetchHosts();
                                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('未找到主机，正在刷新...')));
@@ -144,8 +143,8 @@ class _TerminalTabsScreenState extends State<TerminalTabsScreen> with TickerProv
                                     return SafeArea(
                                       child: ListView(
                                         children: hosts.map((h) => ListTile(
-                                          title: Text(h['name'] ?? ''),
-                                          subtitle: Text(h['host'] ?? ''),
+                                          title: Text(h.name),
+                                          subtitle: Text('${h.host}:${h.port}'),
                                           onTap: () {
                                             Navigator.of(ctx).pop();
                                             context.read<AppState>().addTerminal(h);

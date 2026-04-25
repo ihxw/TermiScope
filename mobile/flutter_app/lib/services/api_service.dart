@@ -37,6 +37,11 @@ class ApiService {
   }
 
   Future<void> logout() async {
+    try {
+      await post('/api/auth/logout', {});
+    } catch (_) {
+      // Ignore errors during logout
+    }
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('token');
     await prefs.remove('password');
@@ -56,6 +61,15 @@ class ApiService {
           'Authorization': 'Bearer $token',
       };
 
+  Future<dynamic> get(String endpoint) async {
+    if (baseUrl == null || baseUrl!.isEmpty) throw Exception('Server URL not set');
+    final response = await http.get(
+      Uri.parse('$baseUrl$endpoint'),
+      headers: _headers,
+    );
+    return await _processResponse(response);
+  }
+
   Future<dynamic> post(String endpoint, Map<String, dynamic> body) async {
     if (baseUrl == null || baseUrl!.isEmpty) throw Exception('Server URL not set');
     final response = await http.post(
@@ -66,30 +80,33 @@ class ApiService {
     return await _processResponse(response);
   }
 
-  Future<dynamic> get(String endpoint) async {
+  Future<dynamic> put(String endpoint, Map<String, dynamic> body) async {
     if (baseUrl == null || baseUrl!.isEmpty) throw Exception('Server URL not set');
-    final response = await http.get(
+    final response = await http.put(
+      Uri.parse('$baseUrl$endpoint'),
+      headers: _headers,
+      body: jsonEncode(body),
+    );
+    return await _processResponse(response);
+  }
+
+  Future<dynamic> delete(String endpoint) async {
+    if (baseUrl == null || baseUrl!.isEmpty) throw Exception('Server URL not set');
+    final response = await http.delete(
       Uri.parse('$baseUrl$endpoint'),
       headers: _headers,
     );
     return await _processResponse(response);
   }
 
-  // Custom exception to indicate unauthorized responses
-  // Thrown when server returns 401 so callers can react (e.g., force logout)
-  // Note: keep this simple to avoid adding extra dependencies
-  // Usage: catch (e) if (e is UnauthorizedException)
   dynamic _unauthorizedError(http.Response response) => UnauthorizedException('${response.statusCode} - ${response.body}');
 
   Future<dynamic> _processResponse(http.Response response) async {
     if (response.statusCode == 401) {
-      // Clear saved token to force re-login
       try {
         final prefs = await SharedPreferences.getInstance();
         await prefs.remove('token');
-      } catch (_) {
-        // Ignore prefs errors but continue to clear in-memory token
-      }
+      } catch (_) {}
       token = '';
       throw _unauthorizedError(response);
     }
@@ -101,10 +118,11 @@ class ApiService {
       }
       return jsonResponse;
     } else {
-      throw Exception('Failed to load data: ${response.statusCode} - ${response.body}');
+      final body = jsonDecode(response.body);
+      final message = body['message'] ?? body['error'] ?? 'Failed: ${response.statusCode}';
+      throw Exception(message);
     }
   }
-
 }
 
 class UnauthorizedException implements Exception {

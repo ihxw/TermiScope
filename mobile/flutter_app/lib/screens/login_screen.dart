@@ -13,8 +13,10 @@ class _LoginScreenState extends State<LoginScreen> {
   final _urlController = TextEditingController();
   final _userController = TextEditingController(text: 'admin');
   final _passController = TextEditingController();
+  final _twoFactorController = TextEditingController();
   bool _isLoading = false;
   bool _rememberMe = true;
+  bool _show2FA = false;
 
   @override
   void initState() {
@@ -23,11 +25,9 @@ class _LoginScreenState extends State<LoginScreen> {
     if (appState.apiService.baseUrl?.isNotEmpty == true) {
       _urlController.text = appState.apiService.baseUrl!;
     }
-    // Load saved username if available
     final savedUsername = appState.apiService.savedUsername;
     if (savedUsername?.isNotEmpty == true) {
       _userController.text = savedUsername!;
-      // Auto-fill password if saved (indicate with placeholder)
       if (appState.apiService.decryptedPassword != null) {
         _passController.text = appState.apiService.decryptedPassword!;
       }
@@ -41,14 +41,36 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (url.isEmpty || user.isEmpty || pass.isEmpty) return;
 
+    setState(() {
+      _isLoading = true;
+      _show2FA = false;
+    });
+    final result = await context.read<AppState>().login(url, user, pass, _rememberMe);
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    if (result['requires_2fa'] == true) {
+      setState(() => _show2FA = true);
+      _twoFactorController.clear();
+    } else if (!result['success']) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result['error'] ?? '登录失败，请检查 URL 和凭据。')),
+      );
+    }
+  }
+
+  void _verify2FA() async {
+    final code = _twoFactorController.text.trim();
+    if (code.isEmpty) return;
+
     setState(() => _isLoading = true);
-    final success = await context.read<AppState>().login(url, user, pass, _rememberMe);
+    final success = await context.read<AppState>().verify2faLogin(code);
     if (!mounted) return;
     setState(() => _isLoading = false);
 
     if (!success) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('登录失败，请检查 URL 和凭据。')),
+        const SnackBar(content: Text('2FA 验证码错误，请重试。')),
       );
     }
   }
@@ -77,6 +99,31 @@ class _LoginScreenState extends State<LoginScreen> {
                 _buildTextField('用户名', _userController, Icons.person),
                 const SizedBox(height: 16),
                 _buildTextField('密码', _passController, Icons.lock, obscureText: true),
+                if (_show2FA) ...[
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF64D2FF).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: const Color(0xFF64D2FF).withOpacity(0.3)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(Icons.shield, color: Color(0xFF64D2FF), size: 18),
+                            SizedBox(width: 8),
+                            Text('需要两步验证', style: TextStyle(color: Color(0xFF64D2FF), fontWeight: FontWeight.bold)),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        _buildTextField('验证码', _twoFactorController, Icons.pin),
+                      ],
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 32),
                 Row(
                   children: [
@@ -96,10 +143,10 @@ class _LoginScreenState extends State<LoginScreen> {
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
-                  onPressed: _isLoading ? null : _login,
-                  child: _isLoading 
+                  onPressed: _isLoading ? null : (_show2FA ? _verify2FA : _login),
+                  child: _isLoading
                     ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2))
-                    : const Text('连 接', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                    : Text(_show2FA ? '验 证' : '连 接', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
               ],
             ),

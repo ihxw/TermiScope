@@ -34,7 +34,7 @@ class EncryptionUtil {
   static String decrypt(String encryptedText) {
     try {
       final encrypter = Encrypter(AES(_key));
-      final decrypted = decrypter.decrypt(Encrypted.fromBase64(encryptedText), iv: _iv);
+      final decrypted = encrypter.decrypt(Encrypted.fromBase64(encryptedText), iv: _iv);
       return decrypted;
     } catch (e) {
       // If decryption fails, return the input as-is (might be unencrypted)

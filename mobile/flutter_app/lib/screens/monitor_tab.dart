@@ -11,9 +11,9 @@ class MonitorTab extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<AppState>(
       builder: (context, state, child) {
-        final monitorHosts = state.hosts.where((h) => h['monitor_enabled'] == true).toList();
+        final monitorHosts = state.hosts.where((h) => h.monitorEnabled).toList();
         final onlineHosts = monitorHosts.where((h) {
-          final hostId = h['id'].toString();
+          final hostId = h.id.toString();
           return state.monitorData.containsKey(hostId) && state.monitorData[hostId].isNotEmpty;
         }).length;
         
@@ -54,8 +54,8 @@ class MonitorTab extends StatelessWidget {
                     itemCount: monitorHosts.length,
                     itemBuilder: (context, index) {
                       final host = monitorHosts[index];
-                      final hostId = host['id'].toString();
-                      final hostName = host['name'] ?? 'Unknown';
+                      final hostId = host.id.toString();
+                      final hostName = host.name;
                       
                       final monitorInfo = state.monitorData[hostId] ?? {};
                       final isOnline = monitorInfo.isNotEmpty;
@@ -86,10 +86,10 @@ class MonitorTab extends StatelessWidget {
                       final double rxTotal = (monitorInfo['net_monthly_rx'] ?? 0).toDouble();
                       final double txTotal = (monitorInfo['net_monthly_tx'] ?? 0).toDouble();
 
-                      final double trafficLimit = (host['net_traffic_limit'] ?? 0).toDouble();
-                      final int resetDay = host['net_reset_day'] ?? 0;
-                      final String counterMode = host['net_traffic_counter_mode'] ?? 'both';
-                      final double trafficUsedAdjustment = (host['net_traffic_used_adjustment'] ?? 0).toDouble();
+                      final double trafficLimit = (host.netTrafficLimit ?? 0).toDouble();
+                      final int resetDay = host.netResetDay;
+                      final String counterMode = host.netTrafficCounterMode;
+                      final double trafficUsedAdjustment = host.netTrafficUsedAdjustment;
                       
                       double measuredTraffic = 0;
                       if (counterMode == 'rx') {
@@ -100,10 +100,10 @@ class MonitorTab extends StatelessWidget {
                       final double totalTrafficUsed = measuredTraffic + trafficUsedAdjustment;
                       final double trafficPct = trafficLimit > 0 ? (totalTrafficUsed / trafficLimit * 100).clamp(0, 100).toDouble() : 0.0;
 
-                      final String? expirationDate = host['expiration_date'];
-                      final double billingAmount = (host['billing_amount'] ?? 0).toDouble();
-                      final String? billingPeriod = host['billing_period'];
-                      final String currency = host['currency'] ?? 'CNY';
+                      final String? expirationDate = host.expirationDate;
+                      final double billingAmount = host.billingAmount;
+                      final String? billingPeriod = host.billingPeriod;
+                      final String currency = host.currency;
 
                       return Card(
                         margin: const EdgeInsets.only(bottom: 8),

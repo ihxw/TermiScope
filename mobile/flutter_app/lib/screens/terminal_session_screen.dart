@@ -193,6 +193,59 @@ class _TerminalSessionViewState extends State<TerminalSessionView> {
     );
   }
 
+  void _showCommandTemplates() {
+    final appState = context.read<AppState>();
+    if (appState.commandTemplates.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('暂无命令模板，请在设置中添加')),
+      );
+      return;
+    }
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(12),
+              child: Text('命令模板', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            ),
+            const Divider(),
+            Flexible(
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: appState.commandTemplates.length,
+                separatorBuilder: (_, __) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final t = appState.commandTemplates[index];
+                  return ListTile(
+                    leading: const Icon(Icons.code, size: 18),
+                    title: Text(t.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Text(t.command, style: const TextStyle(fontFamily: 'monospace', fontSize: 11)),
+                    onTap: () {
+                      _terminalService?.write(t.command);
+                      Navigator.pop(ctx);
+                    },
+                    trailing: IconButton(
+                      icon: const Icon(Icons.copy, size: 18),
+                      onPressed: () {
+                        Clipboard.setData(ClipboardData(text: t.command));
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('已复制'), duration: Duration(seconds: 1)));
+                      },
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildVirtualKeyboard() {
     return Container(
       color: const Color(0xFF2D2D2D),
@@ -213,6 +266,25 @@ class _TerminalSessionViewState extends State<TerminalSessionView> {
           _buildKey('|', '|'),
           _buildKey('/', '/'),
           _buildKey('-', '-'),
+          Material(
+            color: const Color(0xFF404040),
+            borderRadius: BorderRadius.circular(6),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(6),
+              onTap: _showCommandTemplates,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                alignment: Alignment.center,
+                child: Row(
+                  children: const [
+                    Icon(Icons.code, size: 14),
+                    SizedBox(width: 4),
+                    Text('模板', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );

@@ -16,6 +16,11 @@ for arg in "$@"; do
     esac
 done
 
+# Auto-detect non-interactive mode (piped stdin, cron, etc.)
+if [ ! -t 0 ]; then
+    NONINTERACTIVE=true
+fi
+
 # Color codes
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
