@@ -4,6 +4,17 @@ set -e
 # Default settings
 DEFAULT_INSTALL_DIR="/opt/termiscope"
 SERVICE_NAME="termiscope"
+NONINTERACTIVE=false
+
+# Parse arguments
+for arg in "$@"; do
+    case $arg in
+        --non-interactive|-y)
+            NONINTERACTIVE=true
+            shift
+            ;;
+    esac
+done
 
 # Color codes
 GREEN='\033[0;32m'
@@ -31,9 +42,12 @@ if [ -d "$DEFAULT_INSTALL_DIR" ]; then
     INSTALL_DIR="$DEFAULT_INSTALL_DIR"
     IS_UPDATE=true
 else
-    # Prompt with default
-    read -p "Install location [$DEFAULT_INSTALL_DIR]: " USER_DIR
-    INSTALL_DIR=${USER_DIR:-$DEFAULT_INSTALL_DIR}
+    if [ "$NONINTERACTIVE" = true ]; then
+        INSTALL_DIR="$DEFAULT_INSTALL_DIR"
+    else
+        read -p "Install location [$DEFAULT_INSTALL_DIR]: " USER_DIR
+        INSTALL_DIR=${USER_DIR:-$DEFAULT_INSTALL_DIR}
+    fi
     IS_UPDATE=false
 fi
 
@@ -236,8 +250,12 @@ else
     echo "Installing default configuration..."
     
     # Prompt for Port
-    read -p "Enter server port [3000]: " USER_PORT
-    PORT=${USER_PORT:-3000}
+    if [ "$NONINTERACTIVE" = true ]; then
+        PORT=3000
+    else
+        read -p "Enter server port [3000]: " USER_PORT
+        PORT=${USER_PORT:-3000}
+    fi
     
     echo -e "Set port to ${GREEN}$PORT${NC}"
     
@@ -250,18 +268,22 @@ else
     echo -e "${YELLOW}JWT Secret Configuration${NC}"
     echo "A secure random JWT secret has been generated."
     echo -e "Default value: ${GREEN}$DEFAULT_JWT_SECRET${NC}"
-    read -p "Press Enter to use default, or type your own (min 32 chars): " USER_JWT_SECRET
-    
-    if [ -z "$USER_JWT_SECRET" ]; then
+    if [ "$NONINTERACTIVE" = true ]; then
         JWT_SECRET="$DEFAULT_JWT_SECRET"
         echo -e "${GREEN}✓ Using generated JWT secret${NC}"
     else
-        if [ ${#USER_JWT_SECRET} -lt 32 ]; then
-            echo -e "${RED}✗ Error: JWT secret must be at least 32 characters!${NC}"
-            exit 1
+        read -p "Press Enter to use default, or type your own (min 32 chars): " USER_JWT_SECRET
+        if [ -z "$USER_JWT_SECRET" ]; then
+            JWT_SECRET="$DEFAULT_JWT_SECRET"
+            echo -e "${GREEN}✓ Using generated JWT secret${NC}"
+        else
+            if [ ${#USER_JWT_SECRET} -lt 32 ]; then
+                echo -e "${RED}✗ Error: JWT secret must be at least 32 characters!${NC}"
+                exit 1
+            fi
+            JWT_SECRET="$USER_JWT_SECRET"
+            echo -e "${GREEN}✓ Using custom JWT secret${NC}"
         fi
-        JWT_SECRET="$USER_JWT_SECRET"
-        echo -e "${GREEN}✓ Using custom JWT secret${NC}"
     fi
     
     echo ""
@@ -271,18 +293,22 @@ else
     echo -e "${YELLOW}Encryption Key Configuration${NC}"
     echo "A secure random encryption key has been generated."
     echo -e "Default value: ${GREEN}$DEFAULT_ENCRYPTION_KEY${NC}"
-    read -p "Press Enter to use default, or type your own (exactly 32 chars): " USER_ENCRYPTION_KEY
-    
-    if [ -z "$USER_ENCRYPTION_KEY" ]; then
+    if [ "$NONINTERACTIVE" = true ]; then
         ENCRYPTION_KEY="$DEFAULT_ENCRYPTION_KEY"
         echo -e "${GREEN}✓ Using generated encryption key${NC}"
     else
-        if [ ${#USER_ENCRYPTION_KEY} -ne 32 ]; then
-            echo -e "${RED}✗ Error: Encryption key must be exactly 32 characters!${NC}"
-            exit 1
+        read -p "Press Enter to use default, or type your own (exactly 32 chars): " USER_ENCRYPTION_KEY
+        if [ -z "$USER_ENCRYPTION_KEY" ]; then
+            ENCRYPTION_KEY="$DEFAULT_ENCRYPTION_KEY"
+            echo -e "${GREEN}✓ Using generated encryption key${NC}"
+        else
+            if [ ${#USER_ENCRYPTION_KEY} -ne 32 ]; then
+                echo -e "${RED}✗ Error: Encryption key must be exactly 32 characters!${NC}"
+                exit 1
+            fi
+            ENCRYPTION_KEY="$USER_ENCRYPTION_KEY"
+            echo -e "${GREEN}✓ Using custom encryption key${NC}"
         fi
-        ENCRYPTION_KEY="$USER_ENCRYPTION_KEY"
-        echo -e "${GREEN}✓ Using custom encryption key${NC}"
     fi
     
     echo ""
