@@ -96,11 +96,14 @@
   <div *ngIf="sessions.length > 0" class="terminal-wrapper">
     <!-- Terminal Containers -->
     <div class="terminals-container">
-      <div 
-        *ngFor="let session of sessions" 
-        [id]="'term-wrap-' + session.id" 
+      <div
+        *ngFor="let session of sessions"
+        [id]="'term-wrap-' + session.id"
         class="terminal-container-slot"
-        [class.active-terminal]="session.id === activeSessionId">
+        [class.active-terminal]="session.id === activeSessionId"
+        (touchstart)="onTerminalTouchStart($event, session.id)"
+        (touchend)="onTerminalTouchEnd($event, session.id)"
+        (touchmove)="onTerminalTouchMove($event, session.id)">
       </div>
     </div>
     

@@ -544,6 +544,104 @@ export class TerminalPage implements OnInit, OnDestroy {
     }
   }
 
+  selectAll() {
+    const session = this.activeSession;
+    if (!session?.terminal) return;
+    const rows = session.terminal.rows;
+    const cols = session.terminal.cols;
+    // Select the visible portion of the terminal buffer
+    session.terminal.select(0, 0, cols, rows);
+    session.terminal.focus();
+  }
+
+  // Long-press gesture detection for text selection on mobile
+  private longPressTimer: any = null;
+  private longPressTargetId: string | null = null;
+
+  onTerminalTouchStart(event: TouchEvent, sessionId: string) {
+    // Only handle single-finger long-press, let multi-touch work normally
+    if (event.touches.length !== 1) return;
+    this.longPressTargetId = sessionId;
+    this.longPressTimer = setTimeout(async () => {
+      this.longPressTargetId = null;
+      await this.showLongPressMenu();
+    }, 600);
+  }
+
+  onTerminalTouchEnd(event: TouchEvent, sessionId: string) {
+    if (this.longPressTargetId === sessionId) {
+      clearTimeout(this.longPressTimer);
+      this.longPressTimer = null;
+      this.longPressTargetId = null;
+    }
+  }
+
+  onTerminalTouchMove(event: TouchEvent, sessionId: string) {
+    // If finger moves significantly, cancel long-press (user is scrolling)
+    if (this.longPressTargetId === sessionId) {
+      clearTimeout(this.longPressTimer);
+      this.longPressTimer = null;
+      this.longPressTargetId = null;
+    }
+  }
+
+  async showLongPressMenu() {
+    const session = this.activeSession;
+    if (!session?.terminal) return;
+
+    const hasSelection = session.terminal.getSelection().length > 0;
+
+    const buttons: any[] = [];
+
+    if (hasSelection) {
+      buttons.push({
+        text: await this.translate.get('common.copy').toPromise(),
+        icon: 'copy',
+        handler: async () => {
+          await this.copySelection();
+        }
+      });
+      buttons.push({
+        text: 'Select All',
+        icon: 'resize',
+        handler: () => {
+          this.selectAll();
+          // After selecting all, copy it
+          setTimeout(() => this.copySelection(), 100);
+        }
+      });
+    } else {
+      buttons.push({
+        text: 'Select All',
+        icon: 'resize',
+        handler: () => {
+          this.selectAll();
+          setTimeout(() => this.copySelection(), 100);
+        }
+      });
+    }
+
+    buttons.push({
+      text: await this.translate.get('common.paste').toPromise(),
+      icon: 'clipboard',
+      handler: async () => {
+        await this.pasteFromClipboard();
+      }
+    });
+
+    buttons.push({
+      text: await this.translate.get('common.cancel').toPromise(),
+      role: 'cancel',
+      icon: 'close'
+    });
+
+    const actionSheet = await this.alertController.create({
+      header: 'Terminal Actions',
+      buttons: buttons
+    });
+    await actionSheet.present();
+  }
+
   updateTerminalSize(cols: number, rows: number) {
     this.terminalSize = `${cols}x${rows}`;
   }

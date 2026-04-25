@@ -40,11 +40,15 @@ fi
 echo -e "Installing to: ${GREEN}$INSTALL_DIR${NC}"
 
 # 3. Stop Service if running
-if systemctl is-active --quiet $SERVICE_NAME 2>/dev/null; then
-    echo -e "${YELLOW}Stopping existing service...${NC}"
-    systemctl stop $SERVICE_NAME 2>/dev/null || true
-    if [ "$IS_ALPINE" = true ]; then
+if [ "$IS_ALPINE" = true ]; then
+    if rc-service $SERVICE_NAME status >/dev/null 2>&1; then
+        echo -e "${YELLOW}Stopping existing service...${NC}"
         rc-service $SERVICE_NAME stop 2>/dev/null || true
+    fi
+else
+    if systemctl is-active --quiet $SERVICE_NAME 2>/dev/null; then
+        echo -e "${YELLOW}Stopping existing service...${NC}"
+        systemctl stop $SERVICE_NAME 2>/dev/null || true
     fi
 fi
 
@@ -58,7 +62,12 @@ mkdir -p "$INSTALL_DIR/agents"
 mkdir -p "$INSTALL_DIR/web" 
 
 # 5. Copy Files / Download Logic
-SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
+# Locate source directory (portable: works on GNU and BusyBox readlink)
+if readlink -f "$0" >/dev/null 2>&1; then
+    SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
+else
+    SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+fi
 
 if [ "$(basename "$SCRIPT_DIR")" = "scripts" ]; then
     PACKAGE_DIR=$(dirname "$SCRIPT_DIR")
@@ -129,29 +138,53 @@ else
     echo "Extracting..."
     tar -xzf "$TMP_DIR/$FILE_NAME" -C "$TMP_DIR"
     
-    # Find the extracted directory (it should provide TermiScope binary)
-    # We look for a directory that contains the 'TermiScope' binary or 'install.sh'
-    # Start by guessing the pattern TermiScope*
+    # Find the extracted directory
     EXTRACTED_DIR=$(find "$TMP_DIR" -maxdepth 1 -type d -name "TermiScope*" | head -n 1)
 
     if [ -z "$EXTRACTED_DIR" ]; then
-        # If no subdirectory found, assume flattened
         EXTRACTED_DIR="$TMP_DIR"
     fi
 
-    # Run the inner install script
-    echo "Running installer from downloaded package..."
-    if [ -f "$EXTRACTED_DIR/install.sh" ]; then
-        bash "$EXTRACTED_DIR/install.sh"
-        rm -rf "$TMP_DIR"
-        exit 0
+    # Copy files directly from the extracted package instead of re-running install.sh
+    # (to avoid infinite recursion since the inner script is the same as this one)
+    echo "Installing files from downloaded package..."
+
+    # Copy binary
+    if [ -f "$EXTRACTED_DIR/TermiScope" ]; then
+        cp -f "$EXTRACTED_DIR/TermiScope" "$INSTALL_DIR/"
+        chmod +x "$INSTALL_DIR/TermiScope"
     else
-        echo "Error: install.sh not found in extracted package."
-        ls -R "$TMP_DIR"
+        echo "Error: TermiScope binary not found in downloaded package."
+        rm -rf "$TMP_DIR"
         exit 1
     fi
+
+    # Copy web assets
+    if [ -d "$EXTRACTED_DIR/web/dist" ]; then
+        cp -r "$EXTRACTED_DIR/web/dist" "$INSTALL_DIR/web/"
+    else
+        echo "Error: web/dist not found in downloaded package."
+        rm -rf "$TMP_DIR"
+        exit 1
+    fi
+
+    # Copy agents
+    if [ -d "$EXTRACTED_DIR/agents" ]; then
+        cp -r "$EXTRACTED_DIR/agents/"* "$INSTALL_DIR/agents/" 2>/dev/null || true
+    fi
+
+    # Copy uninstall script
+    if [ -f "$EXTRACTED_DIR/scripts/uninstall.sh" ]; then
+        cp -f "$EXTRACTED_DIR/scripts/uninstall.sh" "$INSTALL_DIR/"
+        chmod +x "$INSTALL_DIR/uninstall.sh"
+    fi
+
+    rm -rf "$TMP_DIR"
+    # Skip the offline copy section below — files are already installed
+    SKIP_LOCAL_COPY=true
 fi
 
+if [ "$SKIP_LOCAL_COPY" != "true" ]; then
 echo "Copying binary..."
 if [ -f "$PACKAGE_DIR/TermiScope" ]; then
     cp -f "$PACKAGE_DIR/TermiScope" "$INSTALL_DIR/"
@@ -186,6 +219,7 @@ if [ -f "$PACKAGE_DIR/scripts/uninstall.sh" ]; then
 elif [ -f "$PACKAGE_DIR/uninstall.sh" ]; then
     cp -f "$PACKAGE_DIR/uninstall.sh" "$INSTALL_DIR/"
     chmod +x "$INSTALL_DIR/uninstall.sh"
+fi
 fi
 
 # 6. Config Handling
@@ -333,16 +367,6 @@ echo -e "${GREEN}=== Installation Complete ===${NC}"
 echo -e "Dashboard: http://<your-ip>:${PORT:-8080}"
 echo -e "Config: $INSTALL_DIR/configs/config.yaml"
 
-# 8. Cleanup Prompt
-read -p "Clean up installation temporary files? [y/N] " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    echo "Removing $PACKAGE_DIR ..."
-    # Be careful not to delete system root if running from strange place
-    if [[ "$PACKAGE_DIR" != "/" && "$PACKAGE_DIR" != "/root" && "$PACKAGE_DIR" != "/home" ]]; then
-       rm -rf "$PACKAGE_DIR"
-       echo "Cleanup complete."
-    else
-       echo "Skipping cleanup (unsafe source directory)."
-    fi
-fi
+# 8. Done — no cleanup needed. Online installs already removed temp files,
+# and offline/source installs should never delete their source directory.
+echo -e "${GREEN}Installation finished successfully.${NC}"

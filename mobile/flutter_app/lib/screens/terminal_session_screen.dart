@@ -1,6 +1,7 @@
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:xterm/xterm.dart';
 import '../providers/app_state.dart';
@@ -23,6 +24,95 @@ class _TerminalSessionViewState extends State<TerminalSessionView> {
   late final TerminalController terminalController;
   final FocusNode _focusNode = FocusNode();
   TerminalService? _terminalService;
+
+  void _showLongPressMenu() {
+    final hasSelection = terminalController.selection != null;
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (!hasSelection)
+              ListTile(
+                leading: const Icon(Icons.select_all),
+                title: const Text('Select All & Copy'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _selectAllAndCopy();
+                },
+              ),
+            if (hasSelection)
+              ListTile(
+                leading: const Icon(Icons.copy),
+                title: const Text('Copy'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _copySelection();
+                },
+              ),
+            ListTile(
+              leading: const Icon(Icons.content_paste),
+              title: const Text('Paste'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _pasteFromClipboard();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.close),
+              title: const Text('Cancel'),
+              onTap: () => Navigator.pop(ctx),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _selectAllAndCopy() {
+    final lines = terminal.buffer.lines;
+    final height = terminal.viewHeight;
+    if (lines.length == 0 || height == 0) return;
+
+    // Select from first visible line to last visible line
+    final firstLine = lines[0];
+    final lastIdx = height - 1 < lines.length ? height - 1 : lines.length - 1;
+    final lastLine = lines[lastIdx];
+
+    final base = CellAnchor(0, owner: firstLine);
+    final extent = CellAnchor(0, owner: lastLine);
+    terminalController.setSelection(base, extent);
+
+    // Auto-copy after selection is set
+    Future.delayed(const Duration(milliseconds: 100), () {
+      _copySelection();
+    });
+  }
+
+  void _copySelection() {
+    final selection = terminalController.selection;
+    if (selection != null) {
+      final text = terminal.buffer.getText(selection);
+      if (text.isNotEmpty) {
+        Clipboard.setData(ClipboardData(text: text));
+        terminalController.clearSelection();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Copied to clipboard'), duration: Duration(seconds: 1)),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _pasteFromClipboard() async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    if (data?.text != null && data!.text!.isNotEmpty) {
+      _terminalService?.write(data.text!);
+      _focusNode.requestFocus();
+    }
+  }
 
   @override
   void initState() {
@@ -50,7 +140,7 @@ class _TerminalSessionViewState extends State<TerminalSessionView> {
   void _connect() async {
     final appState = context.read<AppState>();
     _terminalService = TerminalService(appState, widget.hostId.toString());
-    
+
     _terminalService?.onData = (text) {
       terminal.write(text);
     };
@@ -79,6 +169,7 @@ class _TerminalSessionViewState extends State<TerminalSessionView> {
                 onTap: () {
                   _focusNode.requestFocus();
                 },
+                onLongPress: _showLongPressMenu,
                 child: ColoredBox(
                   color: Colors.black, // true black for terminal
                   child: TerminalView(
