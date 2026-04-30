@@ -133,7 +133,7 @@ const fetchChartData = async () => {
       // Flatten all points
       let allPoints = []
       rawResults.forEach((data, sIdx) => {
-          if(!data) return
+          if(!data || !Array.isArray(data)) return
           data.forEach(item => {
               allPoints.push({
                   t: new Date(item.created_at).getTime(),

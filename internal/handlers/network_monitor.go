@@ -230,7 +230,7 @@ func (h *NetworkMonitorHandler) GetTaskStats(c *gin.Context) {
 
 	since := time.Now().Add(-duration)
 
-	var results []models.NetworkMonitorResult
+	var results []models.NetworkMonitorResult = make([]models.NetworkMonitorResult, 0)
 	if err := h.DB.Where("task_id = ? AND created_at > ?", taskIDNum, since).Order("created_at asc").Find(&results).Error; err != nil {
 		utils.LogError("GetTaskStats: database query failed | Task ID: %d | Since: %s | Error: %v | IP: %s",
 			taskIDNum, since.Format(time.RFC3339), err, c.ClientIP())

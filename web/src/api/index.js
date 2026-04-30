@@ -40,7 +40,7 @@ const processQueue = (error, token = null) => {
 api.interceptors.response.use(
     (response) => {
         // Return data directly if success
-        if (response.data.success) {
+        if (response.data && response.data.success) {
             return response.data.data
         }
         return response.data
