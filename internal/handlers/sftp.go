@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime/multipart"
 	"net/http"
 	"path"
 	"path/filepath"
@@ -289,22 +290,73 @@ func (h *SftpHandler) Download(c *gin.Context) {
 }
 
 // Upload handles POST /api/sftp/upload/:hostId
+// Streams multipart data directly to the SFTP target without server-side temp files.
 func (h *SftpHandler) Upload(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	hostID := c.Param("hostId")
-	remotePath := c.PostForm("path")
+
+	contentType := c.GetHeader("Content-Type")
+	if contentType == "" || !strings.HasPrefix(contentType, "multipart/form-data") {
+		utils.ErrorResponse(c, http.StatusBadRequest, "Content-Type must be multipart/form-data")
+		return
+	}
+
+	// Parse boundary from Content-Type without buffering the whole body
+	boundary := ""
+	for _, param := range strings.Split(contentType, ";") {
+		param = strings.TrimSpace(param)
+		if strings.HasPrefix(param, "boundary=") {
+			boundary = strings.TrimPrefix(param, "boundary=")
+			boundary = strings.Trim(boundary, `"`)
+			break
+		}
+	}
+	if boundary == "" {
+		utils.ErrorResponse(c, http.StatusBadRequest, "missing multipart boundary")
+		return
+	}
+
+	// Use multipart.Reader for streaming – avoids writing to temp files
+	mr := multipart.NewReader(c.Request.Body, boundary)
+
+	var remotePath string
+	var filename string
+	var filePart *multipart.Part
+
+	// Read parts sequentially; expect "path" field and "file" field
+	for {
+		part, err := mr.NextPart()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			utils.ErrorResponse(c, http.StatusBadRequest, "failed to parse multipart: "+err.Error())
+			return
+		}
+
+		fieldName := part.FormName()
+		if fieldName == "path" {
+			data, _ := io.ReadAll(part)
+			remotePath = string(data)
+			part.Close()
+		} else if fieldName == "file" {
+			filename = part.FileName()
+			filePart = part
+			break // Stop reading more parts; we'll stream the file body below
+		} else {
+			part.Close()
+		}
+	}
 
 	if remotePath == "" {
 		utils.ErrorResponse(c, http.StatusBadRequest, "path is required")
 		return
 	}
-
-	file, header, err := c.Request.FormFile("file")
-	if err != nil {
-		utils.ErrorResponse(c, http.StatusBadRequest, "failed to get file: "+err.Error())
+	if filePart == nil || filename == "" {
+		utils.ErrorResponse(c, http.StatusBadRequest, "file is required")
 		return
 	}
-	defer file.Close()
+	defer filePart.Close()
 
 	sftpClient, sshClient, err := h.getSftpClient(userID, hostID)
 	if err != nil {
@@ -315,7 +367,7 @@ func (h *SftpHandler) Upload(c *gin.Context) {
 	defer sshClient.Close()
 
 	// Sanitize filename to prevent path traversal
-	cleanFilename := filepath.Base(header.Filename)
+	cleanFilename := filepath.Base(filename)
 	fullPath := filepath.Join(remotePath, cleanFilename)
 	fullPath = filepath.ToSlash(fullPath) // Ensure forward slashes for Linux remotes
 
@@ -326,7 +378,9 @@ func (h *SftpHandler) Upload(c *gin.Context) {
 	}
 	defer dst.Close()
 
-	if _, err := io.Copy(dst, file); err != nil {
+	// Stream directly from HTTP body → SFTP target with a 256KB buffer
+	buf := make([]byte, 256*1024)
+	if _, err := io.CopyBuffer(dst, filePart, buf); err != nil {
 		h.logAudit(userID, hostID, "upload", fullPath, "", c.ClientIP(), err)
 		utils.ErrorResponse(c, http.StatusInternalServerError, "failed to copy file: "+err.Error())
 		return

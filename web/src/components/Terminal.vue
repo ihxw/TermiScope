@@ -30,7 +30,7 @@
       
       <!-- 右侧：SFTP浏览器（仅在分屏时显示） -->
       <div v-show="showSftp" class="split-right" :style="{ width: `${(1 - splitRatio) * 100}%` }">
-        <SftpBrowser :host-id="hostId" :visible="showSftp" />
+        <SftpBrowser :host-id="hostId" :host-label="hostLabel" :visible="showSftp" />
       </div>
     </div>
     
@@ -253,6 +253,10 @@ const props = defineProps({
   record: {
     type: Boolean,
     default: false
+  },
+  hostLabel: {
+    type: String,
+    default: ''
   }
 })
 

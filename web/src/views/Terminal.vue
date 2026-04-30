@@ -75,6 +75,7 @@
             <TerminalComponent
               :terminal-id="terminal.id"
               :host-id="terminal.hostId"
+              :host-label="terminal.name"
               :active="activeTerminalKey === terminal.id"
               :record="terminal.record"
               @close="() => closeTerminal(terminal.id)"

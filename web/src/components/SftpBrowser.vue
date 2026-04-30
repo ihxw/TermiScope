@@ -302,6 +302,10 @@ const props = defineProps({
   transferTargetLabel: {
     type: String,
     default: ''
+  },
+  hostLabel: {
+    type: String,
+    default: ''
   }
 })
 
@@ -621,10 +625,15 @@ const handleUpload = async ({ file, onSuccess, onError }) => {
   const controller = new AbortController()
   uploadControllers.set(key, controller)
 
+  // Build upload notification title with server label
+  const uploadTitle = props.hostLabel 
+    ? `${t('sftp.uploading')} → ${props.hostLabel}` 
+    : t('sftp.uploading')
+
   try {
     notification.open({
         key,
-        message: t('sftp.uploading'),
+        message: uploadTitle,
         description: h('div', [
             h(Progress, { percent: 0, status: 'active', size: 'small' }),
             h('div', { style: 'display: flex; justify-content: space-between; align-items: center; margin-top: 8px' }, [
@@ -645,32 +654,11 @@ const handleUpload = async ({ file, onSuccess, onError }) => {
             ? (speed / (1024 * 1024)).toFixed(2) + ' MB/s' 
             : (speed / 1024).toFixed(2) + ' KB/s'
 
-        if (percent >= 100) {
-            // 浏览器已发完数据，但后端仍在写入远程 SFTP
-            notification.open({
-                key,
-                message: t('sftp.uploading'),
-                description: h('div', [
-                    h(Progress, { percent: 100, status: 'active', size: 'small' }),
-                    h('div', { style: 'display: flex; justify-content: space-between; align-items: center; margin-top: 8px' }, [
-                        h('span', { style: 'color: #8c8c8c; font-size: 12px' }, file.name),
-                        h('div', { style: 'display: flex; align-items: center; gap: 6px' }, [
-                            h(Spin, { size: 'small' }),
-                            h('span', { style: 'color: #faad14; font-weight: 500; font-size: 12px' }, t('sftp.writingToServer'))
-                        ])
-                    ])
-                ]),
-                duration: 0,
-                placement: 'bottomRight'
-            })
-            return
-        }
-
         notification.open({
             key,
-            message: t('sftp.uploading'),
+            message: uploadTitle,
             description: h('div', [
-                h(Progress, { percent: percent, status: 'active', size: 'small' }),
+                h(Progress, { percent: Math.min(percent, 99), status: 'active', size: 'small' }),
                 h('div', { style: 'display: flex; justify-content: space-between; align-items: center; margin-top: 8px' }, [
                     h('span', { style: 'color: #8c8c8c; font-size: 12px' }, file.name),
                     h('div', { style: 'display: flex; align-items: center; gap: 8px' }, [
@@ -685,10 +673,13 @@ const handleUpload = async ({ file, onSuccess, onError }) => {
     }, controller.signal)
     
     uploadControllers.delete(key)
+    const completeDesc = props.hostLabel
+        ? `${file.name} → ${props.hostLabel}`
+        : t('sftp.uploadSuccess', { name: file.name })
     notification.success({
         key,
         message: t('sftp.uploadComplete'),
-        description: t('sftp.uploadSuccess', { name: file.name }),
+        description: completeDesc,
         duration: 3,
         placement: 'bottomRight'
     })
