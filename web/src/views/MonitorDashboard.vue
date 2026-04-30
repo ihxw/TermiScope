@@ -44,7 +44,7 @@
     </div>
 
     <!-- Card View -->
-    <a-row :gutter="[5, 5]" v-if="viewMode === 'card'">
+    <a-row :gutter="[5, 5]" v-if="viewMode === 'card'" class="monitor-card-row">
       <a-col :xs="24" :sm="12" :md="8" class="col-5" v-for="host in sortedHosts" :key="host.host_id">
         <a-card hoverable class="monitor-card" :class="{ offline: isOffline(host) }" :style="{ borderLeft: host.flag ? `5px solid ${getFlagColor(host.flag)}` : '' }">
           <template #title>
@@ -496,7 +496,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, computed, h, watch, reactive } from 'vue'
+import { ref, onMounted, onUnmounted, computed, h, watch, reactive, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSSHStore } from '../stores/ssh'
 import { ArrowDownOutlined, ArrowUpOutlined, AppleOutlined, WindowsOutlined, DesktopOutlined, LineChartOutlined, HistoryOutlined, SettingOutlined, CodeOutlined, AppstoreOutlined, UnorderedListOutlined, InfoCircleOutlined, FileTextOutlined, SyncOutlined } from '@ant-design/icons-vue'
@@ -506,6 +506,7 @@ import { getMonitorLogs, getTrafficResetLogs, updateAgent } from '../api/ssh'
 import { message } from 'ant-design-vue'
 import api from '../api/index'
 import dayjs from 'dayjs'
+import Sortable from 'sortablejs'
 import 'dayjs/locale/zh-cn'
 
 const { t, locale: i18nLocale } = useI18n()
@@ -537,6 +538,9 @@ const listColumns = computed(() => [
 
 watch(viewMode, (val) => {
     localStorage.setItem('monitor_view_mode', val)
+    if (val === 'card') {
+        nextTick(() => initSortable())
+    }
 })
 
 // Fetch server agent version
@@ -708,11 +712,62 @@ const syncHostsFromStore = () => {
 // Watch for store changes
 watch(() => sshStore.hosts, () => {
     syncHostsFromStore()
+    if (viewMode.value === 'card') {
+        nextTick(() => initSortable())
+    }
 }, { deep: true })
+
+const initSortable = () => {
+  const container = document.querySelector('.monitor-card-row')
+  if (container && !container._sortable) {
+    container._sortable = Sortable.create(container, {
+      draggable: '.col-5',
+      animation: 150,
+      handle: '.monitor-card',
+      onEnd: async (evt) => {
+        const { oldIndex, newIndex } = evt
+        if (oldIndex === newIndex) return
+
+        const item = hosts.value[oldIndex]
+        if (!item) return
+
+        // 1. calculate the new order of monitored IDs
+        const newMonitoredIds = hosts.value.map(h => h.host_id)
+        newMonitoredIds.splice(oldIndex, 1)
+        newMonitoredIds.splice(newIndex, 0, item.host_id)
+
+        // 2. update sshStore.hosts locally
+        const newStoreHosts = [...sshStore.hosts]
+        let monitorIdx = 0
+        for (let i = 0; i < newStoreHosts.length; i++) {
+            if (newStoreHosts[i].monitor_enabled) {
+                const id = newMonitoredIds[monitorIdx++]
+                newStoreHosts[i] = sshStore.hosts.find(h => h.id === id)
+            }
+        }
+        
+        // Apply changes to store
+        sshStore.hosts.splice(0, sshStore.hosts.length, ...newStoreHosts)
+
+        // 3. call API
+        const allIds = newStoreHosts.map(h => h.id)
+        try {
+            await sshStore.reorderHosts(allIds)
+            message.success(t('host.orderUpdated'))
+        } catch (e) {
+            message.error(t('host.failUpdateOrder'))
+        }
+      }
+    })
+  }
+}
 
 onMounted(() => {
   sshStore.fetchHosts().then(() => {
       syncHostsFromStore()
+      if (viewMode.value === 'card') {
+          nextTick(() => initSortable())
+      }
   })
   fetchServerAgentVersion()
   connect()
