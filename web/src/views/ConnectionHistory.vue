@@ -77,6 +77,7 @@
 </template>
 
 <script setup>
+defineOptions({ name: 'ConnectionHistory' })
 import { ref, onMounted, computed } from 'vue'
 import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'

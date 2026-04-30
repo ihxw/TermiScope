@@ -725,6 +725,7 @@
 </template>
 
 <script setup>
+defineOptions({ name: 'HostManagement' })
 import { ref, onMounted, computed, onUnmounted, watch, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { message, Modal } from 'ant-design-vue'

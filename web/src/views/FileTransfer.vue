@@ -109,6 +109,7 @@
 </template>
 
 <script setup>
+defineOptions({ name: 'FileTransfer' })
 import { ref, computed, onMounted, h, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { notification, Progress, Spin, Modal } from 'ant-design-vue'

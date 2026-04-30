@@ -496,6 +496,7 @@
 </template>
 
 <script setup>
+defineOptions({ name: 'MonitorDashboard' })
 import { ref, onMounted, onUnmounted, computed, h, watch, reactive, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { useSSHStore } from '../stores/ssh'

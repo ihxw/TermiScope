@@ -58,6 +58,7 @@
 </template>
 
 <script setup>
+defineOptions({ name: 'CommandManagement' })
 import { ref, reactive, onMounted, computed } from 'vue'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'

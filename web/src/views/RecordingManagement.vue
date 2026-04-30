@@ -64,6 +64,7 @@
 </template>
 
 <script setup>
+defineOptions({ name: 'RecordingManagement' })
 import { ref, shallowRef, onMounted, nextTick, computed } from 'vue'
 import { message } from 'ant-design-vue'
 import { PlayCircleOutlined, PauseOutlined } from '@ant-design/icons-vue'

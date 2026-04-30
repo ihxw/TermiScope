@@ -125,7 +125,7 @@
 
       <a-layout-content :style="{ background: themeStore.isDark ? '#141414' : '#f0f2f5' }">
         <router-view v-slot="{ Component }">
-          <keep-alive include="Terminal">
+          <keep-alive include="Terminal,MonitorDashboard,HostManagement,FileTransfer,CommandManagement,ConnectionHistory,RecordingManagement">
             <component :is="Component" />
           </keep-alive>
         </router-view>
