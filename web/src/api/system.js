@@ -21,5 +21,5 @@ export const sendTestTelegram = (data) => {
 }
 
 export const getUpdateStatus = () => {
-    return api.get('/system/update-status')
+    return api.get(`/system/update-status?_t=${Date.now()}`)
 }

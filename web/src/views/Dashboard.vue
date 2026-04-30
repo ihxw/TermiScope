@@ -338,7 +338,14 @@ const startPollingUpdateStatus = () => {
       }
 
       const res = await getUpdateStatus()
-      if (res && res.status) {
+      if (res && res.status !== undefined) {
+        if (res.status === '') {
+           // Server restarted and cleared its memory state, update is done
+           clearInterval(pollInterval)
+           serverUpdateStatus.value = 'finished'
+           setTimeout(() => window.location.reload(), 1500)
+           return
+        }
         serverUpdateStatus.value = res.status
         if (res.error) {
            serverUpdateError.value = res.error
