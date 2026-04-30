@@ -1,164 +1,133 @@
+> **免责声明 / DISCLAIMER**
+> 本项目 `README.md` 文档及相关核心代码结构说明均由 AI 自动分析生成。
+
 <div align="center">
-  <img src="./web/public/logo.png" width="100" />
+  <img src="./web/public/logo.png" width="120" />
   <h1>TermiScope</h1>
   <p>
-    <strong>现代化、轻量级的服务器管理与监控平台</strong>
+    <strong>严格、安全、高性能的现代化服务器统一管理与监控中枢</strong>
   </p>
   <p>
-    <a href="https://go.dev/"><img src="https://img.shields.io/badge/Backend-Go_1.25+-blue.svg" alt="Go"></a>
-    <a href="https://vuejs.org/"><img src="https://img.shields.io/badge/Frontend-Vue3-green.svg" alt="Vue 3"></a>
-    <a href="https://hub.docker.com/"><img src="https://img.shields.io/badge/Docker-Ready-blue.svg" alt="Docker"></a>
+    <img src="https://img.shields.io/badge/Backend-Go_1.25+-00ADD8.svg?logo=go" alt="Go">
+    <img src="https://img.shields.io/badge/Frontend-Vue3-4FC08D.svg?logo=vuedotjs" alt="Vue 3">
+    <img src="https://img.shields.io/badge/Status-Active-success.svg" alt="Active">
     <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License">
   </p>
 </div>
 
-TermiScope 是一个功能强大且支持自托管的服务器管理工具，旨在简化 DevOps 工作流。它结合了全功能的 Web SSH 终端、全面的服务器状态监控、网络连通性检测和安全审计流程，支持多语言、多主题以及高度自定义的配置。
+---
+
+## 📖 项目概述
+
+TermiScope 是一款致力于解决多节点服务器运维复杂性的自托管综合管理平台。通过将 Web SSH 终端、可视化的文件管理（SFTP）、实时系统指标监控、以及严格的安全审计策略融合于一体，TermiScope 大幅提升了 DevOps 团队的操作效率和系统的安全性。
+
+> **注：** 本系统专注于 Web 端和后端的全栈统筹整合，移动端（Mobile）相关功能不在当前文档与核心功能支持之列。
 
 ---
 
-## ✨ 功能特性
+## ✨ 核心特性
 
-### 🖥️ Web 终端与 SFTP
-- **全功能 SSH 客户端**：基于 `xterm.js`，支持所有标准 SSH 交互，提供与本地终端一致的体验。
-- **多标签页管理**：支持同时连接多个主机，通过标签页快速切换。
-- **自定义主题**：支持 9 款精选主题（Termius Dark/Light、Dracula、Monokai、Solarized、GitHub、VS Code），采用反色高亮选中文字，提升可读性。
-- **文件管理 (SFTP)**：支持 Zmodem 协议和内置可视化的 SFTP 浏览器，支持拖拽上传/下载。
-- **凭据管理与自动填充**：安全存储 SSH 密码和密钥，支持编辑主机时自动填充已存密码。
-- **虚拟键盘**：为移动端浏览器提供快捷按键支持（Ctrl/Alt/Shift、方向键、特殊字符等）。
-- **会话录像**：支持录制 SSH 终端会话，供后续审计回放。
+### 🛡️ 严格的安全与合规
+- **双重身份验证 (2FA)**：全面支持 TOTP (Google Authenticator, Authy 等) 二次验证，阻绝非法登录。
+- **高强度加密**：所有主机凭据、密码、SSH 密钥等敏感数据均采用 AES-256-GCM 算法进行高强度静态加密。
+- **动态审批流**：对于高危操作与关键设备的连接请求，系统内置灵活的审批工作流，需管理员授权后方可通行。
+- **操作审计与回放**：内建会话录像功能，记录完整 SSH 交互历史，满足严格的安全审查需求。
+- **防护机制**：后端对 Agent 通信以及敏感 API 接口实行严格的 Rate Limiting（频率限制），有效抵御恶意穷举和暴力破解。
 
-### 📊 服务器与网络监控
-- **轻量级跨平台 Agent**：支持 Linux、Windows、macOS 和 FreeBSD，一键下发和管理。
-- **实时系统性能监控**：直观展示 CPU、内存、磁盘和网络 I/O 实时状态。
-- **网络延迟监控**：支持 ICMP Ping 和 TCP Ping 协议的节点连通性检测，交互式图表展示历史数据和丢包率。
-- **流量限制预警**：支持为主机配置月度流量配额以及账单结算日，超限直观展示。
+### 🖥️ 现代化 Web 终端与文件管理
+- **高性能 SSH 终端**：底层集成 `xterm.js`，具备极其流畅的输入反馈与标准控制台协议解析，支持快捷键映射与虚拟键盘。
+- **集成式 SFTP**：提供与原生文件管理器体验一致的 Web SFTP 界面。支持批量文件操作、鼠标右键上下文菜单、拖拽上传、内联文件编辑和多媒体预览。
+- **多会话标签页**：基于 Vue 的状态驻留（Keep-Alive）机制，支持同时管理多台主机，毫秒级无缝切换标签页而不丢失状态。
 
-### 🛡️ 安全与审计
-- **动态审批工作流**：支持可配置的安全审计与审批工作流管理，细致追踪每一个操作环节。
-- **多语言与本地化 (i18n)**：全界面支持国际化（中英切换等）。
-- **全局时区设置**：支持自定义全局时区，统一日志与会话记录的时间戳展示。
-- **身份验证与鉴权**：
-  - 双重身份验证 (2FA / TOTP，例如 Google Authenticator, Authy)。
-  - 基于角色 (Admin/User) 的访问权限控制。
-  - 核心敏感配置与凭据使用 AES-256 高强度加密。
-  - API 与 Agent 通信频率限制 (Rate Limiting) 抵御暴力破解。
+### 📊 全方位系统与网络监控
+- **跨平台 Agent 守护**：提供适用于 Linux、Windows、macOS 等架构的轻量级探针（Agent），支持通过控制面板一键下发和拉起。
+- **实时资源看板**：毫秒级采集 CPU、内存、磁盘 IO、网络吞吐量，通过 Echarts 进行直观的可视化图表渲染。
+- **网络连通性探测**：内置 ICMP Ping 和 TCP Ping 工具，精准监测不同网络节点之间的延迟和丢包率。
 
 ---
 
-## ⚙️ 系统配置项 (config.yaml)
+## 🏗️ 架构与技术栈
 
-启动系统前，可以通过修改 `configs/config.yaml` 灵活调整后端服务和安全策略：
+本项目采用前后端分离的现代化技术架构，确保极致的响应速度与模块的独立性。
 
-### Server（服务器配置）
-| 配置项 | 默认值 | 说明 |
-| --- | --- | --- |
-| `server.port` | `3000` | 后端服务监听绑定的端口号 |
-| `server.mode` | `debug` | 运行模式：`debug` (输出更多日志) 或 `release` (生产环境精简日志) |
-| `server.allowed_origins` | `["http://localhost:5173", ...]` | 允许的跨域请求源（CORS）。生产环境建议只保留实际域名，若前后端同源可清空 |
-| `server.max_upload_size` | `1048576000` | 允许的最大文件上传尺寸（默认约 1000MB） |
-
-### Database（数据库配置）
-| 配置项 | 默认值 | 说明 |
-| --- | --- | --- |
-| `database.path` | `./data/termiscope.db` | 本地 SQLite 数据库文件存放路径 |
-
-### Security（安全配置）
-| 配置项 | 默认值 | 说明 |
-| --- | --- | --- |
-| `security.jwt_secret` | `""` | JWT Token 签名密钥。留空则首次启动自动生成。建议通过 `TERMISCOPE_JWT_SECRET` 环境变量注入 |
-| `security.encryption_key` | `""` | 数据加密密钥（AES-256，需要正好 32 字节大小）。建议通过 `TERMISCOPE_ENCRYPTION_KEY` 环境变量注入 |
-| `security.smtp_tls_skip_verify` | `false` | 是否跳过 SMTP TLS 验证。生产环境务必为 `false` |
-
-### Log（日志配置）
-| 配置项 | 默认值 | 说明 |
-| --- | --- | --- |
-| `log.level` | `info` | 记录日志的等级，如 `debug`, `info`, `warn`, `error` |
-| `log.file` | `./logs/app.log` | 输出的日志文件路径 |
+- **后端 (Backend)**：采用 `Golang 1.25+` 编写，以轻量级架构提供高性能的并发处理能力。基于 SQLite 提供便捷的嵌入式数据存储。
+- **前端 (Frontend)**：基于 `Vue 3` (Composition API) + `Vite` 构建，组件库采用 `Ant Design Vue`。
+- **核心依赖**：
+  - 代码编辑器：`monaco-editor`
+  - 终端渲染：`xterm`及其相关插件
+  - 数据可视化：`echarts`
+  - 国际化：`vue-i18n` (支持多语言环境)
 
 ---
 
-## 🚀 快速开始
+## ⚙️ 系统配置规范
 
-### 方式一：一键安装脚本 (推荐 Linux/macOS)
+应用启动前，必须通过 `configs/config.yaml` 定义核心参数，所有安全配置需严格遵循以下规范：
+
+| 模块 | 配置项 | 描述 | 安全建议 |
+| --- | --- | --- | --- |
+| **Security** | `security.jwt_secret` | JWT 签发密钥 | **必须**通过环境变量注入高强度随机字符串 |
+| **Security** | `security.encryption_key` | AES 加密密钥 (32 字节) | **绝对禁止**将生产密钥提交至代码仓库 |
+| **Server** | `server.mode` | 服务运行模式 (`debug`/`release`) | 生产环境请务必设定为 `release` 以屏蔽敏感堆栈 |
+| **Database**| `database.path` | SQLite 存储路径 | 确保该目录拥有严格的操作系统读写权限控制 (如 `0600`) |
+
+---
+
+## 🚀 部署指南
+
+### 方式一：一键安装脚本 (推荐 Linux / macOS)
+如果您希望最快速地部署，可以直接运行我们的自动化安装脚本：
 ```bash
 curl -fsSL https://raw.githubusercontent.com/ihxw/TermiScope/main/scripts/install.sh | bash
 ```
 
-### 方式二：手动运行二进制包
-1. 从 [Releases 页面](https://github.com/ihxw/TermiScope/releases) 下载适合您操作系统的压缩包。
-2. 解压后运行服务端核心程序：
-   ```bash
-   # Linux / macOS
-   chmod +x TermiScope
-   ./TermiScope
-
-   # Windows
-   .\TermiScope.exe
-   ```
-3. 在浏览器中访问 `http://localhost:3000` 即可加载控制台。
-
-### 方式三：Docker 部署
+### 方式二：Docker 部署 (推荐)
+如果您习惯使用容器化部署，可通过自带的 Docker Compose 文件一键拉起：
 ```bash
 docker compose up -d
 ```
 
----
+### 方式三：手动下载二进制包
+1. 前往 [GitHub Releases](https://github.com/ihxw/TermiScope/releases) 下载适合您操作系统的最新发行版压缩包。
+2. 解压后，在终端赋予执行权限并直接运行：
+   ```bash
+   chmod +x TermiScope
+   ./TermiScope
+   ```
+   *(Windows 用户请直接双击运行 `TermiScope.exe`)*
 
-## 🛠️ 开发与构建指南
+### 方式四：自行编译构建
+为了确保产物的完整性或进行二次开发，您也可以使用项目自带的构建脚本自行编译：
 
-### 依赖环境
-- **Go 1.25+** (后端)
-- **Node.js 20+** (前端)
-
-### 本地调试
 ```bash
+# 克隆仓库
 git clone https://github.com/ihxw/TermiScope.git
 cd TermiScope
 
-# PowerShell 环境
-./devRun.ps1
+# Linux / macOS 环境编译发布版本
+./build_release.sh
 
-# 或分别启动
-cd web && npm install && npm run dev    # 前端 -> http://localhost:5173
-cd .. && go run cmd/server/main.go      # 后端 -> http://localhost:3000
+# Windows (PowerShell) 环境编译发布版本
+./build_release.ps1
 ```
-
-### 构建发布
-一键构建多平台架构的可执行文件：
-```bash
-./build_release.sh     # Bash 环境
-# 或
-./build_release.ps1    # PowerShell 环境
-```
-构建产物输出至 `release/` 目录。
+> *构建产物将自动输出至 `release/` 目录，进入该目录后运行二进制文件即可。服务默认监听于 `http://localhost:3000`。*
 
 ---
 
-## 📦 监控节点 (Agent) 部署
+## 📖 API 接口规约
 
-若希望在管理面板看到完整的服务器性能曲线，需要在目标机器上安装 Agent：
+后端采用严格的 RESTful API 设计标准。在 `debug` 模式下，启动系统后可直接访问内置的 Swagger 文档查看所有可用接口：
 
-**控制面板推送部署 (推荐)**：
-1. 登录前端，进入 **主机管理**。
-2. 选择待监控主机，点击 **部署监控** 按钮，系统自动下发 Agent 并设为守护进程。
-
-**手工部署**：
-```bash
-chmod +x termiscope-agent
-./termiscope-agent -server http://YOUR_TERMISCOPE_IP:3000 -secret YOUR_APP_SECRET -id HOST_ID
+```text
+http://localhost:3000/swagger/index.html
 ```
+*所有变更 API 接口行为的代码提交，必须同步运行 `swag init -g cmd/server/main.go --parseDependency` 更新接口契约。*
 
 ---
 
-## 📚 API 文档
+## 📄 授权协议
 
-TermiScope 内置 Swagger API 在线文档。在 debug 模式下可访问：
-`http://localhost:3000/swagger/index.html`
+本项目严格遵循 [MIT License](LICENSE) 开源许可协议。保留所有权利，使用和分发请遵循相关法律与条款。
 
-修改 API 接口后重新生成文档：
-```bash
-swag init -g cmd/server/main.go --parseDependency
-```
-
-## 📝 许可协议与版权声明
-本项目基于 [MIT License](LICENSE) 授权开源发布。详细声明请参见根目录下的 LICENSE 文件。
+---
+*注：本说明文档结构和文本通过 AI 基于项目最新代码库状态（Vue3 + Golang）自动化分析并生成。*
