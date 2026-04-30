@@ -79,16 +79,18 @@
       </div>
       <!-- 面包屑 / 路径输入框 切换 -->
       <template v-if="!pathInputVisible">
-        <a-breadcrumb separator=">" size="small" style="flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
-          <a-breadcrumb-item v-for="(part, index) in pathParts" :key="index">
-            <a @click="navigateTo(index)">{{ part || '/' }}</a>
-          </a-breadcrumb-item>
-        </a-breadcrumb>
-        <a-tooltip :title="t('sftp.goToPath')">
-          <a-button size="small" type="text" @click="showPathInput" class="path-toggle-btn">
-            <template #icon><AimOutlined /></template>
-          </a-button>
-        </a-tooltip>
+        <div class="breadcrumb-container" @click="showPathInput" style="flex: 1; display: flex; align-items: center; cursor: text; padding: 2px 8px; border-radius: 4px; transition: background 0.2s;">
+          <a-tooltip :title="t('sftp.goToPath')">
+            <a-button size="small" type="text" @click.stop="showPathInput" class="path-toggle-btn" style="margin-right: 4px; height: 20px; padding: 0 4px;">
+              <template #icon><EditOutlined /></template>
+            </a-button>
+          </a-tooltip>
+          <a-breadcrumb separator=">" size="small" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+            <a-breadcrumb-item v-for="(part, index) in pathParts" :key="index">
+              <a @click.stop="navigateTo(index)">{{ part || '/' }}</a>
+            </a-breadcrumb-item>
+          </a-breadcrumb>
+        </div>
       </template>
       <div v-else class="path-input-wrapper">
         <a-input
@@ -114,6 +116,7 @@
         :scroll="{ y: tableScrollY }"
         :row-selection="rowSelection"
         row-key="name"
+        :customRow="customRow"
       >
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'name'">
@@ -246,6 +249,44 @@
             }"
         />
     </div>
+
+    <!-- Right-click Context Menu -->
+    <a-dropdown
+      :open="contextMenuVisible"
+      :trigger="['contextmenu']"
+      @openChange="v => contextMenuVisible = v"
+    >
+      <div style="position: fixed; z-index: 9999;" :style="{ left: contextMenuPosition.x + 'px', top: contextMenuPosition.y + 'px' }"></div>
+      <template #overlay>
+        <a-menu v-if="contextMenuRecord">
+          <a-menu-item key="open" @click="handleContextMenuOpen">
+            <FolderOpenOutlined v-if="contextMenuRecord.is_dir" />
+            <EditOutlined v-else />
+            {{ contextMenuRecord.is_dir ? t('sftp.openDir') || t('common.open') : t('sftp.edit') || t('common.edit') }}
+          </a-menu-item>
+          <a-menu-item key="download" @click="download(contextMenuRecord.name)">
+            <DownloadOutlined /> {{ t('sftp.download') || t('common.download') }}
+          </a-menu-item>
+          <a-menu-item key="transfer" v-if="enableTransfer" @click="handleTransfer(contextMenuRecord)">
+            <SwapOutlined /> {{ t('sftp.sendTo', { name: transferTargetLabel }) }}
+          </a-menu-item>
+          <a-menu-divider />
+          <a-menu-item key="cut" @click="cut(contextMenuRecord.name)">
+            <ScissorOutlined /> {{ t('sftp.cut') }}
+          </a-menu-item>
+          <a-menu-item key="copy" @click="copy(contextMenuRecord.name)">
+            <CopyOutlined /> {{ t('sftp.copy') }}
+          </a-menu-item>
+          <a-menu-item key="rename" @click="openRename(contextMenuRecord)">
+            <EditOutlined /> {{ t('sftp.rename') }}
+          </a-menu-item>
+          <a-menu-divider />
+          <a-menu-item key="delete" @click="remove(contextMenuRecord.name)" danger>
+            <DeleteOutlined /> {{ t('sftp.delete') || t('common.delete') }}
+          </a-menu-item>
+        </a-menu>
+      </template>
+    </a-dropdown>
 
   </div>
 </template>
@@ -401,6 +442,37 @@ const editingFile = ref({
     path: '',
     name: ''
 })
+
+// Right-click Context Menu Logic
+const contextMenuVisible = ref(false)
+const contextMenuRecord = ref(null)
+const contextMenuPosition = ref({ x: 0, y: 0 })
+
+const customRow = (record) => {
+  return {
+    onContextmenu: (e) => {
+      e.preventDefault()
+      if (!selectedRowKeys.value.includes(record.name)) {
+         selectedRowKeys.value = [record.name]
+      }
+      contextMenuRecord.value = record
+      contextMenuPosition.value = { x: e.clientX, y: e.clientY }
+      contextMenuVisible.value = true
+    }
+  }
+}
+
+const handleContextMenuOpen = () => {
+  if (!contextMenuRecord.value) return
+  const record = contextMenuRecord.value
+  if (record.is_dir) {
+    enterDir(record.name)
+  } else if (isMedia(record.name)) {
+    handlePreview(record)
+  } else {
+    openEditor(record)
+  }
+}
 
 // Preview State
 const previewVisible = ref(false) // For Videos
