@@ -106,7 +106,7 @@
     </div>
 
     <!-- 文件列表（非编辑模式时显示） -->
-    <div v-show="!editorVisible" ref="browserContentRef" class="browser-content" @drop="handleDrop" @dragover="handleDragOver" @dragleave="handleDragLeave">
+    <div v-show="!editorVisible" ref="browserContentRef" class="browser-content" @drop="handleDrop" @dragover="handleDragOver" @dragleave="handleDragLeave" @contextmenu.prevent.stop="handleContainerContextMenu">
       <a-table
         :loading="loading"
         :columns="columns"
@@ -258,31 +258,51 @@
       :style="{ left: contextMenuPosition.x + 'px', top: contextMenuPosition.y + 'px' }"
     >
       <a-menu @click="closeContextMenu">
-        <a-menu-item key="open" @click="handleContextMenuOpen">
-          <FolderOpenOutlined v-if="contextMenuRecord.is_dir" />
-          <EditOutlined v-else />
-          {{ contextMenuRecord.is_dir ? t('sftp.openDir') || t('common.open') : t('sftp.edit') || t('common.edit') }}
-        </a-menu-item>
-        <a-menu-item key="download" @click="download(contextMenuRecord.name)">
-          <DownloadOutlined /> {{ t('sftp.download') || t('common.download') }}
-        </a-menu-item>
-        <a-menu-item key="transfer" v-if="enableTransfer" @click="handleTransfer(contextMenuRecord)">
-          <SwapOutlined /> {{ t('sftp.sendTo', { name: transferTargetLabel }) }}
-        </a-menu-item>
-        <a-menu-divider />
-        <a-menu-item key="cut" @click="cut(contextMenuRecord.name)">
-          <ScissorOutlined /> {{ t('sftp.cut') }}
-        </a-menu-item>
-        <a-menu-item key="copy" @click="copy(contextMenuRecord.name)">
-          <CopyOutlined /> {{ t('sftp.copy') }}
-        </a-menu-item>
-        <a-menu-item key="rename" @click="openRename(contextMenuRecord)">
-          <EditOutlined /> {{ t('sftp.rename') }}
-        </a-menu-item>
-        <a-menu-divider />
-        <a-menu-item key="delete" @click="remove(contextMenuRecord.name)" danger>
-          <DeleteOutlined /> {{ t('sftp.delete') || t('common.delete') }}
-        </a-menu-item>
+        <!-- Container Menu -->
+        <template v-if="contextMenuRecord.is_container">
+          <a-menu-item key="refresh" @click="refresh">
+            <ReloadOutlined /> {{ t('common.refresh') }}
+          </a-menu-item>
+          <a-menu-divider />
+          <a-menu-item key="new-folder" @click="openCreate('folder')">
+            <FolderAddOutlined /> {{ t('sftp.newFolder') }}
+          </a-menu-item>
+          <a-menu-item key="new-file" @click="openCreate('file')">
+            <FileAddOutlined /> {{ t('sftp.newFile') }}
+          </a-menu-item>
+          <a-menu-divider />
+          <a-menu-item key="paste" @click="paste" :disabled="!sftpStore.clipboard.paths.length">
+            <SnippetsOutlined /> {{ t('sftp.paste') }}
+          </a-menu-item>
+        </template>
+        <!-- File/Folder Menu -->
+        <template v-else>
+          <a-menu-item key="open" @click="handleContextMenuOpen">
+            <FolderOpenOutlined v-if="contextMenuRecord.is_dir" />
+            <EditOutlined v-else />
+            {{ contextMenuRecord.is_dir ? t('sftp.openDir') || t('common.open') : t('sftp.edit') || t('common.edit') }}
+          </a-menu-item>
+          <a-menu-item key="download" @click="download(contextMenuRecord.name)">
+            <DownloadOutlined /> {{ t('sftp.download') || t('common.download') }}
+          </a-menu-item>
+          <a-menu-item key="transfer" v-if="enableTransfer" @click="handleTransfer(contextMenuRecord)">
+            <SwapOutlined /> {{ t('sftp.sendTo', { name: transferTargetLabel }) }}
+          </a-menu-item>
+          <a-menu-divider />
+          <a-menu-item key="cut" @click="cut(contextMenuRecord.name)">
+            <ScissorOutlined /> {{ t('sftp.cut') }}
+          </a-menu-item>
+          <a-menu-item key="copy" @click="copy(contextMenuRecord.name)">
+            <CopyOutlined /> {{ t('sftp.copy') }}
+          </a-menu-item>
+          <a-menu-item key="rename" @click="openRename(contextMenuRecord)">
+            <EditOutlined /> {{ t('sftp.rename') }}
+          </a-menu-item>
+          <a-menu-divider />
+          <a-menu-item key="delete" @click="remove(contextMenuRecord.name)" danger>
+            <DeleteOutlined /> {{ t('sftp.delete') || t('common.delete') }}
+          </a-menu-item>
+        </template>
       </a-menu>
     </div>
 
@@ -466,6 +486,17 @@ onUnmounted(() => {
   document.removeEventListener('click', onDocumentClick)
   document.removeEventListener('contextmenu', onDocumentClick)
 })
+
+const handleContainerContextMenu = (e) => {
+  contextMenuRecord.value = { is_container: true }
+  
+  const menuWidth = 200
+  const menuHeight = 200 // Approx height for new file/folder menu
+  const x = e.clientX + menuWidth > window.innerWidth ? e.clientX - menuWidth : e.clientX
+  const y = e.clientY + menuHeight > window.innerHeight ? e.clientY - menuHeight : e.clientY
+  contextMenuPosition.value = { x: Math.max(0, x), y: Math.max(0, y) }
+  contextMenuVisible.value = true
+}
 
 const customRow = (record) => {
   return {
