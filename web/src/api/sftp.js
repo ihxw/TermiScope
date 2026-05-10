@@ -19,23 +19,67 @@ export const downloadFile = async (hostId, path, onProgress) => {
 }
 
 export const uploadFile = async (hostId, path, file, onProgress, signal) => {
+    const token = localStorage.getItem('token')
     const formData = new FormData()
     formData.append('path', path)
     formData.append('file', file)
-    return await api.post(`/sftp/upload/${hostId}`, formData, {
+
+    const response = await fetch(`/api/sftp/upload/${hostId}`, {
+        method: 'POST',
         headers: {
-            'Content-Type': 'multipart/form-data'
+            'Authorization': `Bearer ${token}`
         },
-        timeout: 0,
-        signal,
-        onUploadProgress: (progressEvent) => {
-            if (onProgress) {
-                const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total)
-                onProgress(percentCompleted)
+        body: formData,
+        signal
+    })
+
+    if (!response.ok) {
+        let errorMsg = 'Upload failed'
+        try {
+            const data = await response.json()
+            errorMsg = data.error || errorMsg
+        } catch (e) { }
+        throw new Error(errorMsg)
+    }
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let lastError = null
+
+    while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop()
+
+        for (const line of lines) {
+            if (line.trim()) {
+                try {
+                    const event = JSON.parse(line)
+                    if (event.type === 'error') {
+                        lastError = event.message
+                    }
+                    if (event.type === 'progress' && onProgress) {
+                        onProgress(event)
+                    }
+                    if (event.type === 'complete' && onProgress) {
+                        onProgress(event)
+                    }
+                } catch (e) {
+                    console.error('Upload JSON parse error:', e, 'line:', line)
+                }
             }
         }
-    })
+    }
+
+    if (lastError) {
+        throw new Error(lastError)
+    }
 }
+
 
 export const deleteFile = async (hostId, path) => {
     return await api.delete(`/sftp/delete/${hostId}`, { params: { path } })

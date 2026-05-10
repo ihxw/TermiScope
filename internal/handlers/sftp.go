@@ -289,8 +289,46 @@ func (h *SftpHandler) Download(c *gin.Context) {
 	http.ServeContent(c.Writer, c.Request, path.Base(targetPath), stat.ModTime(), file)
 }
 
+// sendUploadEvent writes a JSON event line to the response and flushes
+func sendUploadEvent(c *gin.Context, data map[string]interface{}) {
+	jsonBytes, _ := json.Marshal(data)
+	c.Writer.Write(jsonBytes)
+	c.Writer.Write([]byte("\n"))
+	c.Writer.(http.Flusher).Flush()
+}
+
+// progressWriter wraps an io.Writer and reports write progress via callback
+type progressWriter struct {
+	dst       io.Writer
+	written   int64
+	total     int64
+	onProgress func(written, total int64)
+	lastReport time.Time
+	ctx       interface{ Done() <-chan struct{} } // context for cancellation
+}
+
+func (pw *progressWriter) Write(p []byte) (int, error) {
+	// Check if client disconnected
+	if pw.ctx != nil {
+		select {
+		case <-pw.ctx.Done():
+			return 0, fmt.Errorf("client disconnected")
+		default:
+		}
+	}
+
+	n, err := pw.dst.Write(p)
+	pw.written += int64(n)
+	// Throttle progress reports to every 200ms
+	if pw.onProgress != nil && time.Since(pw.lastReport) >= 200*time.Millisecond {
+		pw.onProgress(pw.written, pw.total)
+		pw.lastReport = time.Now()
+	}
+	return n, err
+}
+
 // Upload handles POST /api/sftp/upload/:hostId
-// Streams multipart data directly to the SFTP target without server-side temp files.
+// Uses NDJSON streaming to report real SFTP write progress to the client.
 func (h *SftpHandler) Upload(c *gin.Context) {
 	userID := middleware.GetUserID(c)
 	hostID := c.Param("hostId")
@@ -358,6 +396,9 @@ func (h *SftpHandler) Upload(c *gin.Context) {
 	}
 	defer filePart.Close()
 
+	// Get total file size from Content-Length header (approximate for multipart but close enough)
+	totalSize := c.Request.ContentLength
+
 	sftpClient, sshClient, err := h.getSftpClient(userID, hostID)
 	if err != nil {
 		utils.ErrorResponse(c, http.StatusInternalServerError, err.Error())
@@ -378,16 +419,75 @@ func (h *SftpHandler) Upload(c *gin.Context) {
 	}
 	defer dst.Close()
 
-	// Stream directly from HTTP body → SFTP target with a 256KB buffer
+	// Set up NDJSON streaming response
+	c.Header("Content-Type", "application/x-ndjson")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("X-Accel-Buffering", "no")
+	c.Status(http.StatusOK)
+
+	startTime := time.Now()
+
+	// Send start event
+	sendUploadEvent(c, map[string]interface{}{
+		"type":       "start",
+		"total_size": totalSize,
+		"file_name":  cleanFilename,
+	})
+
+	// Create progress writer that wraps the SFTP destination
+	pw := &progressWriter{
+		dst:   dst,
+		total: totalSize,
+		ctx:   c.Request.Context(),
+		onProgress: func(written, total int64) {
+			elapsed := time.Since(startTime).Seconds()
+			speed := float64(0)
+			if elapsed > 0 {
+				speed = float64(written) / elapsed
+			}
+			percent := 0
+			if total > 0 {
+				percent = int(float64(written) * 100 / float64(total))
+				if percent > 99 {
+					percent = 99
+				}
+			}
+
+			speedStr := ""
+			if speed > 1024*1024 {
+				speedStr = fmt.Sprintf("%.2f MB/s", speed/(1024*1024))
+			} else {
+				speedStr = fmt.Sprintf("%.2f KB/s", speed/1024)
+			}
+
+			sendUploadEvent(c, map[string]interface{}{
+				"type":    "progress",
+				"percent": percent,
+				"written": written,
+				"total":   total,
+				"speed":   speedStr,
+			})
+		},
+	}
+
+	// Stream directly from HTTP body → SFTP target via progress writer
 	buf := make([]byte, 256*1024)
-	if _, err := io.CopyBuffer(dst, filePart, buf); err != nil {
+	if _, err := io.CopyBuffer(pw, filePart, buf); err != nil {
 		h.logAudit(userID, hostID, "upload", fullPath, "", c.ClientIP(), err)
-		utils.ErrorResponse(c, http.StatusInternalServerError, "failed to copy file: "+err.Error())
+		sendUploadEvent(c, map[string]interface{}{
+			"type":    "error",
+			"message": "failed to copy file: " + err.Error(),
+		})
 		return
 	}
 
 	h.logAudit(userID, hostID, "upload", fullPath, "", c.ClientIP(), nil)
-	utils.SuccessResponse(c, http.StatusOK, gin.H{"message": "file uploaded successfully"})
+	sendUploadEvent(c, map[string]interface{}{
+		"type":    "complete",
+		"percent": 100,
+		"path":    fullPath,
+		"written": pw.written,
+	})
 }
 
 // deleteRecursive handles recursive deletion of files and directories

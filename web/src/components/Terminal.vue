@@ -863,7 +863,7 @@ watch(showSftp, () => {
 }
 
 .terminal-container {
-  padding: 0 0 0 4px;
+  padding: 0;
   margin: 0;
 }
 

@@ -739,10 +739,12 @@ const navigateTo = (index) => {
 }
 
 const uploadControllers = new Map()
+const cancelledUploads = new Set()
 
 const cancelUpload = (key) => {
     const controller = uploadControllers.get(key)
     if (controller) {
+        cancelledUploads.add(key)
         controller.abort()
         uploadControllers.delete(key)
     }
@@ -773,20 +775,18 @@ const handleUpload = async ({ file, onSuccess, onError }) => {
         placement: 'bottomRight'
     })
 
-    const startTime = Date.now()
-    await uploadFile(props.hostId, currentPath.value, file, (percent) => {
-        const elapsed = (Date.now() - startTime) / 1000 // seconds
-        const uploaded = (percent / 100) * file.size
-        const speed = elapsed > 0 ? uploaded / elapsed : 0
-        const speedStr = speed > 1024 * 1024 
-            ? (speed / (1024 * 1024)).toFixed(2) + ' MB/s' 
-            : (speed / 1024).toFixed(2) + ' KB/s'
+    await uploadFile(props.hostId, currentPath.value, file, (event) => {
+        // Skip updates if upload was cancelled
+        if (cancelledUploads.has(key)) return
+
+        const percent = event.percent || 0
+        const speedStr = event.speed || ''
 
         notification.open({
             key,
             message: uploadTitle,
             description: h('div', [
-                h(Progress, { percent: Math.min(percent, 99), status: 'active', size: 'small' }),
+                h(Progress, { percent, status: 'active', size: 'small' }),
                 h('div', { style: 'display: flex; justify-content: space-between; align-items: center; margin-top: 8px' }, [
                     h('span', { style: 'color: #8c8c8c; font-size: 12px' }, file.name),
                     h('div', { style: 'display: flex; align-items: center; gap: 8px' }, [
@@ -801,6 +801,7 @@ const handleUpload = async ({ file, onSuccess, onError }) => {
     }, controller.signal)
     
     uploadControllers.delete(key)
+    cancelledUploads.delete(key)
     const completeDesc = props.hostLabel
         ? `${file.name} → ${props.hostLabel}`
         : t('sftp.uploadSuccess', { name: file.name })
@@ -819,7 +820,9 @@ const handleUpload = async ({ file, onSuccess, onError }) => {
     }
   } catch (error) {
     uploadControllers.delete(key)
-    if (axios.isCancel(error) || error.name === 'CanceledError' || error.code === 'ERR_CANCELED') {
+    // Check for abort/cancel (native fetch throws AbortError)
+    if (cancelledUploads.has(key) || error.name === 'AbortError' || error.name === 'CanceledError' || error.code === 'ERR_CANCELED') {
+        cancelledUploads.delete(key)
         notification.warning({
             key,
             message: t('sftp.uploadCancelled'),
@@ -844,6 +847,7 @@ const handleUpload = async ({ file, onSuccess, onError }) => {
     }
   }
 }
+
 
 const download = async (name) => {
   const fullPath = currentPath.value === '.' ? name : `${currentPath.value}/${name}`

@@ -47,7 +47,7 @@ body {
 }
 
 .xterm {
-  padding: 10px;
+  padding: 0;
 }
 
 .xterm-viewport {
