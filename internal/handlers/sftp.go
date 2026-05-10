@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -289,12 +290,27 @@ func (h *SftpHandler) Download(c *gin.Context) {
 	http.ServeContent(c.Writer, c.Request, path.Base(targetPath), stat.ModTime(), file)
 }
 
-// sendUploadEvent writes a JSON event line to the response and flushes
-func sendUploadEvent(c *gin.Context, data map[string]interface{}) {
-	jsonBytes, _ := json.Marshal(data)
-	c.Writer.Write(jsonBytes)
-	c.Writer.Write([]byte("\n"))
-	c.Writer.(http.Flusher).Flush()
+
+
+// UploadProgress tracks the status of ongoing SFTP uploads
+var uploadProgressMap sync.Map
+
+type UploadProgressData struct {
+	Percent int     `json:"percent"`
+	Speed   string  `json:"speed"`
+	Written int64   `json:"written"`
+	Total   int64   `json:"total"`
+}
+
+// GetUploadProgress handles GET /api/sftp/upload-progress/:uploadId
+func (h *SftpHandler) GetUploadProgress(c *gin.Context) {
+	uploadID := c.Param("uploadId")
+	if data, ok := uploadProgressMap.Load(uploadID); ok {
+		utils.SuccessResponse(c, http.StatusOK, data)
+		return
+	}
+	// If not found, it might be completed or invalid
+	utils.SuccessResponse(c, http.StatusOK, gin.H{"status": "not_found"})
 }
 
 // progressWriter wraps an io.Writer and reports write progress via callback
@@ -360,9 +376,10 @@ func (h *SftpHandler) Upload(c *gin.Context) {
 	var remotePath string
 	var filename string
 	var fileSize int64
+	var uploadID string
 	var filePart *multipart.Part
 
-	// Read parts sequentially; expect "path", "file_size" and "file" fields
+	// Read parts sequentially; expect "path", "file_size", "upload_id" and "file" fields
 	for {
 		part, err := mr.NextPart()
 		if err == io.EOF {
@@ -381,6 +398,10 @@ func (h *SftpHandler) Upload(c *gin.Context) {
 		} else if fieldName == "file_size" {
 			data, _ := io.ReadAll(part)
 			fileSize, _ = strconv.ParseInt(strings.TrimSpace(string(data)), 10, 64)
+			part.Close()
+		} else if fieldName == "upload_id" {
+			data, _ := io.ReadAll(part)
+			uploadID = strings.TrimSpace(string(data))
 			part.Close()
 		} else if fieldName == "file" {
 			filename = part.FileName()
@@ -404,10 +425,6 @@ func (h *SftpHandler) Upload(c *gin.Context) {
 	// Sanitize filename to prevent path traversal
 	cleanFilename := filepath.Base(filename)
 
-	// Connect to SFTP FIRST before sending any HTTP response.
-	// Sending HTTP 200 OK headers while the browser is still uploading the multipart body
-	// causes some browsers (and fetch) to prematurely abort the upload payload,
-	// leading to "http: invalid Read on closed Body".
 	sftpClient, sshClient, err := h.getSftpClient(userID, hostID)
 	if err != nil {
 		utils.ErrorResponse(c, http.StatusInternalServerError, err.Error())
@@ -426,12 +443,6 @@ func (h *SftpHandler) Upload(c *gin.Context) {
 	}
 	defer dst.Close()
 
-	// SFTP is connected and file is created. Now we can safely start the NDJSON streaming response.
-	c.Header("Content-Type", "application/x-ndjson")
-	c.Header("Cache-Control", "no-cache")
-	c.Header("X-Accel-Buffering", "no")
-	c.Status(http.StatusOK)
-
 	// Use actual file size from frontend for accurate progress calculation
 	// Fall back to Content-Length if not provided
 	totalSize := fileSize
@@ -441,12 +452,16 @@ func (h *SftpHandler) Upload(c *gin.Context) {
 
 	startTime := time.Now()
 
-	// Send start event — SFTP is connected and ready
-	sendUploadEvent(c, map[string]interface{}{
-		"type":       "start",
-		"total_size": totalSize,
-		"file_name":  cleanFilename,
-	})
+	// Initialize progress
+	if uploadID != "" {
+		uploadProgressMap.Store(uploadID, UploadProgressData{
+			Percent: 0,
+			Written: 0,
+			Total:   totalSize,
+			Speed:   "0 KB/s",
+		})
+		defer uploadProgressMap.Delete(uploadID)
+	}
 
 	// Create progress writer that wraps the SFTP destination
 	pw := &progressWriter{
@@ -454,6 +469,9 @@ func (h *SftpHandler) Upload(c *gin.Context) {
 		total: totalSize,
 		ctx:   c.Request.Context(),
 		onProgress: func(written, total int64) {
+			if uploadID == "" {
+				return
+			}
 			elapsed := time.Since(startTime).Seconds()
 			speed := float64(0)
 			if elapsed > 0 {
@@ -474,12 +492,11 @@ func (h *SftpHandler) Upload(c *gin.Context) {
 				speedStr = fmt.Sprintf("%.2f KB/s", speed/1024)
 			}
 
-			sendUploadEvent(c, map[string]interface{}{
-				"type":    "progress",
-				"percent": percent,
-				"written": written,
-				"total":   total,
-				"speed":   speedStr,
+			uploadProgressMap.Store(uploadID, UploadProgressData{
+				Percent: percent,
+				Written: written,
+				Total:   total,
+				Speed:   speedStr,
 			})
 		},
 	}
@@ -488,17 +505,12 @@ func (h *SftpHandler) Upload(c *gin.Context) {
 	buf := make([]byte, 256*1024)
 	if _, err := io.CopyBuffer(pw, filePart, buf); err != nil {
 		h.logAudit(userID, hostID, "upload", fullPath, "", c.ClientIP(), err)
-		sendUploadEvent(c, map[string]interface{}{
-			"type":    "error",
-			"message": "failed to copy file: " + err.Error(),
-		})
+		utils.ErrorResponse(c, http.StatusInternalServerError, "failed to copy file: "+err.Error())
 		return
 	}
 
 	h.logAudit(userID, hostID, "upload", fullPath, "", c.ClientIP(), nil)
-	sendUploadEvent(c, map[string]interface{}{
-		"type":    "complete",
-		"percent": 100,
+	utils.SuccessResponse(c, http.StatusOK, gin.H{
 		"path":    fullPath,
 		"written": pw.written,
 	})

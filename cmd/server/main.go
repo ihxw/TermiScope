@@ -236,6 +236,7 @@ func main() {
 		protected.GET("/sftp/list/:hostId", sftpHandler.List)
 		protected.GET("/sftp/download/:hostId", sftpHandler.Download)
 		protected.POST("/sftp/upload/:hostId", sftpHandler.Upload)
+		protected.GET("/sftp/upload-progress/:uploadId", sftpHandler.GetUploadProgress)
 		protected.DELETE("/sftp/delete/:hostId", sftpHandler.Delete)
 		protected.POST("/sftp/rename/:hostId", sftpHandler.Rename)
 		protected.POST("/sftp/paste/:hostId", sftpHandler.Paste)

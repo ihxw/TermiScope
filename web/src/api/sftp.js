@@ -18,63 +18,67 @@ export const downloadFile = async (hostId, path, onProgress) => {
     })
 }
 
+import api from './index'
+
 export const uploadFile = async (hostId, path, file, onProgress, signal) => {
     const token = localStorage.getItem('token')
+    const uploadId = `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    
     const formData = new FormData()
     formData.append('path', path)
     formData.append('file_size', file.size.toString())
+    formData.append('upload_id', uploadId)
     formData.append('file', file)
 
-    const response = await fetch(`/api/sftp/upload/${hostId}`, {
-        method: 'POST',
-        headers: {
-            'Authorization': `Bearer ${token}`
-        },
-        body: formData,
-        signal
-    })
-
-    if (!response.ok) {
-        let errorMsg = 'Upload failed'
-        try {
-            const data = await response.json()
-            errorMsg = data.error || errorMsg
-        } catch (e) { }
-        throw new Error(errorMsg)
-    }
-
-    const reader = response.body.getReader()
-    const decoder = new TextDecoder()
-    let buffer = ''
-    let lastError = null
-
-    while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop()
-
-        for (const line of lines) {
-            if (line.trim()) {
-                try {
-                    const event = JSON.parse(line)
-                    if (event.type === 'error') {
-                        lastError = event.message
-                    }
-                    if (onProgress && (event.type === 'progress' || event.type === 'complete')) {
-                        onProgress(event)
-                    }
-                } catch (e) {
-                    console.error('Upload JSON parse error:', e, 'line:', line)
+    let pollInterval = null
+    
+    if (onProgress) {
+        pollInterval = setInterval(async () => {
+            try {
+                const res = await api.get(`/sftp/upload-progress/${uploadId}`)
+                if (res && res.status !== 'not_found') {
+                    onProgress({
+                        type: 'progress',
+                        percent: res.percent,
+                        speed: res.speed,
+                        written: res.written,
+                        total: res.total
+                    })
                 }
+            } catch (err) {
+                // Ignore polling errors
             }
-        }
+        }, 500)
     }
 
-    if (lastError) {
-        throw new Error(lastError)
+    try {
+        const response = await fetch(`/api/sftp/upload/${hostId}`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            },
+            body: formData,
+            signal
+        })
+
+        if (!response.ok) {
+            let errorMsg = 'Upload failed'
+            try {
+                const data = await response.json()
+                errorMsg = data.error || errorMsg
+            } catch (e) { }
+            throw new Error(errorMsg)
+        }
+        
+        if (onProgress) {
+            onProgress({ type: 'complete', percent: 100 })
+        }
+        
+        return await response.json()
+    } finally {
+        if (pollInterval) {
+            clearInterval(pollInterval)
+        }
     }
 }
 
