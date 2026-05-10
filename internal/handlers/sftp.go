@@ -404,27 +404,13 @@ func (h *SftpHandler) Upload(c *gin.Context) {
 	// Sanitize filename to prevent path traversal
 	cleanFilename := filepath.Base(filename)
 
-	// Start NDJSON streaming response IMMEDIATELY (before SFTP connection)
-	// This allows the frontend to receive events right away instead of waiting
-	c.Header("Content-Type", "application/x-ndjson")
-	c.Header("Cache-Control", "no-cache")
-	c.Header("X-Accel-Buffering", "no")
-	c.Status(http.StatusOK)
-
-	// Send connecting event so frontend knows we're working
-	sendUploadEvent(c, map[string]interface{}{
-		"type":      "connecting",
-		"file_name": cleanFilename,
-		"file_size": fileSize,
-	})
-
-	// Now connect to SFTP (this can take 1-5 seconds)
+	// Connect to SFTP FIRST before sending any HTTP response.
+	// Sending HTTP 200 OK headers while the browser is still uploading the multipart body
+	// causes some browsers (and fetch) to prematurely abort the upload payload,
+	// leading to "http: invalid Read on closed Body".
 	sftpClient, sshClient, err := h.getSftpClient(userID, hostID)
 	if err != nil {
-		sendUploadEvent(c, map[string]interface{}{
-			"type":    "error",
-			"message": err.Error(),
-		})
+		utils.ErrorResponse(c, http.StatusInternalServerError, err.Error())
 		return
 	}
 	defer sftpClient.Close()
@@ -435,13 +421,16 @@ func (h *SftpHandler) Upload(c *gin.Context) {
 
 	dst, err := sftpClient.Create(fullPath)
 	if err != nil {
-		sendUploadEvent(c, map[string]interface{}{
-			"type":    "error",
-			"message": "failed to create remote file: " + err.Error(),
-		})
+		utils.ErrorResponse(c, http.StatusInternalServerError, "failed to create remote file: "+err.Error())
 		return
 	}
 	defer dst.Close()
+
+	// SFTP is connected and file is created. Now we can safely start the NDJSON streaming response.
+	c.Header("Content-Type", "application/x-ndjson")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("X-Accel-Buffering", "no")
+	c.Status(http.StatusOK)
 
 	// Use actual file size from frontend for accurate progress calculation
 	// Fall back to Content-Length if not provided

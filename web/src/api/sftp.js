@@ -63,7 +63,7 @@ export const uploadFile = async (hostId, path, file, onProgress, signal) => {
                     if (event.type === 'error') {
                         lastError = event.message
                     }
-                    if (onProgress && (event.type === 'connecting' || event.type === 'progress' || event.type === 'complete')) {
+                    if (onProgress && (event.type === 'progress' || event.type === 'complete')) {
                         onProgress(event)
                     }
                 } catch (e) {
