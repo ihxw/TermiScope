@@ -22,6 +22,7 @@ export const uploadFile = async (hostId, path, file, onProgress, signal) => {
     const token = localStorage.getItem('token')
     const formData = new FormData()
     formData.append('path', path)
+    formData.append('file_size', file.size.toString())
     formData.append('file', file)
 
     const response = await fetch(`/api/sftp/upload/${hostId}`, {
@@ -62,10 +63,7 @@ export const uploadFile = async (hostId, path, file, onProgress, signal) => {
                     if (event.type === 'error') {
                         lastError = event.message
                     }
-                    if (event.type === 'progress' && onProgress) {
-                        onProgress(event)
-                    }
-                    if (event.type === 'complete' && onProgress) {
+                    if (onProgress && (event.type === 'connecting' || event.type === 'progress' || event.type === 'complete')) {
                         onProgress(event)
                     }
                 } catch (e) {

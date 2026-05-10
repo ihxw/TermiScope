@@ -359,9 +359,10 @@ func (h *SftpHandler) Upload(c *gin.Context) {
 
 	var remotePath string
 	var filename string
+	var fileSize int64
 	var filePart *multipart.Part
 
-	// Read parts sequentially; expect "path" field and "file" field
+	// Read parts sequentially; expect "path", "file_size" and "file" fields
 	for {
 		part, err := mr.NextPart()
 		if err == io.EOF {
@@ -376,6 +377,10 @@ func (h *SftpHandler) Upload(c *gin.Context) {
 		if fieldName == "path" {
 			data, _ := io.ReadAll(part)
 			remotePath = string(data)
+			part.Close()
+		} else if fieldName == "file_size" {
+			data, _ := io.ReadAll(part)
+			fileSize, _ = strconv.ParseInt(strings.TrimSpace(string(data)), 10, 64)
 			part.Close()
 		} else if fieldName == "file" {
 			filename = part.FileName()
@@ -396,38 +401,58 @@ func (h *SftpHandler) Upload(c *gin.Context) {
 	}
 	defer filePart.Close()
 
-	// Get total file size from Content-Length header (approximate for multipart but close enough)
-	totalSize := c.Request.ContentLength
-
-	sftpClient, sshClient, err := h.getSftpClient(userID, hostID)
-	if err != nil {
-		utils.ErrorResponse(c, http.StatusInternalServerError, err.Error())
-		return
-	}
-	defer sftpClient.Close()
-	defer sshClient.Close()
-
 	// Sanitize filename to prevent path traversal
 	cleanFilename := filepath.Base(filename)
-	fullPath := filepath.Join(remotePath, cleanFilename)
-	fullPath = filepath.ToSlash(fullPath) // Ensure forward slashes for Linux remotes
 
-	dst, err := sftpClient.Create(fullPath)
-	if err != nil {
-		utils.ErrorResponse(c, http.StatusInternalServerError, "failed to create remote file: "+err.Error())
-		return
-	}
-	defer dst.Close()
-
-	// Set up NDJSON streaming response
+	// Start NDJSON streaming response IMMEDIATELY (before SFTP connection)
+	// This allows the frontend to receive events right away instead of waiting
 	c.Header("Content-Type", "application/x-ndjson")
 	c.Header("Cache-Control", "no-cache")
 	c.Header("X-Accel-Buffering", "no")
 	c.Status(http.StatusOK)
 
+	// Send connecting event so frontend knows we're working
+	sendUploadEvent(c, map[string]interface{}{
+		"type":      "connecting",
+		"file_name": cleanFilename,
+		"file_size": fileSize,
+	})
+
+	// Now connect to SFTP (this can take 1-5 seconds)
+	sftpClient, sshClient, err := h.getSftpClient(userID, hostID)
+	if err != nil {
+		sendUploadEvent(c, map[string]interface{}{
+			"type":    "error",
+			"message": err.Error(),
+		})
+		return
+	}
+	defer sftpClient.Close()
+	defer sshClient.Close()
+
+	fullPath := filepath.Join(remotePath, cleanFilename)
+	fullPath = filepath.ToSlash(fullPath) // Ensure forward slashes for Linux remotes
+
+	dst, err := sftpClient.Create(fullPath)
+	if err != nil {
+		sendUploadEvent(c, map[string]interface{}{
+			"type":    "error",
+			"message": "failed to create remote file: " + err.Error(),
+		})
+		return
+	}
+	defer dst.Close()
+
+	// Use actual file size from frontend for accurate progress calculation
+	// Fall back to Content-Length if not provided
+	totalSize := fileSize
+	if totalSize <= 0 {
+		totalSize = c.Request.ContentLength
+	}
+
 	startTime := time.Now()
 
-	// Send start event
+	// Send start event — SFTP is connected and ready
 	sendUploadEvent(c, map[string]interface{}{
 		"type":       "start",
 		"total_size": totalSize,

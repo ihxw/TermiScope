@@ -311,7 +311,6 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch, h, reactive, nextTick } from 'vue'
-import axios from 'axios'
 import { message, notification, Progress, Button, Spin, Modal } from 'ant-design-vue'
 import { 
   FolderFilled, 
@@ -778,6 +777,27 @@ const handleUpload = async ({ file, onSuccess, onError }) => {
     await uploadFile(props.hostId, currentPath.value, file, (event) => {
         // Skip updates if upload was cancelled
         if (cancelledUploads.has(key)) return
+
+        if (event.type === 'connecting') {
+            // Show connecting state with spinner
+            notification.open({
+                key,
+                message: uploadTitle,
+                description: h('div', [
+                    h('div', { style: 'display: flex; align-items: center; gap: 8px; margin-bottom: 8px' }, [
+                        h(Spin, { size: 'small' }),
+                        h('span', { style: 'color: #8c8c8c; font-size: 12px' }, t('terminal.connecting'))
+                    ]),
+                    h('div', { style: 'display: flex; justify-content: space-between; align-items: center' }, [
+                        h('span', { style: 'color: #8c8c8c; font-size: 12px' }, file.name),
+                        h(Button, { size: 'small', danger: true, onClick: () => cancelUpload(key) }, () => t('common.cancel'))
+                    ])
+                ]),
+                duration: 0,
+                placement: 'bottomRight'
+            })
+            return
+        }
 
         const percent = event.percent || 0
         const speedStr = event.speed || ''
