@@ -18,8 +18,6 @@ export const downloadFile = async (hostId, path, onProgress) => {
     })
 }
 
-import api from './index'
-
 export const uploadFile = async (hostId, path, file, onProgress, signal) => {
     const token = localStorage.getItem('token')
     const uploadId = `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
