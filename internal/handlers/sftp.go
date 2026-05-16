@@ -126,7 +126,7 @@ func (h *SftpHandler) getSftpClient(userID uint, hostID string) (*sftp.Client, *
 	}
 
 	// Create SFTP client
-	sftpClient, err := sftp.NewClient(sshClient.GetRawClient())
+	sftpClient, err := sftp.NewClient(sshClient.GetRawClient(), sftp.MaxPacket(32768))
 	if err != nil {
 		sshClient.Close()
 		return nil, nil, fmt.Errorf("failed to create SFTP client: %w", err)
@@ -302,6 +302,19 @@ type UploadProgressData struct {
 	Total   int64   `json:"total"`
 }
 
+// joinRemotePath joins SFTP path segments with forward slashes (always use "path", not "filepath").
+func joinRemotePath(dir, name string) string {
+	dir = filepath.ToSlash(strings.TrimSpace(dir))
+	name = filepath.Base(name)
+	if name == "" || name == "." {
+		return dir
+	}
+	if dir == "" || dir == "." {
+		return name
+	}
+	return path.Join(strings.TrimSuffix(dir, "/"), name)
+}
+
 // GetUploadProgress handles GET /api/sftp/upload-progress/:uploadId
 func (h *SftpHandler) GetUploadProgress(c *gin.Context) {
 	uploadID := c.Param("uploadId")
@@ -313,32 +326,36 @@ func (h *SftpHandler) GetUploadProgress(c *gin.Context) {
 	utils.SuccessResponse(c, http.StatusOK, gin.H{"status": "not_found"})
 }
 
+const sftpCopyBufferSize = 1024 * 1024 // 1 MiB — larger chunks improve LAN throughput
+
 // progressWriter wraps an io.Writer and reports write progress via callback
 type progressWriter struct {
-	dst       io.Writer
-	written   int64
-	total     int64
+	dst        io.Writer
+	written    int64
+	total      int64
 	onProgress func(written, total int64)
 	lastReport time.Time
-	ctx       interface{ Done() <-chan struct{} } // context for cancellation
+	ctx        interface{ Done() <-chan struct{} } // context for cancellation
 }
 
 func (pw *progressWriter) Write(p []byte) (int, error) {
-	// Check if client disconnected
+	n, err := pw.dst.Write(p)
+	if n > 0 {
+		pw.written += int64(n)
+		if pw.onProgress != nil && time.Since(pw.lastReport) >= 200*time.Millisecond {
+			pw.onProgress(pw.written, pw.total)
+			pw.lastReport = time.Now()
+		}
+	}
+	if err != nil {
+		return n, err
+	}
 	if pw.ctx != nil {
 		select {
 		case <-pw.ctx.Done():
-			return 0, fmt.Errorf("client disconnected")
+			return n, fmt.Errorf("client disconnected")
 		default:
 		}
-	}
-
-	n, err := pw.dst.Write(p)
-	pw.written += int64(n)
-	// Throttle progress reports to every 200ms
-	if pw.onProgress != nil && time.Since(pw.lastReport) >= 200*time.Millisecond {
-		pw.onProgress(pw.written, pw.total)
-		pw.lastReport = time.Now()
 	}
 	return n, err
 }
@@ -433,8 +450,7 @@ func (h *SftpHandler) Upload(c *gin.Context) {
 	defer sftpClient.Close()
 	defer sshClient.Close()
 
-	fullPath := filepath.Join(remotePath, cleanFilename)
-	fullPath = filepath.ToSlash(fullPath) // Ensure forward slashes for Linux remotes
+	fullPath := joinRemotePath(remotePath, cleanFilename)
 
 	dst, err := sftpClient.Create(fullPath)
 	if err != nil {
@@ -502,11 +518,22 @@ func (h *SftpHandler) Upload(c *gin.Context) {
 	}
 
 	// Stream directly from HTTP body → SFTP target via progress writer
-	buf := make([]byte, 256*1024)
+	buf := make([]byte, sftpCopyBufferSize)
 	if _, err := io.CopyBuffer(pw, filePart, buf); err != nil {
+		dst.Close()
+		_ = sftpClient.Remove(fullPath)
 		h.logAudit(userID, hostID, "upload", fullPath, "", c.ClientIP(), err)
 		utils.ErrorResponse(c, http.StatusInternalServerError, "failed to copy file: "+err.Error())
 		return
+	}
+
+	if uploadID != "" {
+		uploadProgressMap.Store(uploadID, UploadProgressData{
+			Percent: 100,
+			Written: pw.written,
+			Total:   totalSize,
+			Speed:   "",
+		})
 	}
 
 	h.logAudit(userID, hostID, "upload", fullPath, "", c.ClientIP(), nil)
@@ -1194,8 +1221,7 @@ func (h *SftpHandler) relaySingleFile(src, dst *sftp.Client, srcPath, dstPath st
 	}
 	defer dstFile.Close()
 
-	// Use larger buffer for better performance (256KB)
-	buf := make([]byte, 256*1024)
+	buf := make([]byte, sftpCopyBufferSize)
 	totalWritten := int64(0)
 	
 	for {

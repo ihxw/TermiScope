@@ -46,6 +46,16 @@ body {
   overflow: hidden;
 }
 
+.xterm,
+.xterm .xterm-screen,
+.xterm .xterm-rows,
+.xterm .xterm-row,
+.xterm .xterm-helper-textarea {
+  /* Inherited :root line-height (1.5) breaks xterm mouse selection alignment */
+  line-height: 1 !important;
+  letter-spacing: 0 !important;
+}
+
 .xterm {
   padding: 0;
 }

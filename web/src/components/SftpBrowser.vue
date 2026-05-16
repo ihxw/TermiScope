@@ -252,6 +252,31 @@
       <a-input v-model:value="createName" :placeholder="createType === 'folder' ? t('sftp.folderName') : t('sftp.fileName')" />
     </a-modal>
 
+    <a-modal
+      v-model:open="uploadConflictOpen"
+      :title="t('sftp.uploadConflictTitle')"
+      :footer="null"
+      :mask-closable="false"
+      width="400px"
+      :wrap-class-name="uploadConflictWrapClass"
+      @cancel="onUploadConflictCancel"
+    >
+      <div
+        class="upload-conflict-body"
+        :class="{ 'upload-conflict-body--dark': themeStore.isDark }"
+      >
+        <p class="upload-conflict-text">{{ t('sftp.uploadConflictContent', { name: uploadConflictName }) }}</p>
+        <p v-if="uploadConflictIsDir" class="upload-conflict-hint">{{ t('sftp.uploadConflictDirHint') }}</p>
+        <div class="upload-conflict-actions">
+          <a-button @click="onUploadConflictCancel">{{ t('common.cancel') }}</a-button>
+          <a-button @click="onUploadConflictKeepBoth">{{ t('sftp.uploadKeepBoth') }}</a-button>
+          <a-button type="primary" :disabled="uploadConflictIsDir" @click="onUploadConflictOverwrite">
+            {{ t('sftp.uploadOverwrite') }}
+          </a-button>
+        </div>
+      </div>
+    </a-modal>
+
     <!-- Video Preview Modal -->
     <a-modal
       v-model:open="previewVisible"
@@ -339,6 +364,111 @@
       </a-menu>
     </div>
 
+    <Teleport to="body">
+      <div
+        v-if="uploadTaskList.length"
+        class="upload-progress-dock"
+        :class="{ 'upload-progress-dock--dark': themeStore.isDark }"
+        :style="{ '--upload-ring-size': `${uploadRingSize}px` }"
+      >
+        <div v-if="uploadPanelExpanded" class="upload-panel upload-panel-list">
+          <div class="upload-panel-header">
+            <span class="upload-panel-title">{{ uploadPanelTitle }}</span>
+            <a-button type="link" size="small" class="upload-hide-btn" @click="hideUploadPanel">
+              {{ t('common.hide') }}
+            </a-button>
+          </div>
+          <div
+            class="upload-task-list"
+            :class="{ 'is-scrollable': uploadTaskList.length > 3 }"
+          >
+            <div v-for="task in uploadTaskList" :key="task.key" class="upload-task-item">
+              <div class="upload-task-item-head">
+                <span class="upload-file-name" :title="task.fileName">{{ task.fileName }}</span>
+                <span class="upload-task-item-right">
+                  <span v-if="task.speed && task.status === 'uploading'" class="upload-speed">{{ task.speed }}</span>
+                  <a-button
+                    v-if="task.status === 'uploading' || task.status === 'connecting'"
+                    type="link"
+                    size="small"
+                    danger
+                    class="upload-cancel-link"
+                    @click="cancelUpload(task.key)"
+                  >
+                    {{ t('common.cancel') }}
+                  </a-button>
+                </span>
+              </div>
+              <div v-if="task.status === 'connecting'" class="upload-panel-connecting">
+                <a-spin size="small" />
+                <span>{{ t('terminal.connecting') }}</span>
+              </div>
+              <div v-else-if="task.status === 'done'" class="upload-panel-done">{{ t('sftp.uploadComplete') }}</div>
+              <a-progress
+                v-else
+                :percent="task.percent"
+                :status="uploadProgressBarStatus(task)"
+                size="small"
+                :show-info="false"
+              />
+              <div v-if="task.errorMessage" class="upload-panel-error">{{ task.errorMessage }}</div>
+            </div>
+          </div>
+        </div>
+
+        <a-tooltip v-else :title="uploadCircleTooltip" placement="left">
+          <button
+            type="button"
+            class="upload-circle-btn"
+            :aria-label="t('sftp.uploadProgress')"
+            @click="showUploadPanel"
+          >
+            <span class="upload-ring-wrap">
+              <svg
+                class="upload-ring-svg"
+                :width="uploadRingSize"
+                :height="uploadRingSize"
+                :viewBox="`0 0 ${uploadRingSize} ${uploadRingSize}`"
+                aria-hidden="true"
+              >
+                <circle
+                  class="upload-ring-track"
+                  :cx="uploadRingCenter"
+                  :cy="uploadRingCenter"
+                  :r="uploadRingRadius"
+                  fill="none"
+                  stroke-width="3"
+                />
+                <circle
+                  class="upload-ring-progress"
+                  :class="`is-${aggregateUploadStatus}`"
+                  :cx="uploadRingCenter"
+                  :cy="uploadRingCenter"
+                  :r="uploadRingRadius"
+                  fill="none"
+                  stroke-width="3"
+                  stroke-linecap="round"
+                  :stroke-dasharray="uploadRingCircumference"
+                  :stroke-dashoffset="uploadRingDashOffset"
+                  :transform="`rotate(-90 ${uploadRingCenter} ${uploadRingCenter})`"
+                />
+              </svg>
+              <span
+                v-if="aggregateUpload.connecting && aggregateUpload.percent === 0"
+                class="upload-circle-center upload-circle-icon"
+              >
+                <LoadingOutlined />
+              </span>
+              <span v-else class="upload-circle-center upload-circle-percent">
+                {{ aggregateUpload.percent }}<span class="upload-circle-percent-suffix">%</span>
+              </span>
+            </span>
+            <span v-if="uploadTaskList.length > 1" class="upload-circle-badge">{{ uploadTaskList.length }}</span>
+          </button>
+        </a-tooltip>
+      </div>
+    </Teleport>
+
   </div>
 </template>
 
@@ -368,6 +498,7 @@ import {
   DownOutlined,
   CheckSquareOutlined,
   CloseOutlined,
+  LoadingOutlined,
   InfoCircleOutlined,
   LeftOutlined,
   RightOutlined,
@@ -377,9 +508,11 @@ import { listFiles, uploadFile, downloadFile, deleteFile, renameFile, pasteFile,
 import { useI18n } from 'vue-i18n'
 import FileEditor from './FileEditor.vue'
 import { useSftpStore } from '../stores/sftp'
+import { useThemeStore } from '../stores/theme'
 
 const { t } = useI18n()
 const sftpStore = useSftpStore()
+const themeStore = useThemeStore()
 const props = defineProps({
   hostId: {
     type: [String, Number],
@@ -830,6 +963,147 @@ const navigateTo = (index) => {
 
 const uploadControllers = new Map()
 const cancelledUploads = new Set()
+const uploadTasks = reactive({})
+const uploadDismissTimers = new Map()
+const uploadPanelExpanded = ref(false)
+/** Match Ant Design `size="small"` buttons (theme controlHeightSM). */
+const uploadControlSize = computed(() => themeStore.themeToken.controlHeightSM || 24)
+const uploadRingSize = computed(() => uploadControlSize.value * 2)
+const uploadRingRadius = computed(() => uploadRingSize.value / 2 - 2)
+const uploadRingCenter = computed(() => uploadRingSize.value / 2)
+const uploadRingCircumference = computed(() => 2 * Math.PI * uploadRingRadius.value)
+
+const uploadTaskList = computed(() => Object.values(uploadTasks))
+
+const aggregateUpload = computed(() => {
+  const tasks = uploadTaskList.value
+  let written = 0
+  let total = 0
+  let connecting = false
+  let fallbackPercentSum = 0
+  let fallbackCount = 0
+
+  for (const task of tasks) {
+    if (task.status === 'connecting') {
+      connecting = true
+    }
+    if (task.total > 0) {
+      if (task.status === 'done') {
+        written += task.total
+        total += task.total
+      } else {
+        written += task.written || 0
+        total += task.total
+      }
+    } else if (task.status === 'uploading' && task.percent > 0) {
+      fallbackPercentSum += task.percent
+      fallbackCount += 1
+    }
+  }
+
+  let percent = 0
+  if (total > 0) {
+    percent = Math.min(100, Math.round((written * 100) / total))
+  } else if (fallbackCount > 0) {
+    percent = Math.min(99, Math.round(fallbackPercentSum / fallbackCount))
+  }
+
+  const hasActive = tasks.some((t) => t.status === 'connecting' || t.status === 'uploading')
+  if (hasActive && percent >= 100) {
+    percent = 99
+  }
+
+  return { written, total, percent, connecting, hasActive }
+})
+
+const aggregateUploadStatus = computed(() => {
+  const tasks = uploadTaskList.value
+  if (tasks.some((t) => t.status === 'error' || t.status === 'cancelled')) {
+    return 'exception'
+  }
+  if (tasks.length && tasks.every((t) => t.status === 'done')) {
+    return 'success'
+  }
+  return 'active'
+})
+
+const uploadRingDashOffset = computed(() => {
+  const pct = Math.min(100, Math.max(0, aggregateUpload.value.percent))
+  return uploadRingCircumference.value * (1 - pct / 100)
+})
+
+const uploadPanelTitle = computed(() => {
+  const count = uploadTaskList.value.length
+  if (count <= 1) {
+    return uploadTaskList.value[0]?.title || t('sftp.uploading')
+  }
+  return t('sftp.uploadingCount', { count })
+})
+
+const uploadCircleTooltip = computed(() => {
+  const { percent, written, total } = aggregateUpload.value
+  if (written > 0 && total > 0) {
+    return `${percent}% · ${formatSize(written)} / ${formatSize(total)}`
+  }
+  return t('sftp.expandUploadDetail')
+})
+
+const showUploadPanel = () => {
+  uploadPanelExpanded.value = true
+}
+
+const hideUploadPanel = () => {
+  uploadPanelExpanded.value = false
+}
+
+const createUploadTask = (key, { title, fileName }) => {
+  uploadPanelExpanded.value = true
+  uploadTasks[key] = {
+    key,
+    title,
+    fileName,
+    percent: 0,
+    speed: '',
+    written: 0,
+    total: 0,
+    status: 'connecting',
+    errorMessage: '',
+  }
+}
+
+const updateUploadTask = (key, patch) => {
+  const task = uploadTasks[key]
+  if (task) Object.assign(task, patch)
+}
+
+const dismissUploadTask = (key, delayMs = 3000) => {
+  const existing = uploadDismissTimers.get(key)
+  if (existing) clearTimeout(existing)
+  const timer = setTimeout(() => {
+    delete uploadTasks[key]
+    uploadDismissTimers.delete(key)
+    if (!uploadTaskList.value.length) {
+      uploadPanelExpanded.value = false
+    }
+  }, delayMs)
+  uploadDismissTimers.set(key, timer)
+}
+
+const uploadProgressBarStatus = (task) => {
+  if (task.status === 'done') return 'success'
+  if (task.status === 'error' || task.status === 'cancelled') return 'exception'
+  return 'active'
+}
+
+/** Ant Design Upload wraps the real File in originFileObj; drag-drop provides a native File. */
+const resolveUploadFile = (file) => {
+  if (!file) return null
+  if (file instanceof File || file instanceof Blob) return file
+  if (file.originFileObj instanceof File || file.originFileObj instanceof Blob) {
+    return file.originFileObj
+  }
+  return null
+}
 
 const cancelUpload = (key) => {
     const controller = uploadControllers.get(key)
@@ -840,72 +1114,123 @@ const cancelUpload = (key) => {
     }
 }
 
-const handleUpload = async ({ file, onSuccess, onError }) => {
-  const key = `upload-${Date.now()}`
+const uploadConflictOpen = ref(false)
+const uploadConflictName = ref('')
+const uploadConflictIsDir = ref(false)
+let uploadConflictResolver = null
+
+const uploadConflictWrapClass = computed(() =>
+  themeStore.isDark
+    ? 'upload-conflict-modal-wrap upload-conflict-modal-wrap--dark'
+    : 'upload-conflict-modal-wrap'
+)
+
+const findDirEntry = (name) => files.value.find((f) => f.name === name)
+
+const hasUploadNameConflict = (name) => !!findDirEntry(name)
+
+const generateKeepBothName = (name) => {
+  const dot = name.lastIndexOf('.')
+  const base = dot > 0 ? name.slice(0, dot) : name
+  const ext = dot > 0 ? name.slice(dot) : ''
+  let n = 1
+  let candidate = `${base} (${n})${ext}`
+  while (hasUploadNameConflict(candidate)) {
+    n += 1
+    candidate = `${base} (${n})${ext}`
+  }
+  return candidate
+}
+
+const promptUploadConflict = (name) => {
+  const entry = findDirEntry(name)
+  return new Promise((resolve) => {
+    uploadConflictName.value = name
+    uploadConflictIsDir.value = !!entry?.is_dir
+    uploadConflictResolver = resolve
+    uploadConflictOpen.value = true
+  })
+}
+
+const finishUploadConflict = (action) => {
+  uploadConflictOpen.value = false
+  uploadConflictResolver?.(action)
+  uploadConflictResolver = null
+}
+
+const onUploadConflictCancel = () => finishUploadConflict('cancel')
+const onUploadConflictOverwrite = () => finishUploadConflict('overwrite')
+const onUploadConflictKeepBoth = () => finishUploadConflict('keepBoth')
+
+const resolveRemoteUploadName = async (displayName) => {
+  if (!hasUploadNameConflict(displayName)) {
+    return displayName
+  }
+  const action = await promptUploadConflict(displayName)
+  if (action === 'cancel') {
+    throw new Error('UPLOAD_CANCELLED_BY_USER')
+  }
+  if (action === 'keepBoth') {
+    return generateKeepBothName(displayName)
+  }
+  return displayName
+}
+
+const handleUpload = async ({ file: uploadItem, onSuccess, onError }) => {
+  const file = resolveUploadFile(uploadItem)
+  if (!file) {
+    message.error(t('sftp.uploadFailed'))
+    if (typeof onError === 'function') onError(new Error('Invalid file'))
+    return
+  }
+
+  const displayName = file.name || uploadItem?.name || 'upload'
+
+  let remoteFileName
+  try {
+    remoteFileName = await resolveRemoteUploadName(displayName)
+  } catch (err) {
+    if (err.message === 'UPLOAD_CANCELLED_BY_USER') {
+      if (typeof onError === 'function') onError(err)
+      return
+    }
+    throw err
+  }
+
+  const key = `upload-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
   const controller = new AbortController()
   uploadControllers.set(key, controller)
 
-  // Build upload notification title with server label
-  const uploadTitle = props.hostLabel 
-    ? `${t('sftp.uploading')} → ${props.hostLabel}` 
+  const uploadTitle = props.hostLabel
+    ? `${t('sftp.uploading')} → ${props.hostLabel}`
     : t('sftp.uploading')
 
-  try {
-    notification.open({
-        key,
-        message: uploadTitle,
-        description: h('div', [
-            h('div', { style: 'display: flex; align-items: center; gap: 8px; margin-bottom: 8px' }, [
-                h(Spin, { size: 'small' }),
-                h('span', { style: 'color: #8c8c8c; font-size: 12px' }, t('terminal.connecting'))
-            ]),
-            h('div', { style: 'display: flex; justify-content: space-between; align-items: center' }, [
-                h('span', { style: 'color: #8c8c8c; font-size: 12px' }, file.name),
-                h(Button, { size: 'small', danger: true, onClick: () => cancelUpload(key) }, () => t('common.cancel'))
-            ])
-        ]),
-        duration: 0,
-        placement: 'bottomRight'
-    })
+  createUploadTask(key, { title: uploadTitle, fileName: remoteFileName })
 
+  try {
     await uploadFile(props.hostId, currentPath.value, file, (event) => {
-        // Skip updates if upload was cancelled
         if (cancelledUploads.has(key)) return
 
-        const percent = event.percent || 0
-        const speedStr = event.speed || ''
+        if (event.type === 'complete') {
+          updateUploadTask(key, { status: 'done', percent: 100, speed: '' })
+          return
+        }
 
-        notification.open({
-            key,
-            message: uploadTitle,
-            description: h('div', [
-                h(Progress, { percent, status: 'active', size: 'small' }),
-                h('div', { style: 'display: flex; justify-content: space-between; align-items: center; margin-top: 8px' }, [
-                    h('span', { style: 'color: #8c8c8c; font-size: 12px' }, file.name),
-                    h('div', { style: 'display: flex; align-items: center; gap: 8px' }, [
-                        h('span', { style: 'color: #1890ff; font-weight: 500; font-size: 12px' }, speedStr),
-                        h(Button, { size: 'small', danger: true, onClick: () => cancelUpload(key) }, () => t('common.cancel'))
-                    ])
-                ])
-            ]),
-            duration: 0,
-            placement: 'bottomRight'
+        updateUploadTask(key, {
+          status: 'uploading',
+          percent: event.percent || 0,
+          speed: event.speed || '',
+          written: event.written || 0,
+          total: event.total || 0,
         })
-    }, controller.signal)
+    }, controller.signal, { fileName: remoteFileName })
     
     uploadControllers.delete(key)
     cancelledUploads.delete(key)
-    const completeDesc = props.hostLabel
-        ? `${file.name} → ${props.hostLabel}`
-        : t('sftp.uploadSuccess', { name: file.name })
-    notification.success({
-        key,
-        message: t('sftp.uploadComplete'),
-        description: completeDesc,
-        duration: 3,
-        placement: 'bottomRight'
-    })
-    
+    updateUploadTask(key, { status: 'done', percent: 100, speed: '' })
+    message.success(t('sftp.uploadSuccess', { name: remoteFileName }))
+    dismissUploadTask(key)
+
     loadFiles()
     // 安全调用回调函数
     if (typeof onSuccess === 'function') {
@@ -914,27 +1239,29 @@ const handleUpload = async ({ file, onSuccess, onError }) => {
   } catch (error) {
     uploadControllers.delete(key)
     // Check for abort/cancel (native fetch throws AbortError)
-    if (cancelledUploads.has(key) || error.name === 'AbortError' || error.name === 'CanceledError' || error.code === 'ERR_CANCELED') {
+    if (
+      cancelledUploads.has(key)
+      || error.name === 'AbortError'
+      || error.name === 'CanceledError'
+      || error.code === 'ERR_CANCELED'
+      || error.message === 'UPLOAD_CANCELLED_BY_USER'
+    ) {
         cancelledUploads.delete(key)
-        notification.warning({
-            key,
-            message: t('sftp.uploadCancelled'),
-            description: file.name,
-            duration: 3,
-            placement: 'bottomRight'
-        })
+        if (error.message !== 'UPLOAD_CANCELLED_BY_USER') {
+          updateUploadTask(key, { status: 'cancelled', errorMessage: '' })
+          dismissUploadTask(key)
+        }
         if (typeof onError === 'function') {
           onError(error)
         }
         return
     }
-    notification.error({
-        key,
-        message: t('sftp.uploadFailed'),
-        description: error.message || t('sftp.uploadFailed'),
-        duration: 4.5,
-        placement: 'bottomRight'
+    updateUploadTask(key, {
+      status: 'error',
+      errorMessage: error.message || t('sftp.uploadFailed'),
     })
+    message.error(error.message || t('sftp.uploadFailed'))
+    dismissUploadTask(key, 5000)
     if (typeof onError === 'function') {
       onError(error)
     }
@@ -1222,6 +1549,8 @@ onMounted(() => {
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown)
+  uploadDismissTimers.forEach((timer) => clearTimeout(timer))
+  uploadDismissTimers.clear()
 })
 
 const handleTransfer = (record) => {
@@ -1599,5 +1928,341 @@ defineExpose({
   border-radius: 4px;
   height: 32px;
   line-height: 32px;
+}
+
+.upload-progress-dock {
+  --upload-panel-bg: #fff;
+  --upload-panel-shadow: 0 6px 16px rgba(0, 0, 0, 0.12), 0 3px 6px -4px rgba(0, 0, 0, 0.08);
+  --upload-title-color: rgba(0, 0, 0, 0.88);
+  --upload-muted-color: #8c8c8c;
+  --upload-border-color: #f0f0f0;
+  --upload-ring-track: #f0f0f0;
+  --upload-ring-bg: #fff;
+  --upload-percent-color: rgba(0, 0, 0, 0.75);
+  --upload-circle-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+
+  position: fixed;
+  right: 20px;
+  bottom: 72px;
+  z-index: 1100;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+
+.upload-progress-dock--dark {
+  --upload-panel-bg: #1f1f1f;
+  --upload-panel-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+  --upload-title-color: rgba(255, 255, 255, 0.85);
+  --upload-muted-color: rgba(255, 255, 255, 0.45);
+  --upload-border-color: #303030;
+  --upload-ring-track: #303030;
+  --upload-ring-bg: #1f1f1f;
+  --upload-percent-color: rgba(255, 255, 255, 0.85);
+  --upload-circle-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);
+}
+
+.upload-progress-dock > * {
+  pointer-events: auto;
+}
+
+.upload-panel {
+  width: 280px;
+  padding: 10px 12px;
+  background: var(--upload-panel-bg);
+  border-radius: 8px;
+  box-shadow: var(--upload-panel-shadow);
+}
+
+.upload-panel-list {
+  gap: 0;
+}
+
+.upload-task-list {
+  overflow: visible;
+}
+
+.upload-task-list.is-scrollable {
+  max-height: 168px;
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.upload-task-list.is-scrollable::-webkit-scrollbar {
+  display: none;
+}
+
+.upload-task-item {
+  padding: 6px 0;
+  border-top: 1px solid var(--upload-border-color);
+}
+
+.upload-task-item:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.upload-task-item-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.upload-task-item-right {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.upload-cancel-link {
+  height: auto;
+  padding: 0 4px;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.upload-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.upload-panel-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--upload-title-color);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upload-hide-btn {
+  flex-shrink: 0;
+  padding: 0 4px;
+}
+
+.upload-panel-done {
+  font-size: 12px;
+  color: #52c41a;
+  line-height: 1.2;
+}
+
+.upload-panel-connecting {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+  color: var(--upload-muted-color);
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.upload-task-item :deep(.ant-progress-line) {
+  margin-bottom: 0;
+  line-height: 0;
+}
+
+.upload-panel-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.upload-file-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--upload-muted-color);
+}
+
+.upload-speed {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 500;
+  color: #1890ff;
+}
+
+.upload-panel-bytes {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #8c8c8c;
+}
+
+.upload-panel-error {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #ff4d4f;
+}
+
+.upload-panel-actions {
+  margin-top: 10px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.upload-circle-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--upload-ring-size, 48px);
+  height: var(--upload-ring-size, 48px);
+  padding: 0;
+  border: none;
+  background: transparent;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.upload-circle-btn:hover {
+  transform: scale(1.08);
+}
+
+.upload-ring-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--upload-ring-size, 48px);
+  height: var(--upload-ring-size, 48px);
+  background: var(--upload-ring-bg);
+  border-radius: 50%;
+  box-shadow: var(--upload-circle-shadow);
+}
+
+.upload-ring-svg {
+  display: block;
+}
+
+.upload-ring-track {
+  stroke: var(--upload-ring-track);
+}
+
+.upload-ring-progress {
+  transition: stroke-dashoffset 0.2s ease;
+}
+
+.upload-ring-progress.is-active {
+  stroke: #1890ff;
+}
+
+.upload-ring-progress.is-success {
+  stroke: #52c41a;
+}
+
+.upload-ring-progress.is-exception {
+  stroke: #ff4d4f;
+}
+
+.upload-circle-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.upload-circle-percent {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--upload-percent-color);
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.upload-circle-percent-suffix {
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.upload-circle-icon {
+  font-size: 16px;
+  color: #1890ff;
+  line-height: 1;
+}
+
+.upload-conflict-body {
+  --upload-conflict-text: rgba(0, 0, 0, 0.88);
+  --upload-conflict-hint: #d48806;
+}
+
+.upload-conflict-body--dark {
+  --upload-conflict-text: rgba(255, 255, 255, 0.85);
+  --upload-conflict-hint: #faad14;
+}
+
+.upload-conflict-text {
+  margin: 0 0 8px;
+  color: var(--upload-conflict-text);
+  word-break: break-all;
+}
+
+.upload-conflict-hint {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: var(--upload-conflict-hint);
+}
+
+.upload-conflict-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.upload-circle-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 14px;
+  text-align: center;
+  color: #fff;
+  background: #1890ff;
+  border-radius: 5px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+</style>
+
+<style>
+/* Modal teleports to body — dark styles must be global */
+.upload-conflict-modal-wrap--dark .ant-modal-content {
+  background-color: #1f1f1f;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.upload-conflict-modal-wrap--dark .ant-modal-header {
+  background-color: #1f1f1f;
+  border-bottom: 1px solid #303030;
+}
+
+.upload-conflict-modal-wrap--dark .ant-modal-title {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.upload-conflict-modal-wrap--dark .ant-modal-close {
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.upload-conflict-modal-wrap--dark .ant-modal-close:hover {
+  color: rgba(255, 255, 255, 0.85);
 }
 </style>

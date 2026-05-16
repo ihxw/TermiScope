@@ -100,7 +100,11 @@ func LoadConfig() (*Config, error) {
 		return nil, fmt.Errorf("error unmarshaling config: %w", err)
 	}
 
-	// Auto-generate secrets if not provided (first-run experience)
+	// Auto-generate secrets if not provided (first-run experience).
+	// Must persist to config file — otherwise a new key is generated on every restart and
+	// previously encrypted host passwords/private keys cannot be decrypted.
+	secretsGenerated := false
+
 	if config.Security.JWTSecret == "" {
 		config.Security.JWTSecret = os.Getenv("TERMISCOPE_JWT_SECRET")
 	}
@@ -110,6 +114,7 @@ func LoadConfig() (*Config, error) {
 			return nil, fmt.Errorf("failed to generate JWT secret: %w", err)
 		}
 		config.Security.JWTSecret = generated
+		secretsGenerated = true
 		log.Printf("Security: Auto-generated JWT secret (first run). Set TERMISCOPE_JWT_SECRET env var for production.")
 	}
 
@@ -122,7 +127,17 @@ func LoadConfig() (*Config, error) {
 			return nil, fmt.Errorf("failed to generate encryption key: %w", err)
 		}
 		config.Security.EncryptionKey = generated
+		secretsGenerated = true
 		log.Printf("Security: Auto-generated encryption key (first run). Set TERMISCOPE_ENCRYPTION_KEY env var for production.")
+	}
+
+	if secretsGenerated {
+		if err := config.SaveConfig(); err != nil {
+			log.Printf("Warning: Could not save auto-generated secrets to config file: %v", err)
+			log.Printf("Warning: Host passwords and login sessions will break after each restart until jwt_secret and encryption_key are set in configs/config.yaml")
+		} else {
+			log.Printf("Security: Saved auto-generated secrets to %s", viper.ConfigFileUsed())
+		}
 	}
 
 	// Validate encryption key length (must be 32 bytes for AES-256)

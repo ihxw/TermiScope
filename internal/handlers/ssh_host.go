@@ -35,11 +35,15 @@ func decryptHostCredentials(host *models.SSHHost, encryptionKey string) (passwor
 	if host.PasswordEncrypted != "" {
 		if p, err := utils.DecryptAES(host.PasswordEncrypted, encryptionKey); err == nil {
 			password = p
+		} else {
+			utils.LogError("Failed to decrypt password for host %d (%s): %v — encryption_key may have changed since the host was saved", host.ID, host.Name, err)
 		}
 	}
 	if host.PrivateKeyEncrypted != "" {
 		if k, err := utils.DecryptAES(host.PrivateKeyEncrypted, encryptionKey); err == nil {
 			privateKey = k
+		} else {
+			utils.LogError("Failed to decrypt private key for host %d (%s): %v — encryption_key may have changed since the host was saved", host.ID, host.Name, err)
 		}
 	}
 	return

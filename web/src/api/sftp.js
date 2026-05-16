@@ -1,4 +1,5 @@
 import api from './index'
+import { apiUrl } from '../utils/apiBase'
 
 export const listFiles = async (hostId, path = '.') => {
     return await api.get(`/sftp/list/${hostId}`, { params: { path } })
@@ -18,22 +19,37 @@ export const downloadFile = async (hostId, path, onProgress) => {
     })
 }
 
-export const uploadFile = async (hostId, path, file, onProgress, signal) => {
+const resolveUploadBlob = (file) => {
+    if (!file) return null
+    if (file instanceof Blob) return file
+    if (file.originFileObj instanceof Blob) return file.originFileObj
+    return null
+}
+
+export const uploadFile = async (hostId, path, file, onProgress, signal, options = {}) => {
+    const blob = resolveUploadBlob(file)
+    if (!blob) {
+        throw new Error('Invalid file')
+    }
+
     const token = localStorage.getItem('token')
     const uploadId = `upload_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+    const fileName = options.fileName || blob.name || file?.name || 'upload'
     
     const formData = new FormData()
     formData.append('path', path)
-    formData.append('file_size', file.size.toString())
+    formData.append('file_size', String(blob.size ?? 0))
     formData.append('upload_id', uploadId)
-    formData.append('file', file)
+    formData.append('file', blob, fileName)
 
     let pollInterval = null
     
     if (onProgress) {
         pollInterval = setInterval(async () => {
             try {
-                const res = await api.get(`/sftp/upload-progress/${uploadId}`)
+                const res = await fetch(apiUrl(`/sftp/upload-progress/${uploadId}`), {
+                    headers: { Authorization: `Bearer ${token}` },
+                }).then((r) => r.json()).then((body) => (body?.success ? body.data : body))
                 if (res && res.status !== 'not_found') {
                     onProgress({
                         type: 'progress',
@@ -50,7 +66,7 @@ export const uploadFile = async (hostId, path, file, onProgress, signal) => {
     }
 
     try {
-        const response = await fetch(`/api/sftp/upload/${hostId}`, {
+        const response = await fetch(apiUrl(`/sftp/upload/${hostId}`), {
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${token}`

@@ -335,16 +335,32 @@ const detectMobileDevice = () => {
 const statusColor = ref('processing')
 const containerBackground = ref(themeStore.isDark ? '#1e1e1e' : '#ffffff')
 
-// Font Settings
+const getDefaultTerminalFontFamily = () => {
+  if (typeof navigator !== 'undefined' && /Windows/i.test(navigator.userAgent)) {
+    return "'Cascadia Mono', 'Cascadia Code', Consolas, 'Courier New', monospace"
+  }
+  return "'Menlo', 'Monaco', 'Consolas', monospace"
+}
+
+// Font Settings — must stay monospace; lineHeight/letterSpacing are fixed at 1/0 for selection alignment
 const fontSettings = reactive({
-  size: parseInt(localStorage.getItem('termScope_fontSize')) || 14,
-  family: localStorage.getItem('termScope_fontFamily') || "'Menlo', 'Monaco', monospace"
+  size: parseInt(localStorage.getItem('termScope_fontSize'), 10) || 14,
+  family: localStorage.getItem('termScope_fontFamily') || getDefaultTerminalFontFamily(),
 })
+
+const TERMINAL_LAYOUT_OPTIONS = {
+  lineHeight: 1,
+  letterSpacing: 0,
+  windowsMode: typeof navigator !== 'undefined' && /Windows/i.test(navigator.userAgent),
+  customGlyphs: false,
+}
 
 const updateFont = () => {
   if (terminal.value) {
     terminal.value.options.fontSize = fontSettings.size
     terminal.value.options.fontFamily = fontSettings.family
+    terminal.value.options.lineHeight = TERMINAL_LAYOUT_OPTIONS.lineHeight
+    terminal.value.options.letterSpacing = TERMINAL_LAYOUT_OPTIONS.letterSpacing
     
     // Persist
     localStorage.setItem('termScope_fontSize', fontSettings.size)
@@ -417,9 +433,11 @@ const initTerminal = () => {
     cursorBlink: true,
     fontSize: fontSettings.size,
     fontFamily: fontSettings.family,
+    ...TERMINAL_LAYOUT_OPTIONS,
     theme: {}, // Will be set by updateTerminalTheme
     allowProposedApi: true,
-    logLevel: 'info'
+    logLevel: 'info',
+    scrollback: 10000,
   })
   
   updateTerminalTheme(themeStore.isDark, themeStore.terminalTheme)
@@ -439,7 +457,9 @@ const initTerminal = () => {
 
   // Fit terminal to container when split pane or window size changes
   const resizeObserver = new ResizeObserver(() => {
-    requestAnimationFrame(() => handleResize())
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => handleResize())
+    })
   })
 
   if (terminalRef.value) {
@@ -612,7 +632,11 @@ const handleResize = () => {
     if (viewport) {
       viewport.scrollLeft = 0
     }
+    // Re-sync glyph/selection layers after layout (fixes drag-select offset after resize or heavy TUI output)
     terminal.value.refresh(0, terminal.value.rows - 1)
+    if (typeof terminal.value.clearTextureAtlas === 'function') {
+      terminal.value.clearTextureAtlas()
+    }
     updateTerminalSize()
     sendResize()
   } catch (e) {
@@ -927,6 +951,7 @@ watch(showSftp, () => {
 }
 
 .terminal-container {
+  position: relative;
   flex: 1;
   width: 100%;
   height: 100%;
@@ -937,14 +962,28 @@ watch(showSftp, () => {
   overflow: hidden;
 }
 
+/* Do not force 100% w/h on .xterm — FitAddon sets pixel size; stretching breaks mouse selection coords */
 :deep(.xterm) {
-  width: 100%;
-  height: 100%;
   padding: 0;
+  line-height: 1 !important;
+  letter-spacing: 0 !important;
+}
+
+:deep(.xterm .xterm-screen),
+:deep(.xterm .xterm-rows),
+:deep(.xterm .xterm-row),
+:deep(.xterm .xterm-helper-textarea) {
+  line-height: 1 !important;
+  letter-spacing: 0 !important;
 }
 
 :deep(.xterm-viewport) {
   overflow-x: hidden !important;
+}
+
+:deep(.xterm-selection) {
+  /* Selection layer must align with cell grid */
+  pointer-events: none;
 }
 
 .sftp-active {
