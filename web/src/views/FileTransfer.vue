@@ -99,27 +99,55 @@
       </div>
     </div>
 
-    <!-- Transfer Queue Panel -->
-    <TransferQueue 
-      v-if="showQueuePanel" 
-      ref="transferQueueRef"
-      @close="showQueuePanel = false"
+    <TransferQueue ref="transferQueueRef" />
+
+    <SftpConflictModal
+      :open="conflictOpen"
+      :name="conflictName"
+      :is-dir="conflictIsDir"
+      :show-apply-to-all="showApplyToAll"
+      :apply-to-all="applyToAll"
+      :wrap-class="wrapClass"
+      :is-dark="themeStore.isDark"
+      @update:open="(v) => { if (!v) onConflictCancel() }"
+      @update:apply-to-all="(v) => { applyToAll.value = v }"
+      @cancel="onConflictCancel"
+      @overwrite="onConflictOverwrite"
+      @keep-both="onConflictKeepBoth"
     />
   </div>
 </template>
 
 <script setup>
 defineOptions({ name: 'FileTransfer' })
-import { ref, computed, onMounted, h, nextTick } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { notification, Progress, Spin, Modal } from 'ant-design-vue'
+import { message, Modal } from 'ant-design-vue'
 import { SwapOutlined } from '@ant-design/icons-vue'
 import SftpBrowser from '../components/SftpBrowser.vue'
 import TransferQueue from '../components/TransferQueue.vue'
+import SftpConflictModal from '../components/SftpConflictModal.vue'
 import { getHosts } from '../api/ssh'
 import { transferFile } from '../api/sftp'
+import { useThemeStore } from '../stores/theme'
+import { useSftpNameConflict } from '../composables/useSftpNameConflict'
+import { buildRemotePath } from '../utils/sftpPath'
 
 const { t } = useI18n()
+const themeStore = useThemeStore()
+const {
+  conflictOpen,
+  conflictName,
+  conflictIsDir,
+  showApplyToAll,
+  applyToAll,
+  wrapClass,
+  onConflictCancel,
+  onConflictOverwrite,
+  onConflictKeepBoth,
+  resolveDestName,
+  resetBatchPolicy,
+} = useSftpNameConflict()
 
 const hosts = ref([])
 const leftHostId = ref(null)
@@ -128,7 +156,6 @@ const leftBrowserRef = ref(null)
 const rightBrowserRef = ref(null)
 const leftSelectedKeys = ref([])
 const rightSelectedKeys = ref([])
-const showQueuePanel = ref(false)
 const transferQueueRef = ref(null)
 const activeTransfers = ref(new Map())
 
@@ -166,6 +193,72 @@ const onRightHostChange = () => {
   // Will trigger SftpBrowser to mount with new hostId
 }
 
+const getDestFiles = (destBrowser) => destBrowser?.getFiles?.() ?? []
+
+const getBrowserPath = (browser) => {
+  if (!browser) return '.'
+  if (typeof browser.getCurrentPath === 'function') {
+    return browser.getCurrentPath()
+  }
+  const p = browser.currentPath
+  return typeof p === 'string' ? p : (p?.value ?? '.')
+}
+
+const getDestPath = (destBrowser) => getBrowserPath(destBrowser)
+
+const buildSourcePath = (sourceBrowser, fileName) =>
+  buildRemotePath(getBrowserPath(sourceBrowser), fileName)
+
+const runTransfer = async ({
+  sourceHostId,
+  destHostId,
+  sourcePath,
+  destPath,
+  displayName,
+  destFileName,
+  destHostName,
+  side,
+  data,
+  taskId,
+}) => {
+  await transferFile(
+    sourceHostId,
+    destHostId,
+    sourcePath,
+    destPath,
+    (event) => {
+      if (event.type === 'start') {
+        if (transferQueueRef.value && taskId) {
+          transferQueueRef.value.updateTask(taskId, {
+            total: event.total_size || 0,
+            isDir: event.is_dir,
+          })
+        }
+      } else if (event.type === 'progress') {
+        if (transferQueueRef.value && taskId) {
+          transferQueueRef.value.updateTask(taskId, {
+            percent: event.percent || 0,
+            speed: event.speed || '',
+            transferred: event.transferred,
+            total: event.total,
+          })
+        }
+      }
+    },
+    'copy',
+    { destFileName }
+  )
+
+  if (transferQueueRef.value && taskId) {
+    transferQueueRef.value.updateTask(taskId, {
+      status: 'success',
+      percent: 100,
+    })
+  }
+
+  message.success(t('sftp.transferSuccess', { name: destFileName }))
+}
+
 const handleTransfer = async (side, data) => {
   const sourceHostId = side === 'left' ? leftHostId.value : rightHostId.value
   const destHostId = side === 'left' ? rightHostId.value : leftHostId.value
@@ -173,29 +266,21 @@ const handleTransfer = async (side, data) => {
   const destHostName = side === 'left' ? rightHostName.value : leftHostName.value
 
   if (!sourceHostId || !destHostId) {
-    notification.warning({
-      message: t('sftp.selectBothHosts'),
-      duration: 3,
-      placement: 'bottomRight'
-    })
+    message.warning(t('sftp.selectBothHosts'))
     return
   }
 
-  const destPath = destBrowser?.currentPath || '.'
-  const key = `transfer-${Date.now()}`
-
-  // ✅ 确保队列面板打开
-  if (!showQueuePanel.value) {
-    showQueuePanel.value = true
-    // 延迟一小段时间确保TransferQueue已挂载
-    await nextTick()
+  const destPath = getDestPath(destBrowser)
+  const { destFileName, cancelled } = await resolveDestName(data.name, getDestFiles(destBrowser))
+  if (cancelled) {
+    return
   }
-  
+
   // Add to queue with initial state and get taskId
   let taskId = null
   if (transferQueueRef.value) {
     taskId = transferQueueRef.value.addTask({
-      name: data.name,
+      name: destFileName,
       sourceHost: side === 'left' ? leftHostName.value : rightHostName.value,
       destHost: destHostName,
       percent: 0,
@@ -207,50 +292,20 @@ const handleTransfer = async (side, data) => {
   }
 
   try {
-    // ✅ 立即更新进度为0，让任务立即可见
     if (transferQueueRef.value && taskId) {
-      transferQueueRef.value.updateTask(taskId, {
-        percent: 0,
-        speed: ''
-      })
+      transferQueueRef.value.updateTask(taskId, { percent: 0, speed: '' })
     }
-    await transferFile(sourceHostId, destHostId, data.fullPath, destPath, (event) => {
-      console.log('💾 Transfer event:', event)
-      
-      if (event.type === 'start') {
-        if (transferQueueRef.value && taskId) {
-          transferQueueRef.value.updateTask(taskId, {
-            total: event.total_size || 0,
-            isDir: event.is_dir
-          })
-        }
-      } else if (event.type === 'progress') {
-        if (transferQueueRef.value && taskId) {
-          transferQueueRef.value.updateTask(taskId, {
-            percent: event.percent || 0,
-            speed: event.speed || '',
-            transferred: event.transferred,
-            total: event.total
-          })
-        }
-      } else if (event.type === 'info') {
-        console.log('ℹ️ Transfer info:', event.message)
-      }
-    }, 'copy')
-
-    if (transferQueueRef.value && taskId) {
-      transferQueueRef.value.updateTask(taskId, {
-        status: 'success',
-        percent: 100
-      })
-    }
-
-    notification.success({
-      key,
-      message: t('sftp.transferComplete'),
-      description: t('sftp.transferSuccess', { name: data.name }),
-      duration: 3,
-      placement: 'bottomRight'
+    await runTransfer({
+      sourceHostId,
+      destHostId,
+      sourcePath: data.fullPath,
+      destPath,
+      displayName: data.name,
+      destFileName,
+      destHostName,
+      side,
+      data,
+      taskId,
     })
 
     if (destBrowser) {
@@ -265,13 +320,7 @@ const handleTransfer = async (side, data) => {
       })
     }
     
-    notification.error({
-      key,
-      message: t('sftp.transferFailed'),
-      description: error.message || t('sftp.transferFailed'),
-      duration: 4.5,
-      placement: 'bottomRight'
-    })
+    message.error(error.message || t('sftp.transferFailed'))
   }
 }
 
@@ -295,102 +344,85 @@ const handleBulkTransfer = async (side) => {
     okText: t('common.ok'),
     cancelText: t('common.cancel'),
     onOk: async () => {
-      // 显示队列面板
-      if (!showQueuePanel.value) {
-        showQueuePanel.value = true
-        await nextTick()
+      resetBatchPolicy()
+      const destPath = getDestPath(destBrowser)
+      const pendingDestNames = new Set(getDestFiles(destBrowser).map((f) => f.name))
+      const destFilesSnapshot = () => {
+        const listed = getDestFiles(destBrowser)
+        const extras = [...pendingDestNames]
+          .filter((n) => !listed.some((f) => f.name === n))
+          .map((n) => ({ name: n }))
+        return [...listed, ...extras]
       }
-      const destPath = destBrowser?.currentPath || '.'
 
-      // 并发控制：最多同时传输 3 个文件
       const concurrencyLimit = 3
       const runningTransfers = ref(0)
       const transferPromises = []
 
       for (const key of selectedKeys) {
         const fileName = key.split('/').pop()
-        const fullPath = key
-        const fileRecord = sourceBrowser?.files?.find(f => f.name === fileName)
+        const fullPath = buildSourcePath(sourceBrowser, fileName)
+        const fileRecord = sourceBrowser?.getFiles?.()?.find((f) => f.name === fileName)
 
-        // 等待有可用槽位
+        const { destFileName, cancelled } = await resolveDestName(
+          fileName,
+          destFilesSnapshot(),
+          { batch: true }
+        )
+        if (cancelled) {
+          message.info(t('sftp.transferSkippedDuplicate', { name: fileName }))
+          continue
+        }
+        pendingDestNames.add(destFileName)
+
         while (runningTransfers.value >= concurrencyLimit) {
-          await new Promise(resolve => setTimeout(resolve, 100))
+          await new Promise((resolve) => setTimeout(resolve, 100))
         }
 
         runningTransfers.value++
-        
-        // 在队列中添加任务并获取 taskId
+
         let taskId = null
         if (transferQueueRef.value) {
           taskId = transferQueueRef.value.addTask({
-            name: fileName,
+            name: destFileName,
             sourceHost: side === 'left' ? leftHostName.value : rightHostName.value,
             destHost: destHostName,
             percent: 0,
             status: 'active',
             speed: '',
             total: fileRecord?.size || 0,
-            isDir: fileRecord?.is_dir || false
+            isDir: fileRecord?.is_dir || false,
           })
         }
 
-        // 启动传输
-        const promise = transferFile(sourceHostId, destHostId, fullPath, destPath, (event) => {
-          console.log(`📦 Bulk [${fileName}] event:`, event)
-          
-          if (event.type === 'start') {
-            if (transferQueueRef.value && taskId) {
-              transferQueueRef.value.updateTask(taskId, {
-                total: event.total_size || 0,
-                isDir: event.is_dir
-              })
-            }
-          } else if (event.type === 'progress') {
-            if (transferQueueRef.value && taskId) {
-              transferQueueRef.value.updateTask(taskId, {
-                percent: event.percent || 0,
-                speed: event.speed || '',
-                transferred: event.transferred,
-                total: event.total
-              })
-            }
-          }
-        }, 'copy')
+        const promise = runTransfer({
+          sourceHostId,
+          destHostId,
+          sourcePath: fullPath,
+          destPath,
+          displayName: fileName,
+          destFileName,
+          destHostName,
+          side,
+          data: { name: fileName },
+          taskId,
+        })
           .then(() => {
-            if (transferQueueRef.value && taskId) {
-              transferQueueRef.value.updateTask(taskId, {
-                status: 'success',
-                percent: 100
-              })
-            }
             if (destBrowser) {
               destBrowser.refresh()
             }
-            notification.success({
-              message: t('sftp.transferComplete'),
-              description: t('sftp.transferSuccess', { name: fileName }),
-              duration: 2,
-              placement: 'bottomRight'
-            })
           })
           .catch((error) => {
             console.error(`Bulk transfer [${fileName}] error:`, error)
             if (transferQueueRef.value && taskId) {
-              transferQueueRef.value.updateTask(taskId, {
-                status: 'error'
-              })
+              transferQueueRef.value.updateTask(taskId, { status: 'error' })
             }
-            notification.error({
-              message: t('sftp.transferFailed'),
-              description: error.message || t('sftp.transferFailed'),
-              duration: 3,
-              placement: 'bottomRight'
-            })
+            message.error(error.message || t('sftp.transferFailed'))
           })
           .finally(() => {
             runningTransfers.value--
           })
-        
+
         transferPromises.push(promise)
       }
 

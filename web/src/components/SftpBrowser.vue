@@ -509,6 +509,9 @@ import { useI18n } from 'vue-i18n'
 import FileEditor from './FileEditor.vue'
 import { useSftpStore } from '../stores/sftp'
 import { useThemeStore } from '../stores/theme'
+import '../styles/sftp-progress-dock.css'
+import { hasNameConflict, generateKeepBothName as makeKeepBothName } from '../utils/sftpConflict'
+import { buildRemotePath } from '../utils/sftpPath'
 
 const { t } = useI18n()
 const sftpStore = useSftpStore()
@@ -1127,20 +1130,9 @@ const uploadConflictWrapClass = computed(() =>
 
 const findDirEntry = (name) => files.value.find((f) => f.name === name)
 
-const hasUploadNameConflict = (name) => !!findDirEntry(name)
+const hasUploadNameConflict = (name) => hasNameConflict(files.value, name)
 
-const generateKeepBothName = (name) => {
-  const dot = name.lastIndexOf('.')
-  const base = dot > 0 ? name.slice(0, dot) : name
-  const ext = dot > 0 ? name.slice(dot) : ''
-  let n = 1
-  let candidate = `${base} (${n})${ext}`
-  while (hasUploadNameConflict(candidate)) {
-    n += 1
-    candidate = `${base} (${n})${ext}`
-  }
-  return candidate
-}
+const generateKeepBothName = (name) => makeKeepBothName(files.value, name)
 
 const promptUploadConflict = (name) => {
   const entry = findDirEntry(name)
@@ -1394,6 +1386,16 @@ const paste = async () => {
             // Cross host: use transferFile API
             for (const source of paths) {
                 const name = source.split('/').pop()
+                let destFileName = name
+                try {
+                    destFileName = await resolveRemoteUploadName(name)
+                } catch (err) {
+                    if (err.message === 'UPLOAD_CANCELLED_BY_USER') {
+                        continue
+                    }
+                    throw err
+                }
+                const transferOpts = { destFileName }
                 const key = `transfer-${Date.now()}`
                 
                 notification.open({
@@ -1427,11 +1429,11 @@ const paste = async () => {
                                 placement: 'bottomRight'
                             })
                         }
-                    }, type)
+                    }, type, transferOpts)
                     notification.success({
                         key,
                         message: t('sftp.transferComplete'),
-                        description: t('sftp.transferSuccess', { name }),
+                        description: t('sftp.transferSuccess', { name: destFileName }),
                         duration: 3,
                         placement: 'bottomRight'
                     })
@@ -1554,7 +1556,7 @@ onUnmounted(() => {
 })
 
 const handleTransfer = (record) => {
-    const fullPath = currentPath.value === '.' ? record.name : `${currentPath.value}/${record.name}`
+    const fullPath = buildRemotePath(currentPath.value, record.name)
     emit('transfer', {
         name: record.name,
         fullPath,
@@ -1786,7 +1788,9 @@ const handleKeyDown = (e) => {
 
 defineExpose({
     refresh: loadFiles,
-    currentPath
+    currentPath,
+    getCurrentPath: () => currentPath.value,
+    getFiles: () => files.value,
 })
 </script>
 
@@ -1930,93 +1934,9 @@ defineExpose({
   line-height: 32px;
 }
 
-.upload-progress-dock {
-  --upload-panel-bg: #fff;
-  --upload-panel-shadow: 0 6px 16px rgba(0, 0, 0, 0.12), 0 3px 6px -4px rgba(0, 0, 0, 0.08);
-  --upload-title-color: rgba(0, 0, 0, 0.88);
-  --upload-muted-color: #8c8c8c;
-  --upload-border-color: #f0f0f0;
-  --upload-ring-track: #f0f0f0;
-  --upload-ring-bg: #fff;
-  --upload-percent-color: rgba(0, 0, 0, 0.75);
-  --upload-circle-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
-
-  position: fixed;
-  right: 20px;
-  bottom: 72px;
-  z-index: 1100;
-  display: flex;
-  align-items: flex-end;
-  justify-content: flex-end;
-  pointer-events: none;
-}
-
-.upload-progress-dock--dark {
-  --upload-panel-bg: #1f1f1f;
-  --upload-panel-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
-  --upload-title-color: rgba(255, 255, 255, 0.85);
-  --upload-muted-color: rgba(255, 255, 255, 0.45);
-  --upload-border-color: #303030;
-  --upload-ring-track: #303030;
-  --upload-ring-bg: #1f1f1f;
-  --upload-percent-color: rgba(255, 255, 255, 0.85);
-  --upload-circle-shadow: 0 1px 6px rgba(0, 0, 0, 0.35);
-}
-
-.upload-progress-dock > * {
-  pointer-events: auto;
-}
-
-.upload-panel {
-  width: 280px;
-  padding: 10px 12px;
-  background: var(--upload-panel-bg);
-  border-radius: 8px;
-  box-shadow: var(--upload-panel-shadow);
-}
-
-.upload-panel-list {
-  gap: 0;
-}
-
-.upload-task-list {
-  overflow: visible;
-}
-
-.upload-task-list.is-scrollable {
-  max-height: 168px;
-  overflow-y: auto;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-.upload-task-list.is-scrollable::-webkit-scrollbar {
-  display: none;
-}
-
-.upload-task-item {
-  padding: 6px 0;
-  border-top: 1px solid var(--upload-border-color);
-}
-
-.upload-task-item:first-child {
-  border-top: none;
-  padding-top: 0;
-}
-
-.upload-task-item-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 4px;
-}
-
-.upload-task-item-right {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  flex-shrink: 0;
+.upload-task-item :deep(.ant-progress-line) {
+  margin-bottom: 0;
+  line-height: 0;
 }
 
 .upload-cancel-link {
@@ -2024,175 +1944,6 @@ defineExpose({
   padding: 0 4px;
   font-size: 12px;
   line-height: 1.2;
-}
-
-.upload-panel-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-.upload-panel-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--upload-title-color);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.upload-hide-btn {
-  flex-shrink: 0;
-  padding: 0 4px;
-}
-
-.upload-panel-done {
-  font-size: 12px;
-  color: #52c41a;
-  line-height: 1.2;
-}
-
-.upload-panel-connecting {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin-bottom: 4px;
-  color: var(--upload-muted-color);
-  font-size: 12px;
-  line-height: 1.2;
-}
-
-.upload-task-item :deep(.ant-progress-line) {
-  margin-bottom: 0;
-  line-height: 0;
-}
-
-.upload-panel-meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.upload-file-name {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 12px;
-  color: var(--upload-muted-color);
-}
-
-.upload-speed {
-  flex-shrink: 0;
-  font-size: 12px;
-  font-weight: 500;
-  color: #1890ff;
-}
-
-.upload-panel-bytes {
-  margin-top: 4px;
-  font-size: 12px;
-  color: #8c8c8c;
-}
-
-.upload-panel-error {
-  margin-top: 8px;
-  font-size: 12px;
-  color: #ff4d4f;
-}
-
-.upload-panel-actions {
-  margin-top: 10px;
-  display: flex;
-  justify-content: flex-end;
-}
-
-.upload-circle-btn {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--upload-ring-size, 48px);
-  height: var(--upload-ring-size, 48px);
-  padding: 0;
-  border: none;
-  background: transparent;
-  border-radius: 50%;
-  cursor: pointer;
-  transition: transform 0.15s ease;
-}
-
-.upload-circle-btn:hover {
-  transform: scale(1.08);
-}
-
-.upload-ring-wrap {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--upload-ring-size, 48px);
-  height: var(--upload-ring-size, 48px);
-  background: var(--upload-ring-bg);
-  border-radius: 50%;
-  box-shadow: var(--upload-circle-shadow);
-}
-
-.upload-ring-svg {
-  display: block;
-}
-
-.upload-ring-track {
-  stroke: var(--upload-ring-track);
-}
-
-.upload-ring-progress {
-  transition: stroke-dashoffset 0.2s ease;
-}
-
-.upload-ring-progress.is-active {
-  stroke: #1890ff;
-}
-
-.upload-ring-progress.is-success {
-  stroke: #52c41a;
-}
-
-.upload-ring-progress.is-exception {
-  stroke: #ff4d4f;
-}
-
-.upload-circle-center {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-}
-
-.upload-circle-percent {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--upload-percent-color);
-  line-height: 1;
-  letter-spacing: -0.03em;
-}
-
-.upload-circle-percent-suffix {
-  font-size: 10px;
-  font-weight: 600;
-}
-
-.upload-circle-icon {
-  font-size: 16px;
-  color: #1890ff;
-  line-height: 1;
 }
 
 .upload-conflict-body {
@@ -2217,28 +1968,16 @@ defineExpose({
   color: var(--upload-conflict-hint);
 }
 
+.upload-conflict-apply-all {
+  display: block;
+  margin: 0 0 16px;
+}
+
 .upload-conflict-actions {
   display: flex;
   justify-content: flex-end;
   flex-wrap: wrap;
   gap: 8px;
-}
-
-.upload-circle-badge {
-  position: absolute;
-  top: -2px;
-  right: -2px;
-  min-width: 14px;
-  height: 14px;
-  padding: 0 3px;
-  font-size: 9px;
-  font-weight: 600;
-  line-height: 14px;
-  text-align: center;
-  color: #fff;
-  background: #1890ff;
-  border-radius: 5px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 </style>
 

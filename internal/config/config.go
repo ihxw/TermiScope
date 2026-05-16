@@ -7,10 +7,14 @@ import (
 	"log"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/viper"
 )
+
+// resolvedConfigPath is the absolute path to the loaded config file (if any).
+var resolvedConfigPath string
 
 // Version is set via ldflags during build. Default is "dev".
 var Version = "dev"
@@ -54,12 +58,76 @@ type LogConfig struct {
 	File  string `mapstructure:"file"`
 }
 
+// ConfigFilePath returns the absolute path of the loaded config file, if any.
+func ConfigFilePath() string {
+	return resolvedConfigPath
+}
+
+// findConfigFile walks up from cwd to locate configs/config.yaml (stable across go run cwd).
+func findConfigFile() string {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	for dir := cwd; ; dir = filepath.Dir(dir) {
+		p := filepath.Join(dir, "configs", "config.yaml")
+		if st, err := os.Stat(p); err == nil && !st.IsDir() {
+			abs, err := filepath.Abs(p)
+			if err != nil {
+				return p
+			}
+			return abs
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+	}
+	return ""
+}
+
+func envSecret(key string) (string, bool) {
+	v, ok := os.LookupEnv(key)
+	if !ok {
+		return "", false
+	}
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return "", false
+	}
+	return v, true
+}
+
+func resolveSecret(fileValue, envKey string) string {
+	if v, ok := envSecret(envKey); ok {
+		return v
+	}
+	if v := strings.TrimSpace(fileValue); v != "" {
+		return v
+	}
+	return ""
+}
+
+func secretFingerprint(secret string) string {
+	if len(secret) < 8 {
+		return "****"
+	}
+	return secret[:4] + "..." + secret[len(secret)-4:]
+}
+
 // LoadConfig loads configuration from file and environment variables
 func LoadConfig() (*Config, error) {
-	viper.SetConfigName("config")
+	viper.Reset()
 	viper.SetConfigType("yaml")
-	viper.AddConfigPath("./configs")
-	viper.AddConfigPath(".")
+
+	resolvedConfigPath = findConfigFile()
+	if resolvedConfigPath != "" {
+		viper.SetConfigFile(resolvedConfigPath)
+	} else {
+		viper.SetConfigName("config")
+		viper.AddConfigPath("./configs")
+		viper.AddConfigPath(".")
+	}
 
 	// Set defaults
 	viper.SetDefault("server.port", 8080)
@@ -77,37 +145,37 @@ func LoadConfig() (*Config, error) {
 	viper.SetDefault("log.level", "info")
 	viper.SetDefault("log.file", "./logs/app.log")
 
-	// Environment variables override
+	// Environment variables override (non-secret keys only; secrets resolved explicitly below).
 	viper.SetEnvPrefix("TERMISCOPE")
 	viper.AutomaticEnv()
-
-	// Bind specific environment variables
 	viper.BindEnv("server.port", "TERMISCOPE_PORT")
 	viper.BindEnv("database.path", "TERMISCOPE_DB_PATH")
-	viper.BindEnv("security.jwt_secret", "TERMISCOPE_JWT_SECRET")
-	viper.BindEnv("security.encryption_key", "TERMISCOPE_ENCRYPTION_KEY")
 
 	// Read config file (optional, will use defaults if not found)
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			return nil, fmt.Errorf("error reading config file: %w", err)
 		}
-		// Config file not found, use defaults and env vars
+	} else if resolvedConfigPath == "" {
+		resolvedConfigPath = viper.ConfigFileUsed()
 	}
+
+	fileJWT := strings.TrimSpace(viper.GetString("security.jwt_secret"))
+	fileEnc := strings.TrimSpace(viper.GetString("security.encryption_key"))
 
 	var config Config
 	if err := viper.Unmarshal(&config); err != nil {
 		return nil, fmt.Errorf("error unmarshaling config: %w", err)
 	}
 
-	// Auto-generate secrets if not provided (first-run experience).
-	// Must persist to config file — otherwise a new key is generated on every restart and
-	// previously encrypted host passwords/private keys cannot be decrypted.
+	// Secrets: non-empty env > config file > generate once and persist.
+	// Never treat empty env vars as overrides (they used to wipe file values via AutomaticEnv).
 	secretsGenerated := false
 
-	if config.Security.JWTSecret == "" {
-		config.Security.JWTSecret = os.Getenv("TERMISCOPE_JWT_SECRET")
-	}
+	config.Security.JWTSecret = resolveSecret(
+		firstNonEmpty(config.Security.JWTSecret, fileJWT),
+		"TERMISCOPE_JWT_SECRET",
+	)
 	if config.Security.JWTSecret == "" {
 		generated, err := generateRandomHex(32)
 		if err != nil {
@@ -115,28 +183,33 @@ func LoadConfig() (*Config, error) {
 		}
 		config.Security.JWTSecret = generated
 		secretsGenerated = true
-		log.Printf("Security: Auto-generated JWT secret (first run). Set TERMISCOPE_JWT_SECRET env var for production.")
+		log.Printf("Security: Auto-generated JWT secret (first run). Set jwt_secret in %s or TERMISCOPE_JWT_SECRET.", configPathHint())
 	}
 
+	config.Security.EncryptionKey = resolveSecret(
+		firstNonEmpty(config.Security.EncryptionKey, fileEnc),
+		"TERMISCOPE_ENCRYPTION_KEY",
+	)
 	if config.Security.EncryptionKey == "" {
-		config.Security.EncryptionKey = os.Getenv("TERMISCOPE_ENCRYPTION_KEY")
-	}
-	if config.Security.EncryptionKey == "" {
-		generated, err := generateRandomHex(16) // 16 bytes = 32 hex chars = 32 byte string for AES-256
+		generated, err := generateRandomHex(16) // 16 bytes => 32 hex chars (AES-256 key material)
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate encryption key: %w", err)
 		}
 		config.Security.EncryptionKey = generated
 		secretsGenerated = true
-		log.Printf("Security: Auto-generated encryption key (first run). Set TERMISCOPE_ENCRYPTION_KEY env var for production.")
+		log.Printf("Security: Auto-generated encryption key (first run). Set encryption_key in %s or TERMISCOPE_ENCRYPTION_KEY.", configPathHint())
+	} else if fileEnc != "" && fileEnc != config.Security.EncryptionKey {
+		log.Printf("Security: encryption_key loaded from environment (fingerprint %s); config file value ignored", secretFingerprint(config.Security.EncryptionKey))
+	} else {
+		log.Printf("Security: encryption_key loaded (fingerprint %s)", secretFingerprint(config.Security.EncryptionKey))
 	}
 
 	if secretsGenerated {
 		if err := config.SaveConfig(); err != nil {
 			log.Printf("Warning: Could not save auto-generated secrets to config file: %v", err)
-			log.Printf("Warning: Host passwords and login sessions will break after each restart until jwt_secret and encryption_key are set in configs/config.yaml")
+			log.Printf("Warning: Host passwords and login sessions will break after each restart until jwt_secret and encryption_key are persisted in configs/config.yaml")
 		} else {
-			log.Printf("Security: Saved auto-generated secrets to %s", viper.ConfigFileUsed())
+			log.Printf("Security: Saved auto-generated secrets to %s", resolvedConfigPath)
 		}
 	}
 
@@ -180,12 +253,40 @@ func (c *Config) SaveConfig() error {
 	viper.Set("log.level", c.Log.Level)
 	viper.Set("log.file", c.Log.File)
 
-	// Ensure we have a config file path set
-	if viper.ConfigFileUsed() == "" {
-		viper.SetConfigFile("./configs/config.yaml")
+	target := resolvedConfigPath
+	if target == "" {
+		target = viper.ConfigFileUsed()
+	}
+	if target == "" {
+		target = "./configs/config.yaml"
+		abs, err := filepath.Abs(target)
+		if err == nil {
+			target = abs
+		}
+		resolvedConfigPath = target
 	}
 
+	if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
+		return fmt.Errorf("create config directory: %w", err)
+	}
+	viper.SetConfigFile(target)
 	return viper.WriteConfig()
+}
+
+func configPathHint() string {
+	if resolvedConfigPath != "" {
+		return resolvedConfigPath
+	}
+	return "configs/config.yaml"
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, v := range values {
+		if strings.TrimSpace(v) != "" {
+			return strings.TrimSpace(v)
+		}
+	}
+	return ""
 }
 
 // AddAllowedOrigin dynamically adds an allowed origin to the configuration

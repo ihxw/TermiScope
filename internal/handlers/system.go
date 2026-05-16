@@ -316,8 +316,14 @@ func (h *SystemHandler) Restore(c *gin.Context) {
 		return
 	}
 
-	// If encryption key was extracted, save it to config
+	// If encryption key was extracted, save it to config (must be 32 chars for AES-256)
 	if extractedKey != "" {
+		extractedKey = strings.TrimSpace(extractedKey)
+		if len(extractedKey) != 32 {
+			utils.ErrorResponse(c, http.StatusBadRequest,
+				fmt.Sprintf("invalid encryption key in backup (need 32 chars, got %d); not changing server key", len(extractedKey)))
+			return
+		}
 		h.config.Security.EncryptionKey = extractedKey
 		if err := h.config.SaveConfig(); err != nil {
 			fmt.Printf("Warning: failed to save encryption key to config: %v\n", err)

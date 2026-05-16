@@ -29,6 +29,7 @@
             :theme="themeStore.isDark ? 'dark' : 'light'"
             :style="{ background: 'transparent', border: 'none', lineHeight: '48px', flex: 1, marginLeft: '24px' }"
             @select="handleMenuSelect"
+            @mouseover="onNavMouseOver"
             :keyboard="false"
           >
             <a-menu-item key="Terminal">
@@ -256,6 +257,7 @@ import { useAuthStore } from '../stores/auth'
 import { useThemeStore } from '../stores/theme'
 import { useLocaleStore } from '../stores/locale'
 import { getSystemInfo } from '../api/system'
+import { dashboardViewLoaders, prefetchDashboardViews } from '../router'
 import packageJson from '../../package.json'
 
 const { t } = useI18n()
@@ -455,6 +457,32 @@ const handleMobileMenuSelect = ({ key }) => {
   router.push({ name: key })
 }
 
+const prefetchedViews = new Set()
+
+const prefetchView = (name) => {
+  if (!name || prefetchedViews.has(name) || name === route.name) return
+  const load = dashboardViewLoaders[name]
+  if (!load) return
+  prefetchedViews.add(name)
+  load()
+}
+
+const onNavMouseOver = (e) => {
+  const item = e.target.closest('.ant-menu-item')
+  if (!item) return
+  const key = item.getAttribute('data-menu-id')
+  if (key) prefetchView(key)
+}
+
+const scheduleDashboardPrefetch = () => {
+  const current = route.name
+  const run = () => prefetchDashboardViews(current)
+  if (typeof requestIdleCallback === 'function') {
+    requestIdleCallback(run, { timeout: 1500 })
+  } else {
+    setTimeout(run, 400)
+  }
+}
 
 onMounted(() => {
   themeStore.initTheme()
@@ -478,6 +506,8 @@ onMounted(() => {
       router.push('/login')
     })
   }
+
+  scheduleDashboardPrefetch()
 })
 </script>
 

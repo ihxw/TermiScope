@@ -302,10 +302,24 @@ type UploadProgressData struct {
 	Total   int64   `json:"total"`
 }
 
+// resolveSftpPath expands a remote path to an absolute path on the SFTP server.
+func resolveSftpPath(client *sftp.Client, p string) (string, error) {
+	p = strings.TrimSpace(p)
+	if p == "" {
+		p = "."
+	}
+	abs, err := client.RealPath(p)
+	if err != nil {
+		return "", err
+	}
+	return filepath.ToSlash(abs), nil
+}
+
 // joinRemotePath joins SFTP path segments with forward slashes (always use "path", not "filepath").
+// dir must be an absolute directory path when possible (use resolveSftpPath first).
 func joinRemotePath(dir, name string) string {
 	dir = filepath.ToSlash(strings.TrimSpace(dir))
-	name = filepath.Base(name)
+	name = path.Base(name)
 	if name == "" || name == "." {
 		return dir
 	}
@@ -884,6 +898,7 @@ func (h *SftpHandler) Transfer(c *gin.Context) {
 		DestHostID   string `json:"dest_host_id" binding:"required"`
 		SourcePath   string `json:"source_path" binding:"required"`
 		DestPath     string `json:"dest_path" binding:"required"`
+		DestFileName string `json:"dest_file_name"` // optional: rename on destination (keep-both)
 		Type         string `json:"type" binding:"omitempty,oneof=cut copy"` // cut or copy
 	}
 
@@ -925,7 +940,14 @@ func (h *SftpHandler) Transfer(c *gin.Context) {
 	}
 	defer srcSSH.Close()
 
-	srcStat, err := srcSftp.Stat(req.SourcePath)
+	resolvedSrc, err := resolveSftpPath(srcSftp, req.SourcePath)
+	if err != nil {
+		srcSftp.Close()
+		sendTransferEvent(c, map[string]interface{}{"type": "error", "message": "failed to resolve source path: " + err.Error()})
+		return
+	}
+
+	srcStat, err := srcSftp.Stat(resolvedSrc)
 	if err != nil {
 		srcSftp.Close()
 		sendTransferEvent(c, map[string]interface{}{"type": "error", "message": "source path not found: " + err.Error()})
@@ -944,25 +966,43 @@ func (h *SftpHandler) Transfer(c *gin.Context) {
 	}
 	srcSftp.Close()
 
-	fileName := path.Base(req.SourcePath)
+	dstSftp, dstSSH, err := h.getSftpClient(userID, req.DestHostID)
+	if err != nil {
+		sendTransferEvent(c, map[string]interface{}{"type": "error", "message": "failed to connect to destination: " + err.Error()})
+		return
+	}
+	resolvedDest, err := resolveSftpPath(dstSftp, req.DestPath)
+	dstSftp.Close()
+	dstSSH.Close()
+	if err != nil {
+		sendTransferEvent(c, map[string]interface{}{"type": "error", "message": "failed to resolve destination path: " + err.Error()})
+		return
+	}
+
+	destFileName := strings.TrimSpace(req.DestFileName)
+	fileName := path.Base(resolvedSrc)
+	if destFileName != "" {
+		fileName = path.Base(destFileName)
+	}
 	sendTransferEvent(c, map[string]interface{}{
 		"type": "start", "total_size": totalSize, "is_dir": isDir, "file_name": fileName,
 	})
 
-	// Try direct SCP from source to destination
-	if h.tryDirectSCP(c, srcSSH, dstHost, dstPassword, dstPrivateKey, req.SourcePath, req.DestPath, isDir) {
+	// Direct SCP always lands as the source basename when dest is a directory; use relay for rename (keep-both).
+	needsRename := destFileName != "" && path.Base(destFileName) != path.Base(resolvedSrc)
+	if !needsRename && h.tryDirectSCP(c, srcSSH, dstHost, dstPassword, dstPrivateKey, resolvedSrc, resolvedDest, destFileName, isDir) {
 		return
 	}
 
 	// Fallback: server-side relay with progress
 	sendTransferEvent(c, map[string]interface{}{"type": "info", "message": "using server relay"})
-	relayErr := h.transferViaRelay(c, userID, req.SourceHostID, req.DestHostID, req.SourcePath, req.DestPath, totalSize)
+	relayErr := h.transferViaRelay(c, userID, req.SourceHostID, req.DestHostID, resolvedSrc, resolvedDest, destFileName, totalSize)
 
 	// If cut requested and transfer succeeded, delete source
 	if req.Type == "cut" && relayErr == nil {
 		srcSftp, srcSSH, err := h.getSftpClient(userID, req.SourceHostID)
 		if err == nil {
-			h.deleteRecursive(srcSftp, req.SourcePath)
+			h.deleteRecursive(srcSftp, resolvedSrc)
 			srcSftp.Close()
 			srcSSH.Close()
 		}
@@ -970,7 +1010,22 @@ func (h *SftpHandler) Transfer(c *gin.Context) {
 }
 
 // tryDirectSCP runs scp from source VPS directly to dest VPS. Returns true if attempted.
-func (h *SftpHandler) tryDirectSCP(c *gin.Context, srcSSH *ssh.SSHClient, dstHost models.SSHHost, dstPassword, dstPrivateKey, sourcePath, destPath string, isDir bool) bool {
+func scpDestPath(destPath, destFileName string, isDir bool) string {
+	if destFileName != "" {
+		target := joinRemotePath(destPath, destFileName)
+		if isDir {
+			return target + "/"
+		}
+		return target
+	}
+	dir := filepath.ToSlash(strings.TrimSuffix(destPath, "/"))
+	if dir == "" {
+		dir = "."
+	}
+	return dir + "/"
+}
+
+func (h *SftpHandler) tryDirectSCP(c *gin.Context, srcSSH *ssh.SSHClient, dstHost models.SSHHost, dstPassword, dstPrivateKey, sourcePath, destPath, destFileName string, isDir bool) bool {
 	rawClient := srcSSH.GetRawClient()
 
 	var scpAuthPrefix, cleanupCmd string
@@ -1054,10 +1109,11 @@ fi`, dstHost.Port, utils.ShellEscape(dstHost.Host), expectedFpStr, expectedFpStr
 		scpFlags += " -r"
 	}
 
+	scpDest := scpDestPath(destPath, destFileName, isDir)
 	scpCmd := fmt.Sprintf("%s\n%s %s -P %d %s %s@%s:%s\nrm -f $TMP_HOSTS",
 		fingerprintCheck,
 		scpAuthPrefix, scpFlags, dstHost.Port,
-		utils.ShellEscape(sourcePath), dstHost.Username, dstHost.Host, utils.ShellEscape(destPath+"/"))
+		utils.ShellEscape(sourcePath), dstHost.Username, dstHost.Host, utils.ShellEscape(scpDest))
 
 	// Run with PTY for progress output
 	session, err := rawClient.NewSession()
@@ -1124,7 +1180,7 @@ fi`, dstHost.Port, utils.ShellEscape(dstHost.Host), expectedFpStr, expectedFpStr
 }
 
 // transferViaRelay uses server-side SFTP relay with progress streaming
-func (h *SftpHandler) transferViaRelay(c *gin.Context, userID uint, srcHostID, dstHostID, sourcePath, destPath string, totalSize int64) error {
+func (h *SftpHandler) transferViaRelay(c *gin.Context, userID uint, srcHostID, dstHostID, sourcePath, destPath, destFileName string, totalSize int64) error {
 	srcSftp, srcSSH, err := h.getSftpClient(userID, srcHostID)
 	if err != nil {
 		sendTransferEvent(c, map[string]interface{}{"type": "error", "message": "relay connect source failed: " + err.Error()})
@@ -1141,14 +1197,29 @@ func (h *SftpHandler) transferViaRelay(c *gin.Context, userID uint, srcHostID, d
 	defer dstSftp.Close()
 	defer dstSSH.Close()
 
-	srcStat, err := srcSftp.Stat(sourcePath)
+	resolvedSrc, err := resolveSftpPath(srcSftp, sourcePath)
+	if err != nil {
+		sendTransferEvent(c, map[string]interface{}{"type": "error", "message": "failed to resolve source path: " + err.Error()})
+		return err
+	}
+
+	srcStat, err := srcSftp.Stat(resolvedSrc)
 	if err != nil {
 		sendTransferEvent(c, map[string]interface{}{"type": "error", "message": "source not found: " + err.Error()})
 		return err
 	}
 
-	fileName := path.Base(sourcePath)
-	destFullPath := filepath.ToSlash(filepath.Join(destPath, fileName))
+	resolvedDest, err := resolveSftpPath(dstSftp, destPath)
+	if err != nil {
+		sendTransferEvent(c, map[string]interface{}{"type": "error", "message": "failed to resolve destination path: " + err.Error()})
+		return err
+	}
+
+	fileName := path.Base(resolvedSrc)
+	if destFileName != "" {
+		fileName = path.Base(destFileName)
+	}
+	destFullPath := joinRemotePath(resolvedDest, fileName)
 
 	var transferred int64
 	var lastPct int
@@ -1183,16 +1254,18 @@ func (h *SftpHandler) transferViaRelay(c *gin.Context, userID uint, srcHostID, d
 
 	var transferErr error
 	if srcStat.IsDir() {
-		transferErr = h.relayRecursive(srcSftp, dstSftp, sourcePath, destFullPath, onProgress)
+		transferErr = h.relayRecursive(srcSftp, dstSftp, resolvedSrc, destFullPath, onProgress)
 	} else {
-		transferErr = h.relaySingleFile(srcSftp, dstSftp, sourcePath, destFullPath, onProgress)
+		transferErr = h.relaySingleFile(srcSftp, dstSftp, resolvedSrc, destFullPath, onProgress)
 	}
 
 	if transferErr != nil {
 		sendTransferEvent(c, map[string]interface{}{"type": "error", "message": "relay: " + transferErr.Error()})
 		return transferErr
 	}
-	sendTransferEvent(c, map[string]interface{}{"type": "complete", "method": "relay"})
+	sendTransferEvent(c, map[string]interface{}{
+		"type": "complete", "method": "relay", "dest_path": destFullPath,
+	})
 	return nil
 }
 
@@ -1267,8 +1340,8 @@ func (h *SftpHandler) relayRecursive(src, dst *sftp.Client, srcPath, dstPath str
 			return fmt.Errorf("readdir failed: %w", err)
 		}
 		for _, entry := range entries {
-			s := filepath.ToSlash(filepath.Join(srcPath, entry.Name()))
-			d := filepath.ToSlash(filepath.Join(dstPath, entry.Name()))
+			s := path.Join(srcPath, entry.Name())
+			d := path.Join(dstPath, entry.Name())
 			if err := h.relayRecursive(src, dst, s, d, onProgress); err != nil {
 				return err
 			}

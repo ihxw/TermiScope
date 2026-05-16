@@ -2,6 +2,30 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { checkInit } from '../api/auth'
 
+/** Lazy loaders for dashboard child views — shared for route config and prefetch */
+export const dashboardViewLoaders = {
+    Terminal: () => import('../views/Terminal.vue'),
+    MonitorDashboard: () => import('../views/MonitorDashboard.vue'),
+    NetworkDetail: () => import('../views/NetworkDetail.vue'),
+    ConnectionHistory: () => import('../views/ConnectionHistory.vue'),
+    CommandManagement: () => import('../views/CommandManagement.vue'),
+    RecordingManagement: () => import('../views/RecordingManagement.vue'),
+    UserManagement: () => import('../views/UserManagement.vue'),
+    Profile: () => import('../views/Profile.vue'),
+    SystemManagement: () => import('../views/SystemManagement.vue'),
+    FileTransfer: () => import('../views/FileTransfer.vue'),
+    HostManagement: () => import('../views/HostManagement.vue'),
+}
+
+/** Preload view chunks so header tab switches feel instant after dashboard loads */
+export function prefetchDashboardViews(exceptName) {
+    for (const [name, load] of Object.entries(dashboardViewLoaders)) {
+        if (name !== exceptName) {
+            load()
+        }
+    }
+}
+
 const routes = [
     {
         path: '/login',
@@ -40,67 +64,67 @@ const routes = [
             {
                 path: 'terminal',
                 name: 'Terminal',
-                component: () => import('../views/Terminal.vue'),
+                component: dashboardViewLoaders.Terminal,
                 meta: { requiresAuth: true }
             },
             {
                 path: 'hosts',
                 name: 'HostManagement',
-                component: () => import('../views/HostManagement.vue'),
+                component: dashboardViewLoaders.HostManagement,
                 meta: { requiresAuth: true }
             },
             {
                 path: 'monitor',
                 name: 'MonitorDashboard',
-                component: () => import('../views/MonitorDashboard.vue'),
+                component: dashboardViewLoaders.MonitorDashboard,
                 meta: { requiresAuth: true }
             },
             {
                 path: 'monitor/:id/network',
                 name: 'NetworkDetail',
-                component: () => import('../views/NetworkDetail.vue'),
+                component: dashboardViewLoaders.NetworkDetail,
                 meta: { requiresAuth: true }
             },
             {
                 path: 'history',
                 name: 'ConnectionHistory',
-                component: () => import('../views/ConnectionHistory.vue'),
+                component: dashboardViewLoaders.ConnectionHistory,
                 meta: { requiresAuth: true }
             },
             {
                 path: 'commands',
                 name: 'CommandManagement',
-                component: () => import('../views/CommandManagement.vue'),
+                component: dashboardViewLoaders.CommandManagement,
                 meta: { requiresAuth: true }
             },
             {
                 path: 'recordings',
                 name: 'RecordingManagement',
-                component: () => import('../views/RecordingManagement.vue'),
+                component: dashboardViewLoaders.RecordingManagement,
                 meta: { requiresAuth: true }
             },
             {
                 path: 'users',
                 name: 'UserManagement',
-                component: () => import('../views/UserManagement.vue'),
+                component: dashboardViewLoaders.UserManagement,
                 meta: { requiresAuth: true, requiresAdmin: true }
             },
             {
                 path: 'profile',
                 name: 'Profile',
-                component: () => import('../views/Profile.vue'),
+                component: dashboardViewLoaders.Profile,
                 meta: { requiresAuth: true }
             },
             {
                 path: 'system',
                 name: 'SystemManagement',
-                component: () => import('../views/SystemManagement.vue'),
+                component: dashboardViewLoaders.SystemManagement,
                 meta: { requiresAuth: true, requiresAdmin: true }
             },
             {
                 path: 'transfer',
                 name: 'FileTransfer',
-                component: () => import('../views/FileTransfer.vue'),
+                component: dashboardViewLoaders.FileTransfer,
                 meta: { requiresAuth: true }
             }
         ]

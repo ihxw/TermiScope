@@ -117,21 +117,25 @@ export const createFile = async (hostId, path) => {
     return await api.post(`/sftp/create/${hostId}`, { path })
 }
 
-export const transferFile = async (sourceHostId, destHostId, sourcePath, destPath, onProgress, type = 'copy') => {
+export const transferFile = async (sourceHostId, destHostId, sourcePath, destPath, onProgress, type = 'copy', options = {}) => {
     const token = localStorage.getItem('token')
+    const payload = {
+        source_host_id: String(sourceHostId),
+        dest_host_id: String(destHostId),
+        source_path: sourcePath,
+        dest_path: destPath,
+        type: type,
+    }
+    if (options.destFileName != null && options.destFileName !== '') {
+        payload.dest_file_name = options.destFileName
+    }
     const response = await fetch('/api/sftp/transfer', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({
-            source_host_id: String(sourceHostId),
-            dest_host_id: String(destHostId),
-            source_path: sourcePath,
-            dest_path: destPath,
-            type: type
-        })
+        body: JSON.stringify(payload)
     })
 
     if (!response.ok) {
@@ -147,7 +151,7 @@ export const transferFile = async (sourceHostId, destHostId, sourcePath, destPat
     const decoder = new TextDecoder()
     let buffer = ''
     let lastError = null
-    let lastProgress = null
+    let gotComplete = false
 
     while (true) {
         const { done, value } = await reader.read()
@@ -165,9 +169,8 @@ export const transferFile = async (sourceHostId, destHostId, sourcePath, destPat
                     if (event.type === 'error') {
                         lastError = event.message
                     }
-                    // Track last progress for error scenarios
-                    if (event.type === 'progress') {
-                        lastProgress = event
+                    if (event.type === 'complete') {
+                        gotComplete = true
                     }
                     if (onProgress) onProgress(event)
                 } catch (e) {
@@ -179,6 +182,9 @@ export const transferFile = async (sourceHostId, destHostId, sourcePath, destPat
 
     if (lastError) {
         throw new Error(lastError)
+    }
+    if (!gotComplete) {
+        throw new Error('Transfer incomplete')
     }
 }
 

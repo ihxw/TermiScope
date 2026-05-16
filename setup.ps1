@@ -74,11 +74,19 @@ if (Test-Path $configPath) {
     # Read config file
     $config = Get-Content $configPath -Raw
     
-    # Update JWT secret
-    $config = $config -replace 'jwt_secret:\s*"[^"]*"', "jwt_secret: `"$jwtSecret`""
-    
-    # Update encryption key
-    $config = $config -replace 'encryption_key:\s*"[^"]*"', "encryption_key: `"$encryptionKey`""
+    # Update JWT secret (quoted or unquoted YAML values)
+    if ($config -match 'jwt_secret:\s*') {
+        $config = $config -replace 'jwt_secret:\s*(?:"[^"]*"|[^\s#\r\n]+)', "jwt_secret: `"$jwtSecret`""
+    } else {
+        $config = $config -replace '(security:\s*\r?\n)', "`$1    jwt_secret: `"$jwtSecret`"`r`n"
+    }
+
+    # Update encryption key (quoted or unquoted YAML values)
+    if ($config -match 'encryption_key:\s*') {
+        $config = $config -replace 'encryption_key:\s*(?:"[^"]*"|[^\s#\r\n]+)', "encryption_key: `"$encryptionKey`""
+    } else {
+        $config = $config -replace '(security:\s*\r?\n)', "`$1    encryption_key: `"$encryptionKey`"`r`n"
+    }
     
     # Save updated config
     $config | Set-Content $configPath -NoNewline
