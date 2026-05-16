@@ -186,6 +186,7 @@ import { ArrowDownOutlined, ArrowUpOutlined } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
 import { getWSTicket } from '../api/auth'
+import { buildWebSocketUrl } from '../utils/ws'
 import NetworkLatencyMonitor from '../components/NetworkLatencyMonitor.vue'
 
 const { t } = useI18n()
@@ -363,8 +364,7 @@ const connect = async () => {
   try {
     const res = await getWSTicket()
     const ticket = res.ticket
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const wsUrl = `${protocol}//${window.location.host}/api/monitor/stream?token=${ticket}`
+    const wsUrl = buildWebSocketUrl(`/api/monitor/stream?token=${encodeURIComponent(ticket)}`)
     
     socket.value = new WebSocket(wsUrl)
 

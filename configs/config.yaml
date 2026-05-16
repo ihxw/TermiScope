@@ -18,6 +18,7 @@ server:
     - "http://127.0.0.1:8100"
     - "http://127.0.0.1:8080"     # Flutter Web (IP 形式)
     - "http://192.168.1.5:5173"
+    - "http://192.168.1.7:5173"     # 局域网访问 Vite（按本机 IP 调整）
     # debug 模式下自动允许 localhost / 127.0.0.1 / 私网 IP（如 WSL 172.x）
     # 生产环境：删除以上开发地址，仅保留实际域名
     # - "https://your-domain.com"

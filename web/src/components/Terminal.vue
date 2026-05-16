@@ -235,6 +235,7 @@ import { useI18n } from 'vue-i18n'
 
 import { useThemeStore } from '../stores/theme'
 import { terminalThemes } from '../utils/terminalThemes'
+import { buildWebSocketUrl } from '../utils/ws'
 
 const { t } = useI18n()
 const themeStore = useThemeStore()
@@ -462,31 +463,55 @@ const initTerminal = () => {
   })
 }
 
+let wsConnectInFlight = false
+
+const describeWebSocketClose = (event) => {
+  if (event.code === 1000) return null
+  const reason = event.reason?.trim()
+  if (reason) return reason
+  // 1006: abnormal closure — often HTTP 401/404/403 before upgrade (check Network → WS)
+  if (event.code === 1006) {
+    return t('terminal.wsAbnormalClose')
+  }
+  return t('terminal.wsClosedWithCode', { code: event.code })
+}
+
 const connectWebSocket = async () => {
+  if (wsConnectInFlight) return
+  wsConnectInFlight = true
+
+  if (ws.value) {
+    ws.value.onopen = null
+    ws.value.onmessage = null
+    ws.value.onerror = null
+    ws.value.onclose = null
+    ws.value.close()
+    ws.value = null
+  }
+
   try {
-    // 1. Get one-time ticket
     const response = await getWSTicket()
-    const ticket = response.ticket
-
-    // 2. Connect via WebSocket with ticket
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const host = window.location.host
-    const wsUrl = `${protocol}//${host}/api/ws/ssh/${props.hostId}?ticket=${ticket}${props.record ? '&record=true' : ''}`
-    
-    ws.value = new WebSocket(wsUrl)
-
-    ws.value.binaryType = 'arraybuffer'
-
-    ws.value.onopen = () => {
-      connectionStatus.value = 'Connected'
-      message.success('SSH connection established')
-      // Send initial resize
-      sendResize()
-      // Auto focus
-      terminal.value.focus()
+    const ticket = response?.ticket
+    if (!ticket) {
+      throw new Error(t('terminal.wsNoTicket'))
     }
 
-    ws.value.onmessage = (event) => {
+    const recordQuery = props.record ? '&record=true' : ''
+    const wsUrl = buildWebSocketUrl(
+      `/api/ws/ssh/${props.hostId}?ticket=${encodeURIComponent(ticket)}${recordQuery}`
+    )
+    const socket = new WebSocket(wsUrl)
+    ws.value = socket
+    socket.binaryType = 'arraybuffer'
+
+    socket.onopen = () => {
+      connectionStatus.value = 'Connected'
+      message.success(t('terminal.connected'))
+      sendResize()
+      terminal.value?.focus()
+    }
+
+    socket.onmessage = (event) => {
       // Handle binary data (SSH output)
       if (event.data instanceof ArrayBuffer) {
         if (terminal.value) {
@@ -545,22 +570,34 @@ const connectWebSocket = async () => {
       }
     }
 
-    ws.value.onerror = (error) => {
+    socket.onerror = (error) => {
       console.error('WebSocket error:', error)
       connectionStatus.value = 'Error'
-      message.error('Connection error')
+      message.error(t('terminal.connectionFailed'))
     }
 
-    ws.value.onclose = () => {
+    socket.onclose = (event) => {
       connectionStatus.value = 'Disconnected'
-      if (terminal.value) {
-        terminal.value.writeln('\r\n\x1b[33mConnection closed\x1b[0m\r\n')
+      const detail = describeWebSocketClose(event)
+      if (detail) {
+        console.warn('[Terminal] WebSocket closed:', event.code, event.reason || detail)
+        message.error(detail)
+        terminal.value?.writeln(`\r\n\x1b[31m${detail}\x1b[0m\r\n`)
+      } else if (terminal.value) {
+        terminal.value.writeln(`\r\n\x1b[33m${t('terminal.disconnected')}\x1b[0m\r\n`)
+      }
+      if (ws.value === socket) {
+        ws.value = null
       }
     }
   } catch (error) {
-    console.error('Failed to get WS ticket:', error)
+    console.error('Failed to connect WebSocket:', error)
     connectionStatus.value = 'Error'
-    message.error('Failed to authenticate WebSocket')
+    const msg = error.response?.data?.error || error.message || t('terminal.connectionFailed')
+    message.error(msg)
+    terminal.value?.writeln(`\r\n\x1b[31m${msg}\x1b[0m\r\n`)
+  } finally {
+    wsConnectInFlight = false
   }
 }
 

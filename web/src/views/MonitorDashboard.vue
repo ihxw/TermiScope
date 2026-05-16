@@ -503,6 +503,7 @@ import { useSSHStore } from '../stores/ssh'
 import { ArrowDownOutlined, ArrowUpOutlined, AppleOutlined, WindowsOutlined, DesktopOutlined, LineChartOutlined, HistoryOutlined, SettingOutlined, CodeOutlined, AppstoreOutlined, UnorderedListOutlined, InfoCircleOutlined, FileTextOutlined, SyncOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { getWSTicket } from '../api/auth'
+import { buildWebSocketUrl } from '../utils/ws'
 import { getMonitorLogs, getTrafficResetLogs, updateAgent } from '../api/ssh'
 import { message } from 'ant-design-vue'
 import api from '../api/index'
@@ -974,8 +975,7 @@ const connect = async () => {
     const res = await getWSTicket()
     const ticket = res.ticket
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const wsUrl = `${protocol}//${window.location.host}/api/monitor/stream?token=${ticket}`
+    const wsUrl = buildWebSocketUrl(`/api/monitor/stream?token=${encodeURIComponent(ticket)}`)
     
     socket.value = new WebSocket(wsUrl)
 

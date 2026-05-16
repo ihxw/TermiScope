@@ -1,10 +1,29 @@
 <template>
   <div class="sftp-browser" @drop="handleDrop" @dragover="handleDragOver" @dragleave="handleDragLeave">
     <div class="browser-header">
+      <a-button-group size="small" class="nav-actions">
+        <a-tooltip :title="t('sftp.navBack')">
+          <a-button :disabled="!canGoBack" @click="goBack">
+            <template #icon><LeftOutlined /></template>
+          </a-button>
+        </a-tooltip>
+        <a-tooltip :title="t('sftp.navForward')">
+          <a-button :disabled="!canGoForward" @click="goForward">
+            <template #icon><RightOutlined /></template>
+          </a-button>
+        </a-tooltip>
+        <a-tooltip :title="t('sftp.navUp')">
+          <a-button :disabled="!canGoUp" @click="goUp">
+            <template #icon><ArrowUpOutlined /></template>
+          </a-button>
+        </a-tooltip>
+        <a-tooltip :title="t('common.refresh')">
+          <a-button :disabled="loading" @click="refresh">
+            <template #icon><ReloadOutlined /></template>
+          </a-button>
+        </a-tooltip>
+      </a-button-group>
       <div class="header-actions">
-        <a-button size="small" @click="refresh">
-          <template #icon><ReloadOutlined /></template>
-        </a-button>
         <a-button size="small" :disabled="!sftpStore.clipboard.paths.length" @click="paste">
           <template #icon><SnippetsOutlined /></template>
           {{ t('sftp.paste') }}
@@ -63,6 +82,20 @@
                 <CloseOutlined /> {{ t('sftp.clearSelection') }}
               </a-menu-item>
               <a-menu-divider />
+              <a-menu-item key="cut-selected" @click="handleBulkCut">
+                <ScissorOutlined /> {{ t('sftp.cutSelected') }}
+              </a-menu-item>
+              <a-menu-item key="copy-selected" @click="handleBulkCopy">
+                <CopyOutlined /> {{ t('sftp.copySelected') }}
+              </a-menu-item>
+              <a-menu-item
+                key="paste-selected"
+                @click="paste"
+                :disabled="!sftpStore.clipboard.paths.length"
+              >
+                <SnippetsOutlined /> {{ t('sftp.paste') }}
+              </a-menu-item>
+              <a-menu-divider />
               <a-menu-item key="download-selected" @click="handleBulkDownload">
                 <DownloadOutlined /> {{ t('sftp.downloadSelected') }}
               </a-menu-item>
@@ -79,13 +112,13 @@
       </div>
       <!-- 面包屑 / 路径输入框 切换 -->
       <template v-if="!pathInputVisible">
-        <div class="breadcrumb-container" @click="showPathInput" style="flex: 1; display: flex; align-items: center; cursor: text; padding: 2px 8px; border-radius: 4px; transition: background 0.2s;">
+        <div class="breadcrumb-container" @click="showPathInput">
           <a-tooltip :title="t('sftp.goToPath')">
-            <a-button size="small" type="text" @click.stop="showPathInput" class="path-toggle-btn" style="margin-right: 4px; height: 20px; padding: 0 4px;">
+            <a-button size="small" type="text" @click.stop="showPathInput" class="path-toggle-btn">
               <template #icon><EditOutlined /></template>
             </a-button>
           </a-tooltip>
-          <a-breadcrumb separator=">" size="small" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+          <a-breadcrumb separator=">" size="small" class="path-breadcrumb">
             <a-breadcrumb-item v-for="(part, index) in pathParts" :key="index">
               <a @click.stop="navigateTo(index)">{{ part || '/' }}</a>
             </a-breadcrumb-item>
@@ -335,7 +368,10 @@ import {
   DownOutlined,
   CheckSquareOutlined,
   CloseOutlined,
-  InfoCircleOutlined
+  InfoCircleOutlined,
+  LeftOutlined,
+  RightOutlined,
+  ArrowUpOutlined
 } from '@ant-design/icons-vue'
 import { listFiles, uploadFile, downloadFile, deleteFile, renameFile, pasteFile, createDirectory, createFile, getDirSize, transferFile } from '../api/sftp'
 import { useI18n } from 'vue-i18n'
@@ -373,6 +409,77 @@ const currentPath = ref('.')
 const files = ref([])
 const loading = ref(false)
 
+// Path navigation history (back / forward)
+const pathHistoryStack = ref([])
+const pathHistoryIndex = ref(-1)
+const skipHistoryRecord = ref(false)
+
+const canGoBack = computed(() => pathHistoryIndex.value > 0)
+const canGoForward = computed(() => pathHistoryIndex.value < pathHistoryStack.value.length - 1)
+const canGoUp = computed(() => {
+  const p = currentPath.value
+  return p !== '.' && p !== '/' && p !== ''
+})
+
+const getParentPath = (path) => {
+  if (!path || path === '.' || path === '/') return path
+  const normalized = path.replace(/\/+$/, '') || '/'
+  if (normalized === '/') return '/'
+  const lastSlash = normalized.lastIndexOf('/')
+  if (lastSlash <= 0) return '/'
+  return normalized.slice(0, lastSlash) || '/'
+}
+
+const resetPathHistory = () => {
+  pathHistoryStack.value = []
+  pathHistoryIndex.value = -1
+}
+
+const navigateToPath = (path, { recordHistory = true } = {}) => {
+  if (loading.value) return
+  const target = path || '/'
+  if (target === currentPath.value) return
+  if (recordHistory && !skipHistoryRecord.value) {
+    let stack = [...pathHistoryStack.value]
+    const idx = pathHistoryIndex.value
+    if (idx >= 0 && idx < stack.length - 1) {
+      stack = stack.slice(0, idx + 1)
+    }
+    if (stack.length === 0 || stack[stack.length - 1] !== target) {
+      stack.push(target)
+    }
+    pathHistoryStack.value = stack
+    pathHistoryIndex.value = stack.length - 1
+  }
+  currentPath.value = target
+  loadFiles()
+}
+
+const goBack = () => {
+  if (!canGoBack.value || loading.value) return
+  skipHistoryRecord.value = true
+  pathHistoryIndex.value -= 1
+  currentPath.value = pathHistoryStack.value[pathHistoryIndex.value]
+  loadFiles().finally(() => {
+    skipHistoryRecord.value = false
+  })
+}
+
+const goForward = () => {
+  if (!canGoForward.value || loading.value) return
+  skipHistoryRecord.value = true
+  pathHistoryIndex.value += 1
+  currentPath.value = pathHistoryStack.value[pathHistoryIndex.value]
+  loadFiles().finally(() => {
+    skipHistoryRecord.value = false
+  })
+}
+
+const goUp = () => {
+  if (!canGoUp.value || loading.value) return
+  navigateToPath(getParentPath(currentPath.value))
+}
+
 // 直达路径
 const pathInputVisible = ref(false)
 const pathInputValue = ref('')
@@ -396,9 +503,8 @@ const hidePathInput = () => {
 const goToPath = () => {
   const target = pathInputValue.value.trim()
   if (!target) return
-  currentPath.value = target
   pathInputVisible.value = false
-  loadFiles()
+  navigateToPath(target)
 }
 
 // Row Selection
@@ -660,6 +766,10 @@ const loadFiles = async () => {
         files.value = data.files.map(f => ({ ...f, size: f.is_dir ? null : f.size })) // Init dir size as null/loading
         if (data.cwd) {
             currentPath.value = data.cwd
+            if (pathHistoryStack.value.length === 0) {
+              pathHistoryStack.value = [data.cwd]
+              pathHistoryIndex.value = 0
+            }
         }
     } else if (Array.isArray(data)) {
         files.value = data.map(f => ({ ...f, size: f.is_dir ? null : f.size }))
@@ -693,48 +803,29 @@ const refresh = () => {
 
 const enterDir = (name) => {
   if (loading.value) return
+  let newPath
   if (currentPath.value === '.') {
-    currentPath.value = name
+    newPath = name
   } else {
-    currentPath.value = currentPath.value.endsWith('/') 
-      ? currentPath.value + name 
+    newPath = currentPath.value.endsWith('/')
+      ? currentPath.value + name
       : currentPath.value + '/' + name
   }
-  loadFiles()
+  navigateToPath(newPath)
 }
 
 const navigateTo = (index) => {
   if (loading.value) return
-  
+
+  let newPath
   if (index === 0) {
-    // If absolute path (starts with /), index 0 is Root.
-    if (currentPath.value.startsWith('/')) {
-        currentPath.value = '/'
-    } else {
-        // Relative logic
-        currentPath.value = '.'
-    }
+    newPath = currentPath.value.startsWith('/') ? '/' : '.'
   } else {
-    // Reconstruct path from parts
     const parts = pathParts.value.slice(0, index + 1)
-    
-    // If absolute, parts[0] is ''. parts.join('/') -> '/home/...'
-    let newPath = parts.join('/')
-    if (newPath === '') newPath = '/' // Handle root edge case
-    
-    // If relative, parts[0] is also '' (added in computed). 
-    // Wait, relative path 'foo/bar'. pathParts=['', 'foo', 'bar'].
-    // index 1 ('foo'). slice(0, 2) -> ['', 'foo']. join('/') -> '/foo'.
-    // This turns relative into absolute logic?
-    // If currentPath was '.', we return [''].
-    
-    // If we are in relative mode, maybe we strictly shouldn't show leading slash?
-    // But backend now returns absolute 'cwd' always. 
-    // So we will flip to absolute mode immediately after first load.
-    // So 'join' works fine.
-    currentPath.value = newPath
+    newPath = parts.join('/')
+    if (newPath === '') newPath = '/'
   }
-  loadFiles()
+  navigateToPath(newPath)
 }
 
 const uploadControllers = new Map()
@@ -1106,6 +1197,15 @@ const formatSize = (bytes) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 }
 
+watch(() => props.hostId, () => {
+  resetPathHistory()
+  currentPath.value = '.'
+  selectedRowKeys.value = []
+  if (props.visible) {
+    loadFiles()
+  }
+})
+
 watch(() => props.visible, (newVal) => {
   if (newVal && files.value.length === 0) {
     loadFiles()
@@ -1329,6 +1429,30 @@ const handleKeyDown = (e) => {
     e.preventDefault()
     clearSelection()
   }
+
+  // Alt + Left: Back
+  if (e.altKey && e.key === 'ArrowLeft') {
+    e.preventDefault()
+    goBack()
+  }
+
+  // Alt + Right: Forward
+  if (e.altKey && e.key === 'ArrowRight') {
+    e.preventDefault()
+    goForward()
+  }
+
+  // Alt + Up: Parent directory
+  if (e.altKey && e.key === 'ArrowUp') {
+    e.preventDefault()
+    goUp()
+  }
+
+  // Backspace: Back (when nothing selected)
+  if (e.key === 'Backspace' && selectedRowKeys.value.length === 0 && canGoBack.value) {
+    e.preventDefault()
+    goBack()
+  }
 }
 
 defineExpose({
@@ -1360,16 +1484,47 @@ defineExpose({
   align-items: center;
   margin-bottom: 8px;
   padding: 4px 0;
-  gap: 16px;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.nav-actions {
+  flex-shrink: 0;
 }
 
 .header-actions {
   display: flex;
   gap: 8px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.breadcrumb-container {
+  flex: 1;
+  min-width: 120px;
+  display: flex;
+  align-items: center;
+  cursor: text;
+  padding: 2px 8px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.breadcrumb-container:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.path-breadcrumb {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .path-toggle-btn {
   flex-shrink: 0;
+  margin-right: 4px;
+  height: 20px;
+  padding: 0 4px;
 }
 
 .path-input-wrapper {
