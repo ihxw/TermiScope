@@ -10,11 +10,9 @@
     <!-- 终端/分屏区域 -->
     <div class="split-container" :class="{ 'full-screen': !showSftp }">
       <!-- 左侧：终端 -->
-      <div class="split-left" :style="{ width: showSftp ? `${splitRatio * 100}%` : '100%' }">
+      <div ref="splitLeftRef" class="split-left" :style="splitLeftStyle">
         <div ref="terminalRef" class="terminal-container" :style="{ 
           background: containerBackground,
-          flex: 1,
-          overflow: 'hidden'
         }"></div>
       </div>
       
@@ -29,7 +27,7 @@
       </div>
       
       <!-- 右侧：SFTP浏览器（仅在分屏时显示） -->
-      <div v-show="showSftp" class="split-right" :style="{ width: `${(1 - splitRatio) * 100}%` }">
+      <div v-show="showSftp" class="split-right" :style="splitRightStyle">
         <SftpBrowser :host-id="hostId" :host-label="hostLabel" :visible="showSftp" />
       </div>
     </div>
@@ -263,6 +261,7 @@ const props = defineProps({
 const emit = defineEmits(['close'])
 
 const terminalRef = ref(null)
+const splitLeftRef = ref(null)
 const terminal = shallowRef(null)
 const fitAddon = shallowRef(null)
 const ws = ref(null)
@@ -271,6 +270,27 @@ const terminalSize = ref('80x24')
 const showSftp = ref(false)
 const splitRatio = ref(parseFloat(localStorage.getItem('terminal_split_ratio')) || 0.5)
 const commandTemplates = ref([])
+
+const splitLeftStyle = computed(() => {
+  if (!showSftp.value) {
+    return { flex: '1 1 0%', minWidth: 0, minHeight: 0 }
+  }
+  return {
+    flexGrow: splitRatio.value,
+    flexShrink: 1,
+    flexBasis: 0,
+    minWidth: 0,
+    minHeight: 0,
+  }
+})
+
+const splitRightStyle = computed(() => ({
+  flexGrow: 1 - splitRatio.value,
+  flexShrink: 1,
+  flexBasis: 0,
+  minWidth: 0,
+  minHeight: 0,
+}))
 
 // Current terminal theme (local state for popover)
 const currentTerminalTheme = ref(themeStore.terminalTheme || 'auto')
@@ -416,24 +436,16 @@ const initTerminal = () => {
   // Open terminal in DOM
   terminal.value.open(terminalRef.value)
 
-  // Fit terminal to container
+  // Fit terminal to container when split pane or window size changes
   const resizeObserver = new ResizeObserver(() => {
-    if (fitAddon.value && terminal.value) {
-      // Ensure container has dimensions
-      if (terminalRef.value && (terminalRef.value.clientWidth > 0 || terminalRef.value.clientHeight > 0)) {
-         try {
-           fitAddon.value.fit()
-           updateTerminalSize()
-           sendResize()
-         } catch (e) {
-           console.error('Fit error:', e)
-         }
-      }
-    }
+    requestAnimationFrame(() => handleResize())
   })
-  
+
   if (terminalRef.value) {
     resizeObserver.observe(terminalRef.value)
+  }
+  if (splitLeftRef.value) {
+    resizeObserver.observe(splitLeftRef.value)
   }
   
   // Store observer to cleanup
@@ -553,14 +565,21 @@ const connectWebSocket = async () => {
 }
 
 const handleResize = () => {
-  if (fitAddon.value && terminal.value) {
-    try {
-      fitAddon.value.fit()
-      updateTerminalSize()
-      sendResize()
-    } catch (e) {
-      console.error('Fit error:', e)
+  if (!fitAddon.value || !terminal.value || !terminalRef.value) return
+  const { clientWidth, clientHeight } = terminalRef.value
+  if (clientWidth <= 0 || clientHeight <= 0) return
+
+  try {
+    fitAddon.value.fit()
+    const viewport = terminalRef.value.querySelector('.xterm-viewport')
+    if (viewport) {
+      viewport.scrollLeft = 0
     }
+    terminal.value.refresh(0, terminal.value.rows - 1)
+    updateTerminalSize()
+    sendResize()
+  } catch (e) {
+    console.error('Fit error:', e)
   }
 }
 
@@ -594,6 +613,10 @@ onMounted(async () => {
   initTerminal()
   await connectWebSocket()
   loadCommands()
+})
+
+onActivated(() => {
+  nextTick(() => handleResize())
 })
 
 const disconnect = () => {
@@ -753,10 +776,11 @@ const startDrag = (e) => {
   
   const terminalWrapper = e.currentTarget.parentElement
   
-  const onMouseMove = (e) => {
-    const containerWidth = terminalWrapper.offsetWidth
-    const newRatio = e.clientX / containerWidth
-    
+  const onMouseMove = (moveEvent) => {
+    const rect = terminalWrapper.getBoundingClientRect()
+    if (rect.width <= 0) return
+    const newRatio = (moveEvent.clientX - rect.left) / rect.width
+
     // 限制比例在0.3-0.7之间
     splitRatio.value = Math.max(0.3, Math.min(0.7, newRatio))
   }
@@ -800,6 +824,8 @@ watch(showSftp, () => {
 .split-container {
   display: flex;
   flex: 1;
+  min-height: 0;
+  min-width: 0;
   overflow: hidden;
 }
 
@@ -809,10 +835,11 @@ watch(showSftp, () => {
 
 .split-left,
 .split-right {
-  flex-shrink: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  min-height: 0;
 }
 
 .split-divider {
@@ -863,12 +890,24 @@ watch(showSftp, () => {
 }
 
 .terminal-container {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
   padding: 0;
   margin: 0;
+  overflow: hidden;
 }
 
 :deep(.xterm) {
+  width: 100%;
+  height: 100%;
   padding: 0;
+}
+
+:deep(.xterm-viewport) {
+  overflow-x: hidden !important;
 }
 
 .sftp-active {

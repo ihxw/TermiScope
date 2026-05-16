@@ -132,7 +132,7 @@ func main() {
 	// Apply middlewares
 	router.Use(middleware.Logger())         // Access logs
 	router.Use(middleware.CustomRecovery()) // Custom panic recovery to error.log
-	router.Use(middleware.CORS(cfg.Server.AllowedOrigins))
+	router.Use(middleware.CORS(cfg.Server.AllowedOrigins, cfg.Server.Mode == "debug"))
 
 	// Global Middlewares
 	router.Use(middleware.SecurityMiddleware())

@@ -9,13 +9,16 @@ server:
   # 生产环境：如果前端由同一服务器提供，可以留空或删除此配置（自动信任同源请求）
   # 开发环境：需要配置 Vite 开发服务器地址 (如 http://localhost:5173)
   allowed_origins:
-    - "http://localhost:5173"     # 开发环境 (Web)
+    - "http://localhost:5173"     # 开发环境 (Web / Vite)
+    - "http://127.0.0.1:5173"     # Vite (127.0.0.1)
+    - "http://localhost:3000"
+    - "http://127.0.0.1:3000"     # 本机 / WSL 端口转发
     - "http://localhost:8080"     # Flutter Web
     - "http://localhost:8100"     # 开发环境 (Ionic)
     - "http://127.0.0.1:8100"
     - "http://127.0.0.1:8080"     # Flutter Web (IP 形式)
-    - "http://localhost:3000"
     - "http://192.168.1.5:5173"
+    # debug 模式下自动允许 localhost / 127.0.0.1 / 私网 IP（如 WSL 172.x）
     # 生产环境：删除以上开发地址，仅保留实际域名
     # - "https://your-domain.com"
   

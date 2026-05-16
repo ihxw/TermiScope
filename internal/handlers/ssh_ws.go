@@ -18,6 +18,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 	"github.com/ihxw/termiscope/internal/config"
+	"github.com/ihxw/termiscope/internal/middleware"
 	"github.com/ihxw/termiscope/internal/models"
 	"github.com/ihxw/termiscope/internal/ssh"
 	"github.com/ihxw/termiscope/internal/utils"
@@ -25,42 +26,17 @@ import (
 )
 
 // createUpgrader creates a WebSocket upgrader with origin validation
-func createUpgrader(allowedOrigins []string) websocket.Upgrader {
+func createUpgrader(allowedOrigins []string, debugMode bool) websocket.Upgrader {
 	return websocket.Upgrader{
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
 		CheckOrigin: func(r *http.Request) bool {
-			origin := r.Header.Get("Origin")
-
-			// Allow requests with no origin (same-origin requests in production)
-			if origin == "" {
-				return true
-			}
-
-			// Check if origin matches the request host (same-origin)
-			// This handles production scenarios where frontend is served by the same server
-			host := r.Header.Get("Host")
-			if host != "" {
-				// Compare origin without protocol
-				requestOrigin := "http://" + host
-				if origin == requestOrigin || origin == "https://"+host {
-					return true
-				}
-			}
-
-			// If allowed_origins is empty, only allow same-origin (production mode)
-			if len(allowedOrigins) == 0 {
-				return false
-			}
-
-			// Check if origin is in the allowed list (development mode)
-			for _, allowed := range allowedOrigins {
-				if allowed == "*" || origin == allowed {
-					return true
-				}
-			}
-
-			return false
+			return middleware.IsOriginAllowed(
+				r.Header.Get("Origin"),
+				r.Header.Get("Host"),
+				allowedOrigins,
+				debugMode,
+			)
 		},
 		EnableCompression: true,
 	}
@@ -163,7 +139,7 @@ func (h *SSHWebSocketHandler) HandleWebSocket(c *gin.Context) {
 	}
 
 	// Create upgrader with origin validation
-	upgrader := createUpgrader(h.config.Server.AllowedOrigins)
+	upgrader := createUpgrader(h.config.Server.AllowedOrigins, h.config.Server.Mode == "debug")
 
 	// Upgrade to WebSocket
 	ws, err := upgrader.Upgrade(c.Writer, c.Request, nil)

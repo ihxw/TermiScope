@@ -838,7 +838,7 @@ func (h *MonitorHandler) Stream(c *gin.Context) {
 		return
 	}
 
-	upgrader := createUpgrader(h.Config.Server.AllowedOrigins)
+	upgrader := createUpgrader(h.Config.Server.AllowedOrigins, h.Config.Server.Mode == "debug")
 
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
