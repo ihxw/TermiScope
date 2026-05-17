@@ -1,8 +1,11 @@
 import api from './index'
 import { apiUrl } from '../utils/apiBase'
 
-export const listFiles = async (hostId, path = '.') => {
-    return await api.get(`/sftp/list/${hostId}`, { params: { path } })
+export const listFiles = async (hostId, path = '.', options = {}) => {
+    return await api.get(`/sftp/list/${hostId}`, {
+        params: { path },
+        signal: options.signal,
+    })
 }
 
 export const downloadFile = async (hostId, path, onProgress) => {
@@ -188,16 +191,23 @@ export const transferFile = async (sourceHostId, destHostId, sourcePath, destPat
     }
 }
 
-export const getDirSize = async (hostId, path) => {
+const isRequestAborted = (error) =>
+    error?.code === 'ERR_CANCELED' ||
+    error?.name === 'CanceledError' ||
+    error?.message === 'canceled'
+
+export const getDirSize = async (hostId, path, options = {}) => {
     try {
         return await api.get(`/sftp/size/${hostId}`, {
             params: { path },
             timeout: 10000, // 10s timeout to prevent long hanging
-            _silentError: true // 静默错误，不在全局拦截器中显示 toast
+            _silentError: true, // 静默错误，不在全局拦截器中显示 toast
+            signal: options.signal,
         })
     } catch (error) {
-        // 静默失败，不显示toast
-        // 返回一个特殊对象表示超时/失败
+        if (isRequestAborted(error)) {
+            throw error
+        }
         console.warn(`Failed to get dir size for ${path}:`, error.message)
         return null
     }

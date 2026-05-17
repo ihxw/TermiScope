@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/ihxw/termiscope/internal/database"
 	"github.com/ihxw/termiscope/internal/models"
 	"github.com/ihxw/termiscope/internal/utils"
 	"gorm.io/gorm"
@@ -77,6 +78,13 @@ func (h *NetworkMonitorHandler) ReportNetworkResults(c *gin.Context) {
 	}
 
 	if err := h.DB.Create(&results).Error; err != nil {
+		if migrateErr := database.EnsureNetworkMonitorTables(h.DB); migrateErr == nil {
+			if err = h.DB.Create(&results).Error; err == nil {
+				c.Status(http.StatusOK)
+				return
+			}
+		}
+		utils.LogError("ReportNetworkResults: save failed | count=%d | Error: %v", len(results), err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save results"})
 		return
 	}
@@ -220,9 +228,9 @@ func (h *NetworkMonitorHandler) GetTaskStats(c *gin.Context) {
 		return
 	}
 
-	// Time Range (Default 24h)
+	// Time Range (Default 24h); supports 1h, 24h, 1d, 7d, etc.
 	rangeStr := c.DefaultQuery("range", "24h")
-	duration, err := time.ParseDuration(rangeStr)
+	duration, err := database.ParseNetworkStatsRange(rangeStr)
 	if err != nil {
 		utils.LogError("GetTaskStats: invalid duration format: %s | Error: %v | Task ID: %d", rangeStr, err, taskIDNum)
 		duration = 24 * time.Hour
@@ -230,11 +238,22 @@ func (h *NetworkMonitorHandler) GetTaskStats(c *gin.Context) {
 
 	since := time.Now().Add(-duration)
 
-	var results []models.NetworkMonitorResult = make([]models.NetworkMonitorResult, 0)
-	if err := h.DB.Where("task_id = ? AND created_at > ?", taskIDNum, since).Order("created_at asc").Find(&results).Error; err != nil {
+	results, err := database.QueryNetworkMonitorResults(h.DB, taskIDNum, since)
+	if err != nil {
 		utils.LogError("GetTaskStats: database query failed | Task ID: %d | Since: %s | Error: %v | IP: %s",
 			taskIDNum, since.Format(time.RFC3339), err, c.ClientIP())
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch stats"})
+		if database.IsDatabaseCorrupted(err) {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":   "Database is corrupted",
+				"details": "SQLite reports disk image is malformed. Stop the server, back up data/termiscope.db, then run: sqlite3 data/termiscope.db \".recover\" | sqlite3 data/termiscope_recovered.db",
+			})
+			return
+		}
+		resp := gin.H{"error": "Failed to fetch stats"}
+		if gin.Mode() == gin.DebugMode {
+			resp["details"] = err.Error()
+		}
+		c.JSON(http.StatusInternalServerError, resp)
 		return
 	}
 

@@ -545,6 +545,54 @@ const currentPath = ref('.')
 const files = ref([])
 const loading = ref(false)
 
+// Directory listing vs background folder-size jobs (separate so sizes never block navigation).
+let listGeneration = 0
+let listAbortController = null
+let dirSizeSessionId = 0
+let dirSizeAbortController = null
+const DIR_SIZE_CONCURRENCY = 2
+
+const cancelDirSizeJobs = () => {
+  dirSizeSessionId += 1
+  if (dirSizeAbortController) {
+    dirSizeAbortController.abort()
+    dirSizeAbortController = null
+  }
+}
+
+const applyDirSize = (dirName, size, sessionId, cwd) => {
+  if (sessionId !== dirSizeSessionId) return
+  const file = files.value.find((f) => f.name === dirName && f.is_dir)
+  if (!file) return
+  if (currentPath.value !== cwd) return
+  file.size = size
+}
+
+const fetchDirSizesInBackground = (hostId, cwd, dirNames, sessionId, signal) => {
+  const queue = [...dirNames]
+  const workerCount = Math.min(DIR_SIZE_CONCURRENCY, queue.length)
+  if (workerCount === 0) return
+
+  const worker = async () => {
+    while (queue.length > 0) {
+      if (signal.aborted || sessionId !== dirSizeSessionId) return
+      const dirName = queue.shift()
+      const path = cwd === '.' ? dirName : `${cwd}/${dirName}`
+      try {
+        const res = await getDirSize(hostId, path, { signal })
+        if (signal.aborted || sessionId !== dirSizeSessionId) return
+        const size = res && res.size !== undefined ? res.size : -1
+        applyDirSize(dirName, size, sessionId, cwd)
+      } catch (error) {
+        if (error?.code === 'ERR_CANCELED' || error?.name === 'CanceledError') return
+        applyDirSize(dirName, -1, sessionId, cwd)
+      }
+    }
+  }
+
+  void Promise.all(Array.from({ length: workerCount }, () => worker()))
+}
+
 // Path navigation history (back / forward)
 const pathHistoryStack = ref([])
 const pathHistoryIndex = ref(-1)
@@ -893,14 +941,29 @@ const columns = computed(() => [
 
 const loadFiles = async () => {
   if (!props.hostId) return
+
+  cancelDirSizeJobs()
+  if (listAbortController) {
+    listAbortController.abort()
+  }
+  listAbortController = new AbortController()
+  const listSignal = listAbortController.signal
+  const gen = ++listGeneration
+
   loading.value = true
   selectedRowKeys.value = [] // Reset selection on path change
+  const cwdAtStart = currentPath.value
+
   try {
-    const data = await listFiles(props.hostId, currentPath.value)
+    const data = await listFiles(props.hostId, cwdAtStart, { signal: listSignal })
+    if (listSignal.aborted || gen !== listGeneration) return
+
     // Handle new response format { files: [], cwd: '/...' }
+    let resolvedCwd = cwdAtStart
     if (data && data.files) {
-        files.value = data.files.map(f => ({ ...f, size: f.is_dir ? null : f.size })) // Init dir size as null/loading
+        files.value = data.files.map(f => ({ ...f, size: f.is_dir ? null : f.size }))
         if (data.cwd) {
+            resolvedCwd = data.cwd
             currentPath.value = data.cwd
             if (pathHistoryStack.value.length === 0) {
               pathHistoryStack.value = [data.cwd]
@@ -912,23 +975,26 @@ const loadFiles = async () => {
     } else {
         files.value = []
     }
-    
-    // Asynchronously fetch folder sizes
-    files.value.forEach(async (file, index) => {
-        if (file.is_dir) {
-            const res = await getDirSize(props.hostId, currentPath.value === '.' ? file.name : `${currentPath.value}/${file.name}`)
-            if (res && res.size !== undefined) {
-                if (files.value[index]) files.value[index].size = res.size
-            } else {
-                // 超时或失败，标记为-1显示"计算失败"
-                if (files.value[index]) files.value[index].size = -1
-            }
-        }
-    })
+
+    const dirNames = files.value.filter((f) => f.is_dir).map((f) => f.name)
+    if (dirNames.length > 0) {
+      const sessionId = ++dirSizeSessionId
+      dirSizeAbortController = new AbortController()
+      fetchDirSizesInBackground(
+        props.hostId,
+        resolvedCwd,
+        dirNames,
+        sessionId,
+        dirSizeAbortController.signal,
+      )
+    }
   } catch (error) {
+    if (error?.code === 'ERR_CANCELED' || error?.name === 'CanceledError') return
     console.error('Failed to list files:', error)
   } finally {
-    loading.value = false
+    if (gen === listGeneration) {
+      loading.value = false
+    }
   }
 }
 
@@ -1553,6 +1619,11 @@ onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown)
   uploadDismissTimers.forEach((timer) => clearTimeout(timer))
   uploadDismissTimers.clear()
+  cancelDirSizeJobs()
+  if (listAbortController) {
+    listAbortController.abort()
+    listAbortController = null
+  }
 })
 
 const handleTransfer = (record) => {
