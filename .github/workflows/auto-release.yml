@@ -9,7 +9,7 @@ on:
 
 jobs:
   check-version:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     outputs:
       version_changed: ${{ steps.check.outputs.changed }}
       new_version: ${{ steps.check.outputs.version }}
@@ -47,7 +47,7 @@ jobs:
   trigger-release:
     needs: check-version
     if: needs.check-version.outputs.version_changed == 'true'
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     permissions:
       contents: write
     steps:
