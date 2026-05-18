@@ -46,7 +46,7 @@
 | **tar** | Linux/macOS 打包 | Linux: `apt install tar` |
 | **zip** | Windows 打包 | Linux Runner: `apt install zip`；Windows 建议使用 Git Bash 自带的 `zip` |
 | **git** | 检出与 auto-release 打 tag | 通常已安装 |
-| **PowerShell** | auto-release 写 Release 说明 | 仅 `auto-release.yml` 需要；Linux 可 `apt install powershell` |
+| **bash** | 构建、打 tag、写 Release 说明 | Linux 自带即可，**无需 PowerShell** |
 
 ### 在 Runner 上预检
 
@@ -77,7 +77,7 @@ sudo apt-get install -y zip tar
 | `npm is not installed` | 未跑 setup-node | 确认 `actions/setup-node` 在 Build 之前 |
 | `zip: command not found` | Linux 未装 zip | 在 Runner 主机执行 `sudo apt install zip tar` |
 | `sudo: a password is required` | CI 无法交互输入密码 | 在主机预装 zip/tar，或配置 NOPASSWD sudo |
-| `pwsh: not found` | Linux 无 PowerShell | `sudo apt install powershell` 或仅使用 tag 触发的 `release.yml` |
+| `pwsh: not found` | 旧版 workflow 使用 PowerShell | 拉取最新 workflow（已改为 bash） |
 
 ## 注意事项
 

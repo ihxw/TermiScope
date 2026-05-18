@@ -95,33 +95,8 @@ jobs:
       
       - name: Create Tag and Prepare Release Notes
         id: prepare_release
-        shell: pwsh
-        run: |
-          [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-          $OutputEncoding = [System.Text.Encoding]::UTF8
-
-          $VERSION = "v${{ needs.check-version.outputs.new_version }}"
-          Write-Host "Creating release: $VERSION"
-          
-          # Configure git
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          
-          # Create and push tag
-          git tag -a $VERSION -m "Release $VERSION"
-          git push origin $VERSION
-          
-          # Build release notes without heredoc (heredoc content must be column-0, conflicts with YAML indentation)
-          $nl = [System.Environment]::NewLine
-          $notes = "## TermiScope $VERSION" + $nl + $nl
-          $notes += "自动发布版本 $VERSION" + $nl + $nl
-          $notes += "### 更新内容" + $nl
-          $notes += "请查看提交历史了解详细变更。"
-          
-          # Persist release notes as UTF-8 without BOM so GitHub reads Chinese text correctly.
-          [System.IO.File]::WriteAllText("release_notes.md", $notes, [System.Text.UTF8Encoding]::new($false))
-
-          "version=$VERSION" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+        shell: bash
+        run: bash ./scripts/ci/prepare_auto_release.sh "${{ needs.check-version.outputs.new_version }}"
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
