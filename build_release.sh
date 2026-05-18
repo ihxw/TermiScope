@@ -105,10 +105,17 @@ for TARGET in "windows:amd64:exe:zip" "linux:amd64::tar.gz" "linux:arm64::tar.gz
     cp "$ROOT_DIR/scripts"/*.tmpl "$OUTPUT_DIR/scripts/" || true
   fi
 
-  # For linux, include install/uninstall scripts with LF line endings
+  # For linux, include offline install scripts (LF line endings)
   if [ "$OS" = "linux" ]; then
-    if [ -f "$ROOT_DIR/scripts/install.sh" ]; then cp "$ROOT_DIR/scripts/install.sh" "$OUTPUT_DIR/scripts/"; fi
-    if [ -f "$ROOT_DIR/scripts/uninstall.sh" ]; then cp "$ROOT_DIR/scripts/uninstall.sh" "$OUTPUT_DIR/scripts/"; fi
+    for _script in install.sh install_local.sh install_from_archive.sh uninstall.sh repair_database.sh; do
+      if [ -f "$ROOT_DIR/scripts/$_script" ]; then
+        cp "$ROOT_DIR/scripts/$_script" "$OUTPUT_DIR/scripts/"
+      fi
+    done
+    if [ -f "$ROOT_DIR/configs/config.yaml" ]; then
+      mkdir -p "$OUTPUT_DIR/configs"
+      cp "$ROOT_DIR/configs/config.yaml" "$OUTPUT_DIR/configs/config.yaml.example"
+    fi
   fi
 
   # Build server binary

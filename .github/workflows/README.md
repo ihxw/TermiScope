@@ -33,13 +33,53 @@
    - ✅ 自动触发构建流程
    - ✅ 自动创建Release并上传构建产物
 
+## 自建 Runner 环境要求
+
+工作流使用 `runs-on: self-hosted`，发布前请在 Runner 机器上满足：
+
+| 工具 | 用途 | 说明 |
+| --- | --- | --- |
+| **Go** | 编译后端/Agent | 由 `actions/setup-go` 按 `go.mod` 安装（当前需 **≥ 1.25.5**） |
+| **Node.js 20** | 前端构建、版本读取 | 由 `actions/setup-node` 安装 |
+| **npm** | 随 Node 安装 | 用于 `web/` 下 `npm install && npm run build` |
+| **bash** | 执行 `build_release.sh` | Linux 自带；Windows 需 Git for Windows |
+| **tar** | Linux/macOS 打包 | Linux: `apt install tar` |
+| **zip** | Windows 打包 | Linux Runner: `apt install zip`；Windows 建议使用 Git Bash 自带的 `zip` |
+| **git** | 检出与 auto-release 打 tag | 通常已安装 |
+| **PowerShell** | auto-release 写 Release 说明 | 仅 `auto-release.yml` 需要；Linux 可 `apt install powershell` |
+
+### 在 Runner 上预检
+
+```bash
+# 检出仓库后
+bash scripts/ci/verify_release_env.sh
+```
+
+### Linux 自建 Runner 一键补依赖
+
+```bash
+bash scripts/ci/install_release_deps.sh
+# 需要 sudo 安装 zip / tar 等
+```
+
+### 常见问题
+
+| 报错 | 原因 | 处理 |
+| --- | --- | --- |
+| `Go is not installed` | PATH 未生效或未跑 setup-go | 确认 workflow 中有 `actions/setup-go`，且 `go-version-file: go.mod` |
+| `go: requires go >= 1.25.5` | Runner 上 Go 版本过旧 | 使用 setup-go 或手动安装 Go 1.25.5+ |
+| `npm is not installed` | 未跑 setup-node | 确认 `actions/setup-node` 在 Build 之前 |
+| `zip: command not found` | Linux 未装 zip | 运行 `install_release_deps.sh` 或 `sudo apt install zip` |
+| `jq: command not found` | 旧版 workflow | 已改为用 Node 读 `package.json`，拉取最新 workflow |
+| `pwsh: not found` | Linux 无 PowerShell | `sudo apt install powershell` 或仅使用 tag 触发的 `release.yml` |
+
 ## 注意事项
 
 - 只需更新 `web/package.json` 的version字段
 - 不需要手动创建tag或运行 `github-release.ps1`
 - 确保每次版本号都是递增的
 - Tag格式: `v{major}.{minor}.{patch}` (例如: v2.0.10)
-- 构建在Windows runner上执行,产物包含所有平台的二进制文件
+- 推荐在 **Linux** 自建 Runner 上构建；Windows Runner 需已安装 Git Bash 且 `zip` 在 PATH 中
 
 ## 优势
 
