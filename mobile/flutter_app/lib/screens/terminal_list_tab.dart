@@ -60,13 +60,13 @@ class TerminalListTab extends StatelessWidget {
                             width: 48,
                             height: 48,
                             decoration: BoxDecoration(
-                              color: const Color(0xFF2D2D2D),
+                              color: const Color(0xFF171B2D),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Stack(
                               alignment: Alignment.center,
                               children: [
-                                Icon(icon, color: const Color(0xFF64D2FF), size: 22),
+                                Icon(icon, color: const Color(0xFFFF5C35), size: 22),
                                 if (isOnline)
                                   Positioned(
                                     right: 6,
@@ -75,9 +75,9 @@ class TerminalListTab extends StatelessWidget {
                                       width: 8,
                                       height: 8,
                                       decoration: BoxDecoration(
-                                        color: const Color(0xFF32D74B),
+                                        color: const Color(0xFF2ED573),
                                         shape: BoxShape.circle,
-                                        border: Border.all(color: const Color(0xFF2D2D2D), width: 1.5),
+                                        border: Border.all(color: const Color(0xFF171B2D), width: 1.5),
                                       ),
                                     ),
                                   ),
@@ -102,7 +102,7 @@ class TerminalListTab extends StatelessWidget {
                           ),
                           ElevatedButton(
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF64D2FF),
+                              backgroundColor: const Color(0xFFFF5C35),
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                               textStyle: const TextStyle(fontSize: 12),
                             ),

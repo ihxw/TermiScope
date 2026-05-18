@@ -82,7 +82,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
             children: [
               CircleAvatar(
                 radius: 28,
-                backgroundColor: const Color(0xFF64D2FF),
+                backgroundColor: const Color(0xFFFF5C35),
                 child: Text(
                   profile.username.isNotEmpty
                       ? profile.username[0].toUpperCase()
@@ -112,14 +112,14 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
             children: [
               Icon(
                 profile.twoFactorEnabled ? Icons.shield : Icons.shield_outlined,
-                color: profile.twoFactorEnabled ? const Color(0xFF32D74B) : Colors.grey,
+                color: profile.twoFactorEnabled ? const Color(0xFF2ED573) : Colors.grey,
                 size: 16,
               ),
               const SizedBox(width: 6),
               Text(
                 profile.twoFactorEnabled ? '两步验证已启用' : '两步验证未启用',
                 style: TextStyle(
-                  color: profile.twoFactorEnabled ? const Color(0xFF32D74B) : Colors.grey,
+                  color: profile.twoFactorEnabled ? const Color(0xFF2ED573) : Colors.grey,
                   fontSize: 12,
                 ),
               ),
@@ -127,7 +127,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
           ),
         ],
         const SizedBox(height: 24),
-        const Divider(color: Color(0xFF2D2D2D)),
+        const Divider(color: Color(0xFF171B2D)),
         const SizedBox(height: 16),
         const Text('修改密码', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
         const SizedBox(height: 16),
@@ -139,7 +139,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
         const SizedBox(height: 16),
         ElevatedButton(
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF64D2FF),
+            backgroundColor: const Color(0xFFFF5C35),
             foregroundColor: Colors.black,
             minimumSize: const Size(double.infinity, 44),
           ),
@@ -160,7 +160,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
         labelText: label,
         labelStyle: const TextStyle(color: Colors.grey, fontSize: 12),
         filled: true,
-        fillColor: const Color(0xFF1E1E1E),
+        fillColor: const Color(0xFF0D0F18),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
       ),
       style: const TextStyle(color: Colors.white, fontSize: 13),
@@ -198,11 +198,11 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
     }
     return ListView.separated(
       itemCount: state.loginSessions.length,
-      separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFF2D2D2D)),
+      separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFF171B2D)),
       itemBuilder: (context, index) {
         final session = state.loginSessions[index];
         final statusColor = session.status == 'Active'
-            ? const Color(0xFF32D74B)
+            ? const Color(0xFF2ED573)
             : session.status == 'Revoked'
                 ? Colors.red
                 : Colors.grey;
@@ -210,7 +210,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
         return ListTile(
           leading: Icon(
             session.isCurrent ? Icons.phone_iphone : Icons.computer,
-            color: session.isCurrent ? const Color(0xFF64D2FF) : Colors.grey,
+            color: session.isCurrent ? const Color(0xFFFF5C35) : Colors.grey,
           ),
           title: Row(
             children: [
@@ -224,10 +224,10 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF64D2FF).withAlpha(51),
+                    color: const Color(0xFFFF5C35).withAlpha(51),
                     borderRadius: BorderRadius.circular(4),
                   ),
-                  child: const Text('当前', style: TextStyle(color: Color(0xFF64D2FF), fontSize: 9)),
+                  child: const Text('当前', style: TextStyle(color: Color(0xFFFF5C35), fontSize: 9)),
                 ),
             ],
           ),

@@ -86,7 +86,7 @@ class _LoginScreenState extends State<LoginScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Icon(Icons.terminal, size: 80, color: Color(0xFF64D2FF)),
+                const Icon(Icons.terminal, size: 80, color: Color(0xFFFF5C35)),
                 const SizedBox(height: 24),
                 const Text(
                   'TermiScope',
@@ -104,18 +104,18 @@ class _LoginScreenState extends State<LoginScreen> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF64D2FF).withOpacity(0.1),
+                      color: const Color(0xFFFF5C35).withOpacity(0.1),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: const Color(0xFF64D2FF).withOpacity(0.3)),
+                      border: Border.all(color: const Color(0xFFFF5C35).withOpacity(0.3)),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Row(
                           children: [
-                            Icon(Icons.shield, color: Color(0xFF64D2FF), size: 18),
+                            Icon(Icons.shield, color: Color(0xFFFF5C35), size: 18),
                             SizedBox(width: 8),
-                            Text('需要两步验证', style: TextStyle(color: Color(0xFF64D2FF), fontWeight: FontWeight.bold)),
+                            Text('需要两步验证', style: TextStyle(color: Color(0xFFFF5C35), fontWeight: FontWeight.bold)),
                           ],
                         ),
                         const SizedBox(height: 12),
@@ -129,7 +129,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   children: [
                     Checkbox(
                       value: _rememberMe,
-                      activeColor: const Color(0xFF64D2FF),
+                      activeColor: const Color(0xFFFF5C35),
                       onChanged: (v) => setState(() => _rememberMe = v == true),
                     ),
                     const Text('记住我', style: TextStyle(color: Colors.grey, fontSize: 14)),
@@ -138,7 +138,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 16),
                 ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF64D2FF),
+                    backgroundColor: const Color(0xFFFF5C35),
                     foregroundColor: Colors.black,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -165,7 +165,7 @@ class _LoginScreenState extends State<LoginScreen> {
         hintStyle: const TextStyle(color: Colors.grey),
         prefixIcon: Icon(icon, color: Colors.grey),
         filled: true,
-        fillColor: const Color(0xFF2D2D2D),
+        fillColor: const Color(0xFF171B2D),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,

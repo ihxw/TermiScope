@@ -20,11 +20,11 @@ class SettingsScreen extends StatelessWidget {
               // Header
               Container(
                 padding: const EdgeInsets.all(20),
-                color: const Color(0xFF2D2D2D),
+                color: const Color(0xFF171B2D),
                 child: Row(
                   children: [
                     const CircleAvatar(
-                      backgroundColor: Color(0xFF64D2FF),
+                      backgroundColor: Color(0xFFFF5C35),
                       child: Icon(Icons.person, color: Colors.white),
                     ),
                     const SizedBox(width: 12),
@@ -58,30 +58,43 @@ class SettingsScreen extends StatelessWidget {
                       subtitle: Text('${state.terminalFontSize.toStringAsFixed(1)}px'),
                       onTap: () => _showFontSizeDialog(context, state),
                     ),
-                    const Divider(height: 1, color: Color(0xFF2D2D2D)),
+                    const Divider(height: 1),
                     ListTile(
                       leading: const Icon(Icons.palette, color: Colors.grey),
                       title: const Text('主题'),
-                      subtitle: const Text('深色模式 (固定)'),
-                      enabled: false,
+                      subtitle: Text(
+                        state.themeMode == ThemeMode.dark
+                            ? '深色模式'
+                            : state.themeMode == ThemeMode.light
+                                ? '浅色模式'
+                                : '跟随系统',
+                      ),
+                      onTap: () => _showThemeDialog(context, state),
                     ),
-                    const Divider(height: 1, color: Color(0xFF2D2D2D)),
+                    const Divider(height: 1),
+                    ListTile(
+                      leading: const Icon(Icons.language, color: Colors.grey),
+                      title: const Text('界面语言'),
+                      subtitle: Text(state.locale == 'zh' ? '简体中文' : 'English'),
+                      onTap: () => _showLanguageDialog(context, state),
+                    ),
+                    const Divider(height: 1),
 
                     // Host Management Section
                     _buildSectionHeader('主机管理'),
                     ListTile(
-                      leading: const Icon(Icons.add, color: Color(0xFF64D2FF)),
+                      leading: const Icon(Icons.add, color: Color(0xFFFF5C35)),
                       title: const Text('添加主机'),
                       onTap: () => _showAddHostDialog(context, state),
                     ),
-                    const Divider(height: 1, color: Color(0xFF2D2D2D)),
+                    const Divider(height: 1),
                     ListTile(
                       leading: const Icon(Icons.list, color: Colors.grey),
                       title: const Text('管理主机'),
                       subtitle: Text('${state.hosts.length} 个主机'),
                       onTap: () => _navigateToHostList(context, state),
                     ),
-                    const Divider(height: 1, color: Color(0xFF2D2D2D)),
+                    const Divider(height: 1),
 
                     // Features
                     _buildSectionHeader('功能'),
@@ -90,13 +103,13 @@ class SettingsScreen extends StatelessWidget {
                       title: const Text('连接历史'),
                       onTap: () => _navigateTo(context, const ConnectionHistoryScreen()),
                     ),
-                    const Divider(height: 1, color: Color(0xFF2D2D2D)),
+                    const Divider(height: 1),
                     ListTile(
                       leading: const Icon(Icons.code, color: Colors.grey),
                       title: const Text('命令模板'),
                       onTap: () => _navigateTo(context, const CommandTemplatesScreen()),
                     ),
-                    const Divider(height: 1, color: Color(0xFF2D2D2D)),
+                    const Divider(height: 1),
 
                     // Account
                     _buildSectionHeader('账户'),
@@ -105,7 +118,7 @@ class SettingsScreen extends StatelessWidget {
                       title: const Text('个人资料'),
                       onTap: () => _navigateTo(context, const ProfileScreen()),
                     ),
-                    const Divider(height: 1, color: Color(0xFF2D2D2D)),
+                    const Divider(height: 1),
                     ListTile(
                       leading: const Icon(Icons.logout, color: Colors.red),
                       title: const Text('退出登录', style: TextStyle(color: Colors.red)),
@@ -127,7 +140,7 @@ class SettingsScreen extends StatelessWidget {
       child: Text(
         title,
         style: const TextStyle(
-          color: Color(0xFF64D2FF),
+          color: Color(0xFFFF5C35),
           fontWeight: FontWeight.bold,
           fontSize: 12,
         ),
@@ -141,7 +154,7 @@ class SettingsScreen extends StatelessWidget {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: const Color(0xFF2D2D2D),
+          backgroundColor: const Color(0xFF171B2D),
           title: const Text('终端字体大小'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -152,7 +165,7 @@ class SettingsScreen extends StatelessWidget {
                 min: 10,
                 max: 24,
                 divisions: 28,
-                activeColor: const Color(0xFF64D2FF),
+                activeColor: const Color(0xFFFF5C35),
                 onChanged: (v) => setDialogState(() => tempSize = v),
               ),
             ],
@@ -167,7 +180,7 @@ class SettingsScreen extends StatelessWidget {
                 state.updateTerminalFontSize(tempSize);
                 Navigator.pop(ctx);
               },
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF64D2FF)),
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF5C35)),
               child: const Text('确定'),
             ),
           ],
@@ -203,7 +216,7 @@ class SettingsScreen extends StatelessWidget {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF2D2D2D),
+        backgroundColor: const Color(0xFF171B2D),
         title: const Text('退出登录'),
         content: const Text('确定要退出登录吗？'),
         actions: [
@@ -226,6 +239,86 @@ class SettingsScreen extends StatelessWidget {
       ),
     );
   }
+
+  void _showThemeDialog(BuildContext context, AppState state) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Theme.of(ctx).cardColor,
+        title: Text('选择主题', style: TextStyle(color: Theme.of(ctx).textTheme.titleMedium?.color)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            RadioListTile<ThemeMode>(
+              title: Text('深色模式', style: TextStyle(color: Theme.of(ctx).textTheme.bodyMedium?.color)),
+              value: ThemeMode.dark,
+              groupValue: state.themeMode,
+              activeColor: const Color(0xFFFF5C35),
+              onChanged: (v) {
+                if (v != null) state.updateThemeMode(v);
+                Navigator.pop(ctx);
+              },
+            ),
+            RadioListTile<ThemeMode>(
+              title: Text('浅色模式', style: TextStyle(color: Theme.of(ctx).textTheme.bodyMedium?.color)),
+              value: ThemeMode.light,
+              groupValue: state.themeMode,
+              activeColor: const Color(0xFFFF5C35),
+              onChanged: (v) {
+                if (v != null) state.updateThemeMode(v);
+                Navigator.pop(ctx);
+              },
+            ),
+            RadioListTile<ThemeMode>(
+              title: Text('跟随系统', style: TextStyle(color: Theme.of(ctx).textTheme.bodyMedium?.color)),
+              value: ThemeMode.system,
+              groupValue: state.themeMode,
+              activeColor: const Color(0xFFFF5C35),
+              onChanged: (v) {
+                if (v != null) state.updateThemeMode(v);
+                Navigator.pop(ctx);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showLanguageDialog(BuildContext context, AppState state) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Theme.of(ctx).cardColor,
+        title: Text('选择语言 / Language', style: TextStyle(color: Theme.of(ctx).textTheme.titleMedium?.color)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            RadioListTile<String>(
+              title: Text('简体中文', style: TextStyle(color: Theme.of(ctx).textTheme.bodyMedium?.color)),
+              value: 'zh',
+              groupValue: state.locale,
+              activeColor: const Color(0xFFFF5C35),
+              onChanged: (v) {
+                if (v != null) state.updateLocale(v);
+                Navigator.pop(ctx);
+              },
+            ),
+            RadioListTile<String>(
+              title: Text('English', style: TextStyle(color: Theme.of(ctx).textTheme.bodyMedium?.color)),
+              value: 'en',
+              groupValue: state.locale,
+              activeColor: const Color(0xFFFF5C35),
+              onChanged: (v) {
+                if (v != null) state.updateLocale(v);
+                Navigator.pop(ctx);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 // Host List Screen
@@ -239,7 +332,7 @@ class HostListScreen extends StatelessWidget {
         return Scaffold(
           appBar: AppBar(
             title: const Text('管理主机'),
-            backgroundColor: const Color(0xFF2D2D2D),
+            backgroundColor: const Color(0xFF171B2D),
           ),
           body: state.hosts.isEmpty
               ? const Center(
@@ -252,8 +345,8 @@ class HostListScreen extends StatelessWidget {
                     return ListTile(
                       leading: CircleAvatar(
                         backgroundColor: host.hostType == 'monitor_only'
-                            ? const Color(0xFF32D74B)
-                            : const Color(0xFF64D2FF),
+                            ? const Color(0xFF2ED573)
+                            : const Color(0xFFFF5C35),
                         child: Icon(
                           host.hostType == 'monitor_only'
                               ? Icons.monitor_heart
@@ -310,7 +403,7 @@ class HostListScreen extends StatelessWidget {
         SnackBar(
           content: Text(result['message'] ?? ''),
           backgroundColor: result['success'] == true
-              ? const Color(0xFF32D74B)
+              ? const Color(0xFF2ED573)
               : Colors.red,
           duration: const Duration(seconds: 3),
         ),
@@ -324,7 +417,7 @@ class HostListScreen extends StatelessWidget {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(success ? '监控代理已部署' : '部署失败'),
-          backgroundColor: success ? const Color(0xFF32D74B) : Colors.red,
+          backgroundColor: success ? const Color(0xFF2ED573) : Colors.red,
         ),
       );
     }
@@ -336,7 +429,7 @@ class HostListScreen extends StatelessWidget {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(success ? '监控代理已停止' : '停止失败'),
-          backgroundColor: success ? const Color(0xFF32D74B) : Colors.red,
+          backgroundColor: success ? const Color(0xFF2ED573) : Colors.red,
         ),
       );
     }
@@ -370,7 +463,7 @@ class HostListScreen extends StatelessWidget {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF2D2D2D),
+        backgroundColor: const Color(0xFF171B2D),
         title: const Text('删除主机'),
         content: Text('确定要删除 "${host.name}" 吗？'),
         actions: [

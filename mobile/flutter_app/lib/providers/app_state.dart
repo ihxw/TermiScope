@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../models/models.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -17,6 +17,8 @@ class AppState extends ChangeNotifier {
   // Settings
   double terminalFontSize = 14.0;
   bool useQuickToggle = false;
+  ThemeMode themeMode = ThemeMode.dark;
+  String locale = 'zh';
 
   // Profile
   UserProfile? profile;
@@ -43,6 +45,20 @@ class AppState extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     terminalFontSize = prefs.getDouble('terminal_font_size') ?? 14.0;
     useQuickToggle = prefs.getBool('use_quick_toggle') ?? false;
+
+    // Load saved theme
+    final themeStr = prefs.getString('theme_mode') ?? 'dark';
+    if (themeStr == 'light') {
+      themeMode = ThemeMode.light;
+    } else if (themeStr == 'system') {
+      themeMode = ThemeMode.system;
+    } else {
+      themeMode = ThemeMode.dark;
+    }
+
+    // Load saved locale
+    locale = prefs.getString('locale') ?? 'zh';
+
     // Load saved terminals
     await _loadSavedTerminals();
     isInitialized = true;
@@ -455,5 +471,303 @@ class AppState extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('use_quick_toggle', value);
     notifyListeners();
+  }
+
+  Future<void> updateThemeMode(ThemeMode mode) async {
+    themeMode = mode;
+    final prefs = await SharedPreferences.getInstance();
+    String modeStr = 'dark';
+    if (mode == ThemeMode.light) {
+      modeStr = 'light';
+    } else if (mode == ThemeMode.system) {
+      modeStr = 'system';
+    }
+    await prefs.setString('theme_mode', modeStr);
+    notifyListeners();
+  }
+
+  Future<void> updateLocale(String newLocale) async {
+    locale = newLocale;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('locale', newLocale);
+    notifyListeners();
+  }
+
+  // ── User Management ──
+
+  Future<List<Map<String, dynamic>>> getUsers() async {
+    try {
+      final response = await apiService.get('/api/users');
+      if (response is List) {
+        return response.map((e) => Map<String, dynamic>.from(e)).toList();
+      }
+      return [];
+    } catch (e) {
+      print('Get users error: $e');
+      return [];
+    }
+  }
+
+  Future<bool> createUser(Map<String, dynamic> userData) async {
+    try {
+      await apiService.post('/api/users', userData);
+      return true;
+    } catch (e) {
+      print('Create user error: $e');
+      return false;
+    }
+  }
+
+  Future<bool> updateUser(int id, Map<String, dynamic> userData) async {
+    try {
+      await apiService.put('/api/users/$id', userData);
+      return true;
+    } catch (e) {
+      print('Update user error: $e');
+      return false;
+    }
+  }
+
+  Future<bool> deleteUser(int id) async {
+    try {
+      await apiService.delete('/api/users/$id');
+      return true;
+    } catch (e) {
+      print('Delete user error: $e');
+      return false;
+    }
+  }
+
+  Future<bool> resetUserPassword(int id) async {
+    try {
+      await apiService.put('/api/users/$id', {'password': 'TermiScope123456!'});
+      return true;
+    } catch (e) {
+      print('Reset user password error: $e');
+      return false;
+    }
+  }
+
+  Future<bool> toggleUserStatus(int id, bool isActive) async {
+    try {
+      final statusStr = isActive ? 'active' : 'disabled';
+      await apiService.put('/api/users/$id', {'status': statusStr});
+      return true;
+    } catch (e) {
+      print('Toggle user status error: $e');
+      return false;
+    }
+  }
+
+  // ── SFTP File Transfer ──
+
+  Future<List<Map<String, dynamic>>> listFiles(String hostId, String path) async {
+    try {
+      final endpoint = '/api/sftp/list/$hostId?path=${Uri.encodeComponent(path)}';
+      final response = await apiService.get(endpoint);
+      if (response is List) {
+        return response.map((e) => Map<String, dynamic>.from(e)).toList();
+      }
+      return [];
+    } catch (e) {
+      print('SFTP listFiles error: $e');
+      return [];
+    }
+  }
+
+  Future<bool> createDirectory(String hostId, String path) async {
+    try {
+      await apiService.post('/api/sftp/mkdir/$hostId', {'path': path});
+      return true;
+    } catch (e) {
+      print('SFTP mkdir error: $e');
+      return false;
+    }
+  }
+
+  Future<bool> renameFile(String hostId, String oldPath, String newPath) async {
+    try {
+      await apiService.post('/api/sftp/rename/$hostId', {'old_path': oldPath, 'new_path': newPath});
+      return true;
+    } catch (e) {
+      print('SFTP rename error: $e');
+      return false;
+    }
+  }
+
+  Future<bool> deleteFile(String hostId, String path) async {
+    try {
+      final endpoint = '/api/sftp/delete/$hostId?path=${Uri.encodeComponent(path)}';
+      await apiService.delete(endpoint);
+      return true;
+    } catch (e) {
+      print('SFTP delete error: $e');
+      return false;
+    }
+  }
+
+  // ── Recording Management ──
+
+  Future<List<Map<String, dynamic>>> getRecordings() async {
+    try {
+      final response = await apiService.get('/api/recordings');
+      if (response is List) {
+        return response.map((e) => Map<String, dynamic>.from(e)).toList();
+      }
+      return [];
+    } catch (e) {
+      print('Get recordings error: $e');
+      return [];
+    }
+  }
+
+  Future<bool> deleteRecording(dynamic id) async {
+    try {
+      await apiService.delete('/api/recordings/$id');
+      return true;
+    } catch (e) {
+      print('Delete recording error: $e');
+      return false;
+    }
+  }
+
+  // ── System Management & Database & Latency Grid ──
+
+  Future<Map<String, dynamic>> getSystemSettings() async {
+    try {
+      final response = await apiService.get('/api/system/settings');
+      if (response is Map) {
+        return Map<String, dynamic>.from(response);
+      }
+      return {};
+    } catch (e) {
+      print('Get system settings error: $e');
+      return {};
+    }
+  }
+
+  Future<bool> saveSystemSettings(Map<String, dynamic> settings) async {
+    try {
+      await apiService.put('/api/system/settings', settings);
+      return true;
+    } catch (e) {
+      print('Save system settings error: $e');
+      return false;
+    }
+  }
+
+  Future<Map<String, dynamic>> getDbStats() async {
+    try {
+      final response = await apiService.get('/api/system/db-stats');
+      if (response is Map) {
+        return Map<String, dynamic>.from(response);
+      }
+      return {};
+    } catch (e) {
+      print('Get DB stats error: $e');
+      return {};
+    }
+  }
+
+  Future<Map<String, dynamic>> pruneMonitorData() async {
+    try {
+      final response = await apiService.post('/api/system/db-maintenance/prune', {});
+      if (response is Map) {
+        return Map<String, dynamic>.from(response);
+      }
+      return {};
+    } catch (e) {
+      print('Prune monitor data error: $e');
+      return {};
+    }
+  }
+
+  Future<Map<String, dynamic>> backupDatabase(String password) async {
+    try {
+      final response = await apiService.post('/api/system/backup', {'password': password});
+      if (response is Map) {
+        return Map<String, dynamic>.from(response);
+      }
+      return {};
+    } catch (e) {
+      print('Backup database error: $e');
+      return {};
+    }
+  }
+
+  Future<bool> testEmailNotification(Map<String, dynamic> data) async {
+    try {
+      await apiService.post('/api/system/settings/test-email', data);
+      return true;
+    } catch (e) {
+      print('Test email error: $e');
+      return false;
+    }
+  }
+
+  Future<bool> testTelegramNotification(Map<String, dynamic> data) async {
+    try {
+      await apiService.post('/api/system/settings/test-telegram', data);
+      return true;
+    } catch (e) {
+      print('Test Telegram error: $e');
+      return false;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getNetworkTemplates() async {
+    try {
+      final response = await apiService.get('/api/network-monitor/templates');
+      if (response is List) {
+        return response.map((e) => Map<String, dynamic>.from(e)).toList();
+      }
+      return [];
+    } catch (e) {
+      print('Get network templates error: $e');
+      return [];
+    }
+  }
+
+  Future<bool> createNetworkTemplate(Map<String, dynamic> data) async {
+    try {
+      await apiService.post('/api/network-monitor/templates', data);
+      return true;
+    } catch (e) {
+      print('Create network template error: $e');
+      return false;
+    }
+  }
+
+  Future<bool> updateNetworkTemplate(int id, Map<String, dynamic> data) async {
+    try {
+      await apiService.put('/api/network-monitor/templates/$id', data);
+      return true;
+    } catch (e) {
+      print('Update network template error: $e');
+      return false;
+    }
+  }
+
+  Future<bool> deleteNetworkTemplate(int id) async {
+    try {
+      await apiService.delete('/api/network-monitor/templates/$id');
+      return true;
+    } catch (e) {
+      print('Delete network template error: $e');
+      return false;
+    }
+  }
+
+  Future<bool> batchApplyNetworkTemplate(int templateId, List<int> hostIds) async {
+    try {
+      await apiService.post('/api/network-monitor/batch-apply-template', {
+        'template_id': templateId,
+        'host_ids': hostIds,
+      });
+      return true;
+    } catch (e) {
+      print('Batch apply network template error: $e');
+      return false;
+    }
   }
 }

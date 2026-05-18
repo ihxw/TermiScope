@@ -47,7 +47,7 @@ class _HostEditDialogState extends State<HostEditDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      backgroundColor: const Color(0xFF2D2D2D),
+      backgroundColor: const Color(0xFF171B2D),
       title: Text(widget.host == null ? '添加主机' : '编辑主机'),
       content: SingleChildScrollView(
         child: Form(
@@ -105,7 +105,7 @@ class _HostEditDialogState extends State<HostEditDialog> {
                 children: [
                   Checkbox(
                     value: _monitorEnabled,
-                    activeColor: const Color(0xFF64D2FF),
+                    activeColor: const Color(0xFFFF5C35),
                     onChanged: (v) => setState(() => _monitorEnabled = v == true),
                   ),
                   const Text('启用监控', style: TextStyle(color: Colors.white)),
@@ -122,7 +122,7 @@ class _HostEditDialogState extends State<HostEditDialog> {
         ),
         ElevatedButton(
           onPressed: _save,
-          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF64D2FF)),
+          style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFF5C35)),
           child: Text(widget.host == null ? '添加' : '保存'),
         ),
       ],
@@ -150,7 +150,7 @@ class _HostEditDialogState extends State<HostEditDialog> {
         hintStyle: const TextStyle(color: Colors.grey, fontSize: 11),
         prefixIcon: Icon(icon, color: Colors.grey, size: 20),
         filled: true,
-        fillColor: const Color(0xFF1E1E1E),
+        fillColor: const Color(0xFF0D0F18),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
           borderSide: BorderSide.none,
@@ -165,11 +165,11 @@ class _HostEditDialogState extends State<HostEditDialog> {
     return FilterChip(
       label: Text(label),
       selected: isSelected,
-      backgroundColor: const Color(0xFF1E1E1E),
-      selectedColor: const Color(0xFF64D2FF).withOpacity(0.3),
-      checkmarkColor: const Color(0xFF64D2FF),
+      backgroundColor: const Color(0xFF0D0F18),
+      selectedColor: const Color(0xFFFF5C35).withOpacity(0.3),
+      checkmarkColor: const Color(0xFFFF5C35),
       labelStyle: TextStyle(
-        color: isSelected ? const Color(0xFF64D2FF) : Colors.grey,
+        color: isSelected ? const Color(0xFFFF5C35) : Colors.grey,
       ),
       onSelected: (v) => setState(() => _hostType = type),
     );

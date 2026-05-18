@@ -35,7 +35,7 @@ class _CommandTemplatesScreenState extends State<CommandTemplatesScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF2D2D2D),
+        backgroundColor: const Color(0xFF171B2D),
         title: Text(isEdit ? '编辑命令模板' : '新建命令模板'),
         content: SingleChildScrollView(
           child: Column(
@@ -46,7 +46,7 @@ class _CommandTemplatesScreenState extends State<CommandTemplatesScreen> {
                 decoration: const InputDecoration(
                   hintText: '名称',
                   filled: true,
-                  fillColor: Color(0xFF1E1E1E),
+                  fillColor: Color(0xFF0D0F18),
                 ),
                 style: const TextStyle(color: Colors.white),
               ),
@@ -56,7 +56,7 @@ class _CommandTemplatesScreenState extends State<CommandTemplatesScreen> {
                 decoration: const InputDecoration(
                   hintText: '命令',
                   filled: true,
-                  fillColor: Color(0xFF1E1E1E),
+                  fillColor: Color(0xFF0D0F18),
                 ),
                 style: const TextStyle(color: Colors.white, fontFamily: 'monospace'),
                 maxLines: 3,
@@ -67,7 +67,7 @@ class _CommandTemplatesScreenState extends State<CommandTemplatesScreen> {
                 decoration: const InputDecoration(
                   hintText: '描述 (可选)',
                   filled: true,
-                  fillColor: Color(0xFF1E1E1E),
+                  fillColor: Color(0xFF0D0F18),
                 ),
                 style: const TextStyle(color: Colors.white),
               ),
@@ -94,7 +94,7 @@ class _CommandTemplatesScreenState extends State<CommandTemplatesScreen> {
               if (mounted) Navigator.pop(ctx);
             },
             style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF64D2FF)),
+                backgroundColor: const Color(0xFFFF5C35)),
             child: const Text('保存'),
           ),
         ],
@@ -126,12 +126,12 @@ class _CommandTemplatesScreenState extends State<CommandTemplatesScreen> {
                   : ListView.separated(
                       itemCount: state.commandTemplates.length,
                       separatorBuilder: (_, __) =>
-                          const Divider(height: 1, color: Color(0xFF2D2D2D)),
+                          const Divider(height: 1, color: Color(0xFF171B2D)),
                       itemBuilder: (context, index) {
                         final t = state.commandTemplates[index];
                         return ListTile(
                           leading: const Icon(Icons.code,
-                              color: Color(0xFF64D2FF), size: 20),
+                              color: Color(0xFFFF5C35), size: 20),
                           title: Text(t.name,
                               style:
                                   const TextStyle(fontWeight: FontWeight.bold)),
@@ -143,7 +143,7 @@ class _CommandTemplatesScreenState extends State<CommandTemplatesScreen> {
                                   style: const TextStyle(
                                       fontFamily: 'monospace',
                                       fontSize: 12,
-                                      color: Color(0xFF64D2FF))),
+                                      color: Color(0xFFFF5C35))),
                               if (t.description.isNotEmpty)
                                 Text(t.description,
                                     style: const TextStyle(
@@ -178,7 +178,7 @@ class _CommandTemplatesScreenState extends State<CommandTemplatesScreen> {
                                     context: context,
                                     builder: (ctx) => AlertDialog(
                                       backgroundColor:
-                                          const Color(0xFF2D2D2D),
+                                          const Color(0xFF171B2D),
                                       title: const Text('删除命令模板'),
                                       content:
                                           Text('确定要删除 "${t.name}" 吗？'),

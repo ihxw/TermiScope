@@ -248,7 +248,7 @@ class _TerminalSessionViewState extends State<TerminalSessionView> {
 
   Widget _buildVirtualKeyboard() {
     return Container(
-      color: const Color(0xFF2D2D2D),
+      color: const Color(0xFF171B2D),
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
       height: 48,
       child: ListView(
@@ -267,7 +267,7 @@ class _TerminalSessionViewState extends State<TerminalSessionView> {
           _buildKey('/', '/'),
           _buildKey('-', '-'),
           Material(
-            color: const Color(0xFF404040),
+            color: const Color(0xFF2D3354),
             borderRadius: BorderRadius.circular(6),
             child: InkWell(
               borderRadius: BorderRadius.circular(6),
@@ -294,7 +294,7 @@ class _TerminalSessionViewState extends State<TerminalSessionView> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 2.0),
       child: Material(
-        color: const Color(0xFF404040),
+        color: const Color(0xFF2D3354),
         borderRadius: BorderRadius.circular(6),
         child: InkWell(
           borderRadius: BorderRadius.circular(6),

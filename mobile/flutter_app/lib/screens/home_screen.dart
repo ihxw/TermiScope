@@ -67,7 +67,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   hint: const Text('选择主机', style: TextStyle(color: Colors.white70, fontSize: 14)),
                   isExpanded: true,
                   value: selectedHostId,
-                  icon: const Icon(Icons.keyboard_arrow_down, color: Color(0xFF64D2FF), size: 20),
+                  icon: const Icon(Icons.keyboard_arrow_down, color: Color(0xFFFF5C35), size: 20),
                   items: state.hosts
                       .where((h) => h.hostType != 'monitor_only')
                       .map((h) => DropdownMenuItem<String>(
@@ -91,7 +91,7 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(width: 8),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF64D2FF),
+                backgroundColor: const Color(0xFFFF5C35),
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 minimumSize: const Size(36, 36),
               ),

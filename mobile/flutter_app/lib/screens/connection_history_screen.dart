@@ -95,16 +95,16 @@ class _ConnectionHistoryScreenState extends State<ConnectionHistoryScreen> {
                             ],
                           ),
                         ),
-                        const Divider(height: 1, color: Color(0xFF2D2D2D)),
+                        const Divider(height: 1, color: Color(0xFF171B2D)),
                         // Log list
                         Expanded(
                           child: ListView.separated(
                             itemCount: state.connectionLogs.length,
-                            separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFF2D2D2D)),
+                            separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFF171B2D)),
                             itemBuilder: (context, index) {
                               final log = state.connectionLogs[index];
                               final statusColor = log.status == 'success'
-                                  ? const Color(0xFF32D74B)
+                                  ? const Color(0xFF2ED573)
                                   : log.status == 'failed'
                                       ? Colors.red
                                       : Colors.orange;

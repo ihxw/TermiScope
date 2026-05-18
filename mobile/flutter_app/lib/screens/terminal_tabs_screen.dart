@@ -79,14 +79,14 @@ class _TerminalTabsScreenState extends State<TerminalTabsScreen> with TickerProv
             // TabBar matching VS Code / Web style
             if (terminals.isNotEmpty)
                Container(
-                 color: const Color(0xFF1E1E1E),
+                 color: const Color(0xFF0D0F18),
                  width: double.infinity,
                  child: Align(
                    alignment: Alignment.centerLeft,
                    child: TabBar(
                      controller: _tabController,
                      isScrollable: true,
-                     indicatorColor: const Color(0xFF64D2FF),
+                     indicatorColor: const Color(0xFFFF5C35),
                      labelColor: Colors.white,
                      unselectedLabelColor: Colors.grey,
                      tabAlignment: TabAlignment.start,
@@ -124,7 +124,7 @@ class _TerminalTabsScreenState extends State<TerminalTabsScreen> with TickerProv
                             const SizedBox(height: 18),
                             ElevatedButton(
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF64D2FF),
+                                backgroundColor: const Color(0xFFFF5C35),
                                 foregroundColor: Colors.white,
                                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
