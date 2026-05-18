@@ -23,6 +23,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"github.com/ihxw/termiscope/internal/config"
+	"github.com/ihxw/termiscope/internal/database"
 	"github.com/ihxw/termiscope/internal/models"
 	"github.com/ihxw/termiscope/internal/monitor"
 	"github.com/ihxw/termiscope/internal/utils"
@@ -47,14 +48,11 @@ func NewMonitorHandler(db *gorm.DB, cfg *config.Config) *MonitorHandler {
 	// Start the hub
 	go monitor.GlobalHub.Run()
 
-	// Start Cleanup Routine
+	// Start Cleanup Routine (batched deletes; retention 24h)
 	go func() {
 		ticker := time.NewTicker(1 * time.Hour)
 		for range ticker.C {
-			// Retention: 24 Hours
-			if err := db.Where("created_at < ?", time.Now().Add(-24*time.Hour)).Delete(&models.NetworkMonitorResult{}).Error; err != nil {
-				log.Printf("Network Monitor Cleanup Failed: %v", err)
-			}
+			database.RunNetworkMonitorMaintenance(db, cfg.Security.EncryptionKey)
 		}
 	}()
 

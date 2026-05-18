@@ -62,10 +62,11 @@ func main() {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
 
-	// Run migrations
+	// Run migrations (includes network monitor indexes)
 	if err := database.RunMigrations(db); err != nil {
 		log.Fatalf("Failed to run migrations: %v", err)
 	}
+	database.RunNetworkMonitorMaintenance(db, cfg.Security.EncryptionKey)
 
 	// Handle CLI password reset BEFORE entering web server mode
 	if resetPwdUser != "" {
@@ -298,6 +299,8 @@ func main() {
 				system.POST("/check-update", systemHandler.CheckUpdate)
 				system.POST("/upgrade", systemHandler.PerformUpdate)
 				system.GET("/update-status", systemHandler.GetUpdateStatus)
+				system.GET("/db-stats", systemHandler.GetDatabaseStats)
+				system.POST("/db-maintenance/prune", systemHandler.PruneNetworkMonitorData)
 			}
 		}
 

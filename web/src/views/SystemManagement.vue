@@ -47,6 +47,50 @@
         </div>
       </div>
 
+      <a-divider orientation="left">{{ t('system.dbMaintenanceTitle') }}</a-divider>
+      <div class="management-section">
+        <p>{{ t('system.dbMaintenanceDesc') }}</p>
+        <a-spin :spinning="dbStatsLoading">
+          <a-row :gutter="16" style="margin-bottom: 16px">
+            <a-col :span="8">
+              <a-statistic
+                :title="t('system.networkMonitorRows')"
+                :value="dbStats.network_monitor_results_count ?? 0"
+                :value-style="dbStats.over_threshold ? { color: '#cf1322' } : undefined"
+              />
+            </a-col>
+            <a-col :span="8">
+              <a-statistic
+                :title="t('system.alertThreshold')"
+                :value="dbStats.alert_threshold ?? 500000"
+              />
+            </a-col>
+            <a-col :span="8">
+              <a-statistic
+                :title="t('system.retentionHoursLabel')"
+                :value="dbStats.retention_hours ?? 24"
+              />
+            </a-col>
+          </a-row>
+          <a-alert
+            v-if="dbStats.over_threshold"
+            type="error"
+            show-icon
+            :message="t('system.dbOverThresholdTitle')"
+            :description="t('system.dbOverThresholdDesc')"
+            style="margin-bottom: 16px"
+          />
+          <a-space>
+            <a-button :loading="dbStatsLoading" @click="fetchDbStats">
+              {{ t('common.refresh') }}
+            </a-button>
+            <a-button type="primary" danger :loading="pruneLoading" @click="confirmPruneMonitorData">
+              {{ t('system.pruneMonitorData') }}
+            </a-button>
+          </a-space>
+        </a-spin>
+      </div>
+
       <a-divider orientation="left">{{ t('system.settingsTitle') }}</a-divider>
       <div class="management-section">
         <a-tabs v-model:activeKey="activeTab">
@@ -100,6 +144,13 @@
                 </a-row>
 
                 <a-divider orientation="left">{{ t('system.notificationTitle') }}</a-divider>
+                <a-form-item :label="t('system.systemNotifyChannels')" name="system_notify_channels">
+                  <a-checkbox-group v-model:value="systemNotifyChannelList">
+                    <a-checkbox value="email">{{ t('system.notifyChannelEmail') }}</a-checkbox>
+                    <a-checkbox value="telegram">{{ t('system.notifyChannelTelegram') }}</a-checkbox>
+                  </a-checkbox-group>
+                  <div style="font-size: 12px; color: #888; margin-top: 4px">{{ t('system.systemNotifyChannelsHelp') }}</div>
+                </a-form-item>
                 <a-row :gutter="16">
                   <a-col :span="3">
                     <a-form-item :label="t('system.smtpServer')" name="smtp_server">
@@ -306,7 +357,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { message, Modal } from 'ant-design-vue'
 import { DownloadOutlined, UploadOutlined } from '@ant-design/icons-vue'
@@ -328,6 +379,15 @@ const restorePasswordModalVisible = ref(false)
 const restorePassword = ref('')
 const restoreFile = ref(null)
 
+const dbStatsLoading = ref(false)
+const pruneLoading = ref(false)
+const dbStats = reactive({
+  network_monitor_results_count: 0,
+  alert_threshold: 500000,
+  retention_hours: 24,
+  over_threshold: false,
+})
+
 const settingsForm = reactive({
   timezone: 'Local',
   ssh_timeout: '30s',
@@ -346,7 +406,18 @@ const settingsForm = reactive({
   smtp_tls_skip_verify: false,
   telegram_bot_token: '',
   telegram_chat_id: '',
-  notification_template: ''
+  notification_template: '',
+  system_notify_channels: 'email,telegram',
+})
+
+const systemNotifyChannelList = computed({
+  get() {
+    const raw = settingsForm.system_notify_channels || 'email,telegram'
+    return raw.split(',').map((s) => s.trim()).filter(Boolean)
+  },
+  set(values) {
+    settingsForm.system_notify_channels = values.join(',')
+  },
 })
 
 const sendingTestEmail = ref(false)
@@ -411,8 +482,48 @@ const fetchSettings = async () => {
   }
 }
 
+const fetchDbStats = async () => {
+  dbStatsLoading.value = true
+  try {
+    const data = await api.get('/system/db-stats')
+    Object.assign(dbStats, data)
+  } catch (err) {
+    message.error(err.response?.data?.error || t('system.fetchDbStatsFailed'))
+  } finally {
+    dbStatsLoading.value = false
+  }
+}
+
+const confirmPruneMonitorData = () => {
+  Modal.confirm({
+    title: t('system.pruneConfirmTitle'),
+    content: t('system.pruneConfirmContent'),
+    okText: t('common.confirm'),
+    cancelText: t('common.cancel'),
+    okType: 'danger',
+    onOk: async () => {
+      pruneLoading.value = true
+      try {
+        const res = await api.post('/system/db-maintenance/prune')
+        message.success(
+          t('system.pruneSuccess', {
+            deleted: res.deleted ?? 0,
+            remaining: res.remaining ?? 0,
+          }),
+        )
+        await fetchDbStats()
+      } catch (err) {
+        message.error(err.response?.data?.error || t('system.pruneFailed'))
+      } finally {
+        pruneLoading.value = false
+      }
+    },
+  })
+}
+
 onMounted(() => {
   fetchSettings()
+  fetchDbStats()
 })
 
 const handleSaveSettings = async () => {

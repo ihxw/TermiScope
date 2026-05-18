@@ -3,6 +3,7 @@ package handlers
 import (
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -124,8 +125,7 @@ func (h *SystemHandler) Backup(c *gin.Context) {
 	vacuumFile := filepath.Join(tmpDir, fmt.Sprintf("termiscope_vacuum_%s.db", timestamp))
 
 	if err := h.db.Exec("VACUUM INTO ?", vacuumFile).Error; err != nil {
-		fmt.Printf("VACUUM INTO failed: %v. Output path: %s\n", err, vacuumFile)
-		// Fallback copy
+		log.Printf("WARNING: VACUUM INTO backup failed: %v — falling back to raw file copy (may be inconsistent if DB is under write)", err)
 		if copyErr := copyFile(dbPath, vacuumFile); copyErr != nil {
 			utils.ErrorResponse(c, http.StatusInternalServerError, fmt.Sprintf("failed to create backup: %v", err))
 			return
@@ -373,7 +373,8 @@ func copyFile(src, dst string) error {
 func (h *SystemHandler) GetSettings(c *gin.Context) {
 	// Fetch notification settings from DB
 	var configs []models.SystemConfig
-	h.db.Where("config_key LIKE ? OR config_key LIKE ? OR config_key = ?", "smtp_%", "telegram_%", "notification_template").Find(&configs)
+	h.db.Where("config_key LIKE ? OR config_key LIKE ? OR config_key = ? OR config_key = ?",
+		"smtp_%", "telegram_%", "notification_template", "system_notify_channels").Find(&configs)
 
 	settings := gin.H{
 		"timezone":                 h.config.Server.Timezone,
@@ -397,6 +398,9 @@ func (h *SystemHandler) GetSettings(c *gin.Context) {
 			value = utils.DecryptSystemConfig(value, h.config.Security.EncryptionKey)
 		}
 		settings[cfg.ConfigKey] = value
+	}
+	if _, ok := settings["system_notify_channels"]; !ok {
+		settings["system_notify_channels"] = "email,telegram"
 	}
 
 	utils.SuccessResponse(c, http.StatusOK, settings)
@@ -422,6 +426,7 @@ type UpdateSettingsRequest struct {
 	TelegramBotToken     string `json:"telegram_bot_token"`
 	TelegramChatID       string `json:"telegram_chat_id"`
 	NotificationTemplate string `json:"notification_template"`
+	SystemNotifyChannels string `json:"system_notify_channels"` // e.g. "email,telegram"
 }
 
 // Global rate limiter reference for dynamic updates
@@ -454,6 +459,11 @@ func (h *SystemHandler) UpdateSettings(c *gin.Context) {
 	}
 
 	// Update DB (Transaction)
+	notifyChannels := strings.TrimSpace(req.SystemNotifyChannels)
+	if notifyChannels == "" {
+		notifyChannels = "email,telegram"
+	}
+
 	err := h.db.Transaction(func(tx *gorm.DB) error {
 		updates := map[string]string{
 			"server.timezone":              req.Timezone,
@@ -473,7 +483,8 @@ func (h *SystemHandler) UpdateSettings(c *gin.Context) {
 			"smtp_tls_skip_verify":  fmt.Sprintf("%v", req.SMTPSkipVerify),
 			"telegram_bot_token":    utils.EncryptSystemConfig(req.TelegramBotToken, h.config.Security.EncryptionKey),
 			"telegram_chat_id":      req.TelegramChatID,
-			"notification_template": req.NotificationTemplate,
+			"notification_template":  req.NotificationTemplate,
+			"system_notify_channels": notifyChannels,
 		}
 
 		for key, value := range updates {

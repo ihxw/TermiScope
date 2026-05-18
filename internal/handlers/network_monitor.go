@@ -68,6 +68,13 @@ func (h *NetworkMonitorHandler) ReportNetworkResults(c *gin.Context) {
 		return
 	}
 
+	if len(results) > database.MaxNetworkMonitorResultsPerReport {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("too many results in one report (max %d)", database.MaxNetworkMonitorResultsPerReport),
+		})
+		return
+	}
+
 	// 2. Save Results (Batch Insert)
 	// Optionally set CreatedAt if missing
 	now := time.Now()

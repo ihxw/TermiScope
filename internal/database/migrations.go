@@ -63,7 +63,10 @@ func RunMigrations(db *gorm.DB) error {
 	db.Exec("CREATE INDEX IF NOT EXISTS idx_connection_logs_created_at ON connection_logs(created_at)")
 	if db.Migrator().HasTable(&models.NetworkMonitorResult{}) {
 		db.Exec("CREATE INDEX IF NOT EXISTS idx_network_monitor_results_created_at ON network_monitor_results(created_at)")
+		db.Exec("CREATE INDEX IF NOT EXISTS idx_network_monitor_results_task_created ON network_monitor_results(task_id, created_at)")
 	}
+
+	// Prune on startup is triggered from cmd/server/main.go (needs encryption key for alerts).
 
 	// Check if system needs initial setup
 	var count int64

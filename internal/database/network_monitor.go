@@ -43,12 +43,15 @@ func ParseNetworkStatsRange(rangeStr string) (time.Duration, error) {
 	return time.ParseDuration(rangeStr)
 }
 
-// QueryNetworkMonitorResults returns results for a task since the given time.
+// MaxNetworkMonitorChartPoints caps rows returned for charts (frontend clusters ~10s buckets).
+const MaxNetworkMonitorChartPoints = 10000
+
+// MaxNetworkMonitorResultsPerReport limits a single agent upload batch.
+const MaxNetworkMonitorResultsPerReport = 500
+
+// QueryNetworkMonitorResults returns results for a task since the given time (newest capped).
 func QueryNetworkMonitorResults(db *gorm.DB, taskID uint, since time.Time) ([]models.NetworkMonitorResult, error) {
-	results := make([]models.NetworkMonitorResult, 0)
-	err := db.Where("task_id = ? AND created_at > ?", taskID, since.UTC()).
-		Order("created_at asc").
-		Find(&results).Error
+	results, err := queryNetworkMonitorResults(db, taskID, since)
 	if err == nil {
 		return results, nil
 	}
@@ -58,12 +61,25 @@ func QueryNetworkMonitorResults(db *gorm.DB, taskID uint, since time.Time) ([]mo
 		if migrateErr := EnsureNetworkMonitorTables(db); migrateErr != nil {
 			return nil, fmt.Errorf("schema repair failed: %w (original: %v)", migrateErr, err)
 		}
-		results = make([]models.NetworkMonitorResult, 0)
-		err = db.Where("task_id = ? AND created_at > ?", taskID, since.UTC()).
-			Order("created_at asc").
-			Find(&results).Error
+		return queryNetworkMonitorResults(db, taskID, since)
 	}
-	return results, err
+	return nil, err
+}
+
+func queryNetworkMonitorResults(db *gorm.DB, taskID uint, since time.Time) ([]models.NetworkMonitorResult, error) {
+	results := make([]models.NetworkMonitorResult, 0)
+	err := db.Where("task_id = ? AND created_at > ?", taskID, since.UTC()).
+		Order("created_at desc").
+		Limit(MaxNetworkMonitorChartPoints).
+		Find(&results).Error
+	if err != nil {
+		return nil, err
+	}
+	// Return ascending time order for charts.
+	for i, j := 0, len(results)-1; i < j; i, j = i+1, j-1 {
+		results[i], results[j] = results[j], results[i]
+	}
+	return results, nil
 }
 
 func isRepairableQueryError(err error) bool {

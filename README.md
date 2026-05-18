@@ -87,7 +87,112 @@ curl -fsSL https://raw.githubusercontent.com/ihxw/TermiScope/main/scripts/instal
 docker compose up -d
 ```
 
-### 方式三：手动下载二进制包
+### 方式三：离线安装包手动部署（Linux amd64，推荐生产环境）
+
+适用于将安装包拷贝到**其他 Linux 服务器**进行安装或升级。安装包为自包含离线包，内置二进制、前端静态资源及安装脚本。
+
+#### 需要拷贝的文件
+
+通常**只需一个文件**：
+
+| 文件 | 说明 |
+| --- | --- |
+| `release/termiscope-linux-amd64-<版本>.tar.gz` | 离线安装包（含 `TermiScope`、`web/dist`、`scripts/` 等） |
+
+安装包内已包含 `scripts/install_local.sh`、`scripts/install_from_archive.sh`、`scripts/repair_database.sh`、`scripts/uninstall.sh`，**无需**再单独拷贝仓库中的构建脚本。
+
+> `scripts/install_wsl.sh`、`scripts/build_and_install_wsl.ps1` 仅用于本机 Windows + WSL 开发构建，目标服务器不需要。
+
+#### 构建安装包（在开发机）
+
+**Windows（交叉编译）：**
+
+```powershell
+.\scripts\build_linux_amd64.ps1
+# 或：构建并安装到本机 WSL
+.\scripts\build_and_install_wsl.ps1
+```
+
+**Linux / WSL：**
+
+```bash
+bash scripts/build_linux_amd64.sh
+```
+
+产物路径：`release/termiscope-linux-amd64-<版本>.tar.gz`
+
+#### 在目标服务器上安装
+
+**环境要求：** Linux x86_64、`systemd`、`sudo`/`root`；首次安装需已安装 `openssl`。
+
+**方式 A — 解压后安装（推荐）**
+
+```bash
+# 1. 上传安装包（示例）
+scp release/termiscope-linux-amd64-1.5.16.tar.gz user@your-server:/tmp/
+
+# 2. 在目标服务器执行
+cd /tmp
+tar -xzf termiscope-linux-amd64-1.5.16.tar.gz
+cd termiscope-linux-amd64-1.5.16
+sudo ./scripts/install_local.sh -y
+```
+
+可选参数：
+
+```bash
+sudo ./scripts/install_local.sh --install-dir /opt/termiscope --port 3000 -y
+```
+
+**方式 B — 不解压整包，从 tar.gz 一键安装**
+
+先将仓库中的 `scripts/install_from_archive.sh` 与 tar.gz 一并上传到服务器，然后：
+
+```bash
+sudo bash install_from_archive.sh /tmp/termiscope-linux-amd64-1.5.16.tar.gz -y
+```
+
+（也可使用安装包解压后自带的同路径脚本。）
+
+#### 升级时的数据保护
+
+使用 `install_local.sh` 升级时，若目标安装目录（默认 `/opt/termiscope`）中已存在以下内容，**不会被覆盖**：
+
+| 路径 | 行为 |
+| --- | --- |
+| `configs/config.yaml` | 保留现有配置 |
+| `data/`（含 `termiscope.db`） | 保留数据库 |
+| `logs/` | 保留日志 |
+
+以下内容会随版本更新：`TermiScope` 二进制、`web/dist`；`agents/` 为合并复制，不删除已有文件。
+
+安装完成后服务由 systemd 管理（单元名 `termiscope`）：
+
+```bash
+sudo systemctl status termiscope
+sudo systemctl restart termiscope
+```
+
+默认访问地址：`http://<服务器IP>:<config.yaml 中的 port>`（新装默认为 `3000`）。
+
+数据库修复（如需）：
+
+```bash
+sudo systemctl stop termiscope
+sudo /opt/termiscope/repair_database.sh --data-dir /opt/termiscope/data
+sudo systemctl start termiscope
+```
+
+卸载：
+
+```bash
+sudo /opt/termiscope/uninstall.sh
+```
+
+---
+
+### 方式四：手动下载二进制包直接运行
+
 1. 前往 [GitHub Releases](https://github.com/ihxw/TermiScope/releases) 下载适合您操作系统的最新发行版压缩包。
 2. 解压后，在终端赋予执行权限并直接运行：
    ```bash
@@ -96,7 +201,9 @@ docker compose up -d
    ```
    *(Windows 用户请直接双击运行 `TermiScope.exe`)*
 
-### 方式四：自行编译构建
+> 此方式不会自动配置 systemd 服务；生产环境建议使用上方的**方式三**离线安装包部署。
+
+### 方式五：自行编译构建
 为了确保产物的完整性或进行二次开发，您也可以使用项目自带的构建脚本自行编译：
 
 ```bash
