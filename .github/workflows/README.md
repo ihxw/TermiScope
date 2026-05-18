@@ -55,12 +55,18 @@
 bash scripts/ci/verify_release_env.sh
 ```
 
-### Linux 自建 Runner 一键补依赖
+### Linux 自建 Runner 预装系统包（推荐）
+
+在 Runner **主机上**执行一次（交互式 sudo），workflow 里不会再要密码：
 
 ```bash
-bash scripts/ci/install_release_deps.sh
-# 需要 sudo 安装 zip / tar 等
+sudo apt-get update
+sudo apt-get install -y zip tar
 ```
+
+或配置 **免密 sudo** 后，workflow 中的 `install_release_deps.sh` 才能自动安装。
+
+`install_release_deps.sh` 仅安装 `zip`、`tar`（不再安装 `jq`）；无免密 sudo 时会跳过安装并由后续 `verify_release_env.sh` 报错。
 
 ### 常见问题
 
@@ -69,8 +75,8 @@ bash scripts/ci/install_release_deps.sh
 | `Go is not installed` | PATH 未生效或未跑 setup-go | 确认 workflow 中有 `actions/setup-go`，且 `go-version-file: go.mod` |
 | `go: requires go >= 1.25.5` | Runner 上 Go 版本过旧 | 使用 setup-go 或手动安装 Go 1.25.5+ |
 | `npm is not installed` | 未跑 setup-node | 确认 `actions/setup-node` 在 Build 之前 |
-| `zip: command not found` | Linux 未装 zip | 运行 `install_release_deps.sh` 或 `sudo apt install zip` |
-| `jq: command not found` | 旧版 workflow | 已改为用 Node 读 `package.json`，拉取最新 workflow |
+| `zip: command not found` | Linux 未装 zip | 在 Runner 主机执行 `sudo apt install zip tar` |
+| `sudo: a password is required` | CI 无法交互输入密码 | 在主机预装 zip/tar，或配置 NOPASSWD sudo |
 | `pwsh: not found` | Linux 无 PowerShell | `sudo apt install powershell` 或仅使用 tag 触发的 `release.yml` |
 
 ## 注意事项

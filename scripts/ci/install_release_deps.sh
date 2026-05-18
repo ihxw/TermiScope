@@ -1,45 +1,64 @@
 #!/usr/bin/env bash
 # Install OS packages required by build_release.sh on self-hosted Linux runners.
-# Safe to run on GitHub-hosted ubuntu-latest (no-op if already installed).
+# Does not use interactive sudo (CI has no TTY). Skips install when sudo needs a password.
 set -euo pipefail
 
+REQUIRED=(zip tar)
 PACKAGES=()
 
-command -v zip >/dev/null 2>&1 || PACKAGES+=(zip)
-command -v tar >/dev/null 2>&1 || PACKAGES+=(tar)
-command -v jq >/dev/null 2>&1 || PACKAGES+=(jq)
+for pkg in "${REQUIRED[@]}"; do
+  command -v "$pkg" >/dev/null 2>&1 || PACKAGES+=("$pkg")
+done
 
 if [ ${#PACKAGES[@]} -eq 0 ]; then
-  echo "[ci] zip, tar, jq already present"
+  echo "[ci] zip and tar already present"
   exit 0
 fi
 
-echo "[ci] Installing: ${PACKAGES[*]}"
+echo "[ci] Missing: ${PACKAGES[*]}"
+
+run_as_root() {
+  if [ "${EUID:-$(id -u)}" -eq 0 ]; then
+    "$@"
+  elif command -v sudo >/dev/null 2>&1 && sudo -n true 2>/dev/null; then
+    sudo -n "$@"
+  else
+    return 1
+  fi
+}
+
+installed=false
 
 if command -v apt-get >/dev/null 2>&1; then
   export DEBIAN_FRONTEND=noninteractive
-  if command -v sudo >/dev/null 2>&1; then
-    sudo apt-get update -qq
-    sudo apt-get install -y -qq "${PACKAGES[@]}"
-  else
-    apt-get update -qq
-    apt-get install -y -qq "${PACKAGES[@]}"
+  if run_as_root apt-get update -qq && run_as_root apt-get install -y -qq "${PACKAGES[@]}"; then
+    installed=true
   fi
 elif command -v dnf >/dev/null 2>&1; then
-  if command -v sudo >/dev/null 2>&1; then
-    sudo dnf install -y "${PACKAGES[@]}"
-  else
-    dnf install -y "${PACKAGES[@]}"
+  if run_as_root dnf install -y "${PACKAGES[@]}"; then
+    installed=true
   fi
 elif command -v yum >/dev/null 2>&1; then
-  if command -v sudo >/dev/null 2>&1; then
-    sudo yum install -y "${PACKAGES[@]}"
-  else
-    yum install -y "${PACKAGES[@]}"
+  if run_as_root yum install -y "${PACKAGES[@]}"; then
+    installed=true
   fi
-else
-  echo "[ci] Warning: no supported package manager; install manually: ${PACKAGES[*]}" >&2
-  exit 1
 fi
 
-echo "[ci] Done"
+still_missing=()
+for pkg in "${PACKAGES[@]}"; do
+  command -v "$pkg" >/dev/null 2>&1 || still_missing+=("$pkg")
+done
+
+if [ ${#still_missing[@]} -eq 0 ]; then
+  echo "[ci] Installed: ${PACKAGES[*]}"
+  exit 0
+fi
+
+if [ "$installed" = false ]; then
+  echo "[ci] Warning: could not install packages (no root / passwordless sudo)." >&2
+  echo "[ci] On the runner host, run once (outside CI):" >&2
+  echo "       sudo apt-get update && sudo apt-get install -y ${still_missing[*]}" >&2
+fi
+
+echo "[ci] Still missing: ${still_missing[*]}" >&2
+exit 1
