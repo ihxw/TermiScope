@@ -715,6 +715,7 @@ export default {
         saveShortcut: '保存 (Ctrl+S)',
         unsavedTitle: '未保存的更改',
         unsavedContent: '您有未保存的更改，确定要离开吗？',
+        unsavedCloseAll: '有文件未保存，确定关闭所有编辑窗口吗？',
         unsavedLeave: '离开',
         bulkTransfer: '批量传输',
         transferQueue: '传输队列',

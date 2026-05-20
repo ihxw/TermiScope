@@ -714,6 +714,7 @@ export default {
         saveShortcut: 'Save (Ctrl+S)',
         unsavedTitle: 'Unsaved Changes',
         unsavedContent: 'You have unsaved changes, leave?',
+        unsavedCloseAll: 'Some files have unsaved changes. Close all editor tabs?',
         unsavedLeave: 'Leave',
         bulkTransfer: 'Bulk Transfer',
         transferQueue: 'Queue',

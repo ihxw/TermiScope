@@ -230,10 +230,8 @@
     </div>
 
     <FileEditor
-      v-model:open="editorVisible"
+      ref="fileEditorRef"
       :host-id="hostId"
-      :file-path="editingFile.path"
-      :file-name="editingFile.name"
       @saved="onEditorSaved"
     />
 
@@ -746,11 +744,7 @@ const createVisible = ref(false)
 const createType = ref('folder') // 'folder' or 'file'
 const createName = ref('')
 
-const editorVisible = ref(false)
-const editingFile = ref({
-    path: '',
-    name: ''
-})
+const fileEditorRef = ref(null)
 
 // Right-click Context Menu Logic
 const contextMenuVisible = ref(false)
@@ -1581,11 +1575,7 @@ const handleCreate = async () => {
 
 const openEditor = (record) => {
     const fullPath = currentPath.value === '.' ? record.name : `${currentPath.value}/${record.name}`
-    editingFile.value = {
-        path: fullPath,
-        name: record.name
-    }
-    editorVisible.value = true
+    fileEditorRef.value?.openFile(fullPath, record.name)
 }
 
 const onEditorSaved = () => {
@@ -1611,6 +1601,7 @@ watch(() => props.hostId, () => {
   resetPathHistory()
   currentPath.value = '.'
   selectedRowKeys.value = []
+  fileEditorRef.value?.closeAllTabs()
   if (props.visible) {
     loadFiles()
   }

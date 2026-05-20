@@ -1,38 +1,49 @@
 <template>
   <Teleport to="body">
     <div
-      v-if="visible"
+      v-if="tabs.length > 0"
       class="file-editor-float"
       :class="{ 'file-editor-float--dark': themeStore.isDark }"
       :style="panelStyle"
       @mousedown="bringToFront"
     >
-      <div
-        class="editor-header"
-        @mousedown="startDrag"
-      >
-        <div class="editor-header-left">
-          <span class="editor-title">{{ displayTitle }}</span>
-          <span v-if="fileSize" class="file-info">{{ formatSize(fileSize) }}</span>
-        </div>
-        <a-space>
+      <div class="editor-toolbar" @mousedown="startDrag">
+        <span v-if="activeTab?.fileSize" class="file-info">{{ formatSize(activeTab.fileSize) }}</span>
+        <a-space class="editor-toolbar-actions">
           <a-tooltip :title="t('sftp.searchReplace')">
             <a-button size="small" @mousedown.stop @click="triggerFindReplace">
               <template #icon><SearchOutlined /></template>
             </a-button>
           </a-tooltip>
-          <a-tooltip v-if="dirty" :title="t('sftp.saveShortcut')">
-            <a-button size="small" type="primary" :loading="saving" @mousedown.stop @click="saveFile">
+          <a-tooltip v-if="activeTab?.dirty" :title="t('sftp.saveShortcut')">
+            <a-button size="small" type="primary" :loading="activeTab?.saving" @mousedown.stop @click="saveActiveFile">
               {{ t('common.save') }}
             </a-button>
           </a-tooltip>
-          <a-button size="small" @mousedown.stop @click="handleClose">
+          <a-button size="small" @mousedown.stop @click="handleCloseAll">
             <template #icon><CloseOutlined /></template>
           </a-button>
         </a-space>
       </div>
+      <div class="editor-tabs" @mousedown.stop>
+        <div
+          v-for="tab in tabs"
+          :key="tab.key"
+          class="editor-tab"
+          :class="{ active: tab.key === activeKey, dirty: tab.dirty }"
+          @click="switchTab(tab.key)"
+        >
+          <span class="editor-tab-label" :title="tab.name">{{ tabLabel(tab) }}</span>
+          <span class="editor-tab-close" @click.stop="closeTab(tab.key)">
+            <CloseOutlined />
+          </span>
+        </div>
+      </div>
+      <div v-if="activeTab" class="editor-path-bar" :title="activeTab.path">
+        {{ activeTab.path }}
+      </div>
       <div class="editor-body">
-        <div v-if="loading" class="editor-loading">
+        <div v-if="activeTab?.loading" class="editor-loading">
           <a-spin />
         </div>
         <div ref="editorRef" class="editor-instance"></div>
@@ -67,54 +78,33 @@ self.MonacoEnvironment = {
 }
 
 const props = defineProps({
-  open: {
-    type: Boolean,
-    default: false
-  },
   hostId: {
     type: [String, Number],
-    required: true
+    required: true,
   },
-  filePath: {
-    type: String,
-    required: true
-  },
-  fileName: {
-    type: String,
-    required: true
-  }
 })
 
-const emit = defineEmits(['update:open', 'saved'])
+const emit = defineEmits(['saved'])
 const { t } = useI18n()
 const themeStore = useThemeStore()
 
-const visible = computed({
-  get: () => props.open,
-  set: (val) => emit('update:open', val)
-})
+/** @typedef {{ key: string, path: string, name: string, dirty: boolean, loading: boolean, saving: boolean, savedContent: string, fileSize: number, model: import('monaco-editor').editor.ITextModel | null, changeDisposable: import('monaco-editor').IDisposable | null }} EditorTab */
+
+/** @type {import('vue').Ref<EditorTab[]>} */
+const tabs = ref([])
+const activeKey = ref(null)
 
 const editorRef = ref(null)
 const editorInstance = shallowRef(null)
-let contentChangeDisposable = null
 let saveCommandDisposable = null
 
-const loading = ref(false)
-const saving = ref(false)
-const dirty = ref(false)
-const savedContent = ref('')
-const fileSize = ref(0)
-
-const panelW = 760
-const panelH = 520
+const panelW = 800
+const panelH = 540
 const panelX = ref(80)
 const panelY = ref(80)
 const zIndex = ref(1100)
 
-const displayTitle = computed(() => {
-  const prefix = dirty.value ? '● ' : ''
-  return `${prefix}${props.fileName}`
-})
+const activeTab = computed(() => tabs.value.find((tab) => tab.key === activeKey.value) ?? null)
 
 const panelStyle = computed(() => ({
   left: `${panelX.value}px`,
@@ -125,6 +115,8 @@ const panelStyle = computed(() => ({
 }))
 
 let dragState = null
+
+const tabLabel = (tab) => (tab.dirty ? `● ${tab.name}` : tab.name)
 
 const startDrag = (e) => {
   if (e.button !== 0) return
@@ -197,20 +189,22 @@ const getLanguage = (filename) => {
   return map[ext] || 'plaintext'
 }
 
-const updateDirty = () => {
-  if (!editorInstance.value) {
-    dirty.value = false
+const modelUri = (filePath) => monaco.Uri.parse(`termiscope://${encodeURIComponent(filePath)}`)
+
+const updateTabDirty = (tab) => {
+  if (!tab.model) {
+    tab.dirty = false
     return
   }
-  dirty.value = editorInstance.value.getValue() !== savedContent.value
+  tab.dirty = tab.model.getValue() !== tab.savedContent
 }
 
-const initEditor = () => {
+const ensureEditor = () => {
   if (editorInstance.value) return
 
   editorInstance.value = monaco.editor.create(editorRef.value, {
-    value: savedContent.value,
-    language: getLanguage(props.fileName),
+    value: '',
+    language: 'plaintext',
     theme: themeStore.isDark ? 'vs-dark' : 'vs-light',
     automaticLayout: true,
     minimap: { enabled: true },
@@ -218,105 +212,189 @@ const initEditor = () => {
     fontSize: 14,
   })
 
-  contentChangeDisposable = editorInstance.value.onDidChangeModelContent(() => {
-    updateDirty()
-  })
-
   saveCommandDisposable = editorInstance.value.addCommand(
     monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS,
     () => {
-      if (dirty.value) saveFile()
+      if (activeTab.value?.dirty) saveActiveFile()
     }
   )
 }
 
-const disposeEditor = () => {
-  contentChangeDisposable?.dispose()
-  contentChangeDisposable = null
-  saveCommandDisposable = null
-  if (editorInstance.value) {
-    editorInstance.value.dispose()
-    editorInstance.value = null
+const attachModelToEditor = (tab) => {
+  if (!tab?.model || !editorInstance.value) return
+  if (editorInstance.value.getModel() !== tab.model) {
+    editorInstance.value.setModel(tab.model)
   }
-  dirty.value = false
 }
 
-watch(() => themeStore.isDark, (isDark) => {
-  if (editorInstance.value) {
-    monaco.editor.setTheme(isDark ? 'vs-dark' : 'vs-light')
-  }
-})
+const switchTab = async (key) => {
+  if (activeKey.value === key) return
+  activeKey.value = key
+  await nextTick()
+  attachModelToEditor(activeTab.value)
+}
 
-const loadFileContent = async () => {
-  if (!props.hostId || !props.filePath) return
-  loading.value = true
-  dirty.value = false
+const initEditorIfNeeded = async () => {
+  await nextTick()
+  ensureEditor()
+  attachModelToEditor(activeTab.value)
+}
+
+const loadTabContent = async (tab) => {
+  if (!props.hostId || !tab.path) return
+  tab.loading = true
+  tab.dirty = false
   try {
-    const response = await downloadFile(props.hostId, props.filePath)
+    const response = await downloadFile(props.hostId, tab.path)
     const text = await response.text()
-    savedContent.value = text
-    fileSize.value = response.size
+    tab.savedContent = text
+    tab.fileSize = response.size
 
-    await nextTick()
-    if (!editorInstance.value) {
-      initEditor()
+    if (tab.model) {
+      tab.changeDisposable?.dispose()
+      tab.model.dispose()
     }
-    editorInstance.value.setValue(text)
-    monaco.editor.setModelLanguage(editorInstance.value.getModel(), getLanguage(props.fileName))
-    updateDirty()
+
+    tab.model = monaco.editor.createModel(text, getLanguage(tab.name), modelUri(tab.path))
+    tab.changeDisposable = tab.model.onDidChangeContent(() => updateTabDirty(tab))
+    updateTabDirty(tab)
+
+    if (activeKey.value === tab.key) {
+      await initEditorIfNeeded()
+    }
   } catch (error) {
     message.error(t('sftp.downloadFailed') + ': ' + (error.message || 'Unknown error'))
-    visible.value = false
+    removeTab(tab.key, true)
   } finally {
-    loading.value = false
+    tab.loading = false
   }
 }
 
-const saveFile = async () => {
-  if (!editorInstance.value || !dirty.value || saving.value) return
-  saving.value = true
-  const newContent = editorInstance.value.getValue()
-  const blob = new Blob([newContent], { type: 'text/plain' })
-  const file = new File([blob], props.fileName, { type: 'text/plain' })
+const openFile = async (filePath, fileName) => {
+  const key = filePath
+  const existing = tabs.value.find((tab) => tab.key === key)
+  if (existing) {
+    if (tabs.value.length === 1) centerPanel()
+    bringToFront()
+    await switchTab(key)
+    return
+  }
 
-  const lastSlashIndex = props.filePath.lastIndexOf('/')
-  let targetDir = lastSlashIndex !== -1 ? props.filePath.substring(0, lastSlashIndex) : '.'
-  if (props.filePath.startsWith('/') && targetDir === '') {
+  if (tabs.value.length === 0) centerPanel()
+  bringToFront()
+
+  const tab = {
+    key,
+    path: filePath,
+    name: fileName,
+    dirty: false,
+    loading: true,
+    saving: false,
+    savedContent: '',
+    fileSize: 0,
+    model: null,
+    changeDisposable: null,
+  }
+  tabs.value.push(tab)
+  activeKey.value = key
+  await initEditorIfNeeded()
+  await loadTabContent(tab)
+}
+
+const disposeTab = (tab) => {
+  tab.changeDisposable?.dispose()
+  tab.changeDisposable = null
+  if (tab.model) {
+    if (editorInstance.value?.getModel() === tab.model) {
+      editorInstance.value.setModel(null)
+    }
+    tab.model.dispose()
+    tab.model = null
+  }
+}
+
+const removeTab = (key, force = false) => {
+  const idx = tabs.value.findIndex((tab) => tab.key === key)
+  if (idx === -1) return
+
+  const tab = tabs.value[idx]
+  disposeTab(tab)
+  tabs.value.splice(idx, 1)
+
+  if (tabs.value.length === 0) {
+    activeKey.value = null
+    return
+  }
+
+  if (activeKey.value === key || force) {
+    const next = tabs.value[Math.min(idx, tabs.value.length - 1)]
+    switchTab(next.key)
+  }
+}
+
+const confirmDiscard = (content, onOk) => {
+  Modal.confirm({
+    title: t('sftp.unsavedTitle'),
+    content,
+    okText: t('sftp.unsavedLeave'),
+    cancelText: t('common.cancel'),
+    onOk,
+  })
+}
+
+const closeTab = (key) => {
+  const tab = tabs.value.find((t) => t.key === key)
+  if (!tab) return
+  if (tab.dirty) {
+    confirmDiscard(t('sftp.unsavedContent'), () => removeTab(key))
+  } else {
+    removeTab(key)
+  }
+}
+
+const hasDirtyTabs = () => tabs.value.some((tab) => tab.dirty)
+
+const closeAllTabs = () => {
+  tabs.value.forEach(disposeTab)
+  tabs.value = []
+  activeKey.value = null
+}
+
+const handleCloseAll = () => {
+  if (hasDirtyTabs()) {
+    confirmDiscard(t('sftp.unsavedCloseAll'), closeAllTabs)
+  } else {
+    closeAllTabs()
+  }
+}
+
+const saveActiveFile = async () => {
+  const tab = activeTab.value
+  if (!tab?.model || !tab.dirty || tab.saving) return
+
+  tab.saving = true
+  const newContent = tab.model.getValue()
+  const blob = new Blob([newContent], { type: 'text/plain' })
+  const file = new File([blob], tab.name, { type: 'text/plain' })
+
+  const lastSlashIndex = tab.path.lastIndexOf('/')
+  let targetDir = lastSlashIndex !== -1 ? tab.path.substring(0, lastSlashIndex) : '.'
+  if (tab.path.startsWith('/') && targetDir === '') {
     targetDir = '/'
   }
 
   try {
     await uploadFile(props.hostId, targetDir, file)
     message.success(t('sftp.uploadComplete'))
-    savedContent.value = newContent
-    fileSize.value = blob.size
-    updateDirty()
+    tab.savedContent = newContent
+    tab.fileSize = blob.size
+    updateTabDirty(tab)
     emit('saved')
   } catch (error) {
     message.error(t('sftp.uploadFailed') + ': ' + (error.message || 'Unknown error'))
   } finally {
-    saving.value = false
+    tab.saving = false
   }
-}
-
-const confirmClose = () => {
-  if (dirty.value) {
-    Modal.confirm({
-      title: t('sftp.unsavedTitle'),
-      content: t('sftp.unsavedContent'),
-      okText: t('sftp.unsavedLeave'),
-      cancelText: t('common.cancel'),
-      onOk() {
-        visible.value = false
-      },
-    })
-  } else {
-    visible.value = false
-  }
-}
-
-const handleClose = () => {
-  confirmClose()
 }
 
 const triggerFindReplace = () => {
@@ -332,34 +410,54 @@ const formatSize = (bytes) => {
 }
 
 const onGlobalKeyDown = (e) => {
-  if (!visible.value || !dirty.value) return
+  if (tabs.value.length === 0 || !activeTab.value?.dirty) return
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
     e.preventDefault()
-    saveFile()
+    saveActiveFile()
   }
 }
 
+const disposeEditor = () => {
+  saveCommandDisposable = null
+  if (editorInstance.value) {
+    editorInstance.value.dispose()
+    editorInstance.value = null
+  }
+}
+
+watch(() => themeStore.isDark, (isDark) => {
+  if (editorInstance.value) {
+    monaco.editor.setTheme(isDark ? 'vs-dark' : 'vs-light')
+  }
+})
+
 watch(
-  () => props.open,
-  (val) => {
-    if (val) {
-      centerPanel()
-      bringToFront()
-      nextTick(() => loadFileContent())
+  () => props.hostId,
+  () => {
+    closeAllTabs()
+  }
+)
+
+watch(
+  () => tabs.value.length,
+  (len, prevLen) => {
+    if (len > 0 && (prevLen === undefined || prevLen === 0)) {
       window.addEventListener('keydown', onGlobalKeyDown, true)
-    } else {
+    } else if (len === 0) {
       window.removeEventListener('keydown', onGlobalKeyDown, true)
       disposeEditor()
     }
-  },
-  { immediate: true }
+  }
 )
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onGlobalKeyDown, true)
   stopDrag()
+  closeAllTabs()
   disposeEditor()
 })
+
+defineExpose({ openFile, closeAllTabs })
 </script>
 
 <style scoped>
@@ -374,33 +472,99 @@ onBeforeUnmount(() => {
   background: var(--editor-bg, #fff);
 }
 
-.editor-header {
+.editor-toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 6px 10px;
+  padding: 4px 8px;
   border-bottom: 1px solid var(--editor-border, #d9d9d9);
   flex-shrink: 0;
   cursor: move;
   user-select: none;
   background: var(--editor-header-bg, #fafafa);
+  min-height: 36px;
 }
 
-.editor-header-left {
+.editor-toolbar-actions {
+  margin-left: auto;
+}
+
+.editor-tabs {
+  display: flex;
+  flex-shrink: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: var(--editor-tabs-bg, #f0f0f0);
+  border-bottom: 1px solid var(--editor-border, #d9d9d9);
+  scrollbar-width: thin;
+}
+
+.editor-tab {
   display: flex;
   align-items: center;
-  gap: 10px;
-  overflow: hidden;
-  min-width: 0;
-  flex: 1;
+  gap: 4px;
+  max-width: 180px;
+  padding: 6px 8px 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  border-right: 1px solid var(--editor-border, #d9d9d9);
+  color: #595959;
+  flex-shrink: 0;
+  user-select: none;
 }
 
-.editor-title {
-  font-weight: 500;
-  font-size: 13px;
-  white-space: nowrap;
+.editor-tab:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.editor-tab.active {
+  background: var(--editor-bg, #fff);
+  color: #1677ff;
+  border-bottom: 2px solid #1677ff;
+  margin-bottom: -1px;
+}
+
+.editor-tab.dirty .editor-tab-label {
+  font-style: italic;
+}
+
+.editor-tab-label {
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.editor-tab-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  font-size: 10px;
+  opacity: 0.6;
+}
+
+.editor-tab-close:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.editor-path-bar {
+  flex-shrink: 0;
+  padding: 2px 12px 4px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #8c8c8c;
+  background: var(--editor-bg, #fff);
+  border-bottom: 1px solid var(--editor-border, #d9d9d9);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: text;
 }
 
 .editor-body {
@@ -429,13 +593,31 @@ onBeforeUnmount(() => {
   color: #8c8c8c;
   font-size: 12px;
   white-space: nowrap;
-  flex-shrink: 0;
 }
 
 .file-editor-float--dark {
   --editor-border: #434343;
   --editor-bg: #1f1f1f;
   --editor-header-bg: #141414;
+  --editor-tabs-bg: #262626;
+}
+
+.file-editor-float--dark .editor-tab {
+  color: #a6a6a6;
+}
+
+.file-editor-float--dark .editor-tab.active {
+  background: var(--editor-bg, #1f1f1f);
+  color: #69b1ff;
+}
+
+.file-editor-float--dark .editor-tab:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.file-editor-float--dark .editor-path-bar {
+  color: #8c8c8c;
+  background: var(--editor-bg, #1f1f1f);
 }
 
 .file-editor-float--dark .editor-loading {
