@@ -187,7 +187,7 @@
         </a-button>
         <a-divider type="vertical" class="status-divider" :style="{ background: themeStore.isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.1)' }" />
         <a-divider type="vertical" class="status-divider" :style="{ background: themeStore.isDark ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.1)' }" />
-        <a-dropdown :disabled="connectionStatus !== 'Connected'" placement="topRight">
+        <a-dropdown :disabled="connectionStatus !== 'Connected'" placement="topRight" @openChange="onCommandsDropdownOpen">
           <a-button class="status-btn" :class="{ 'light-mode': !themeStore.isDark }" size="small" type="text">
             <template #icon><ThunderboltOutlined /></template>
             {{ t('terminal.commands') }}
@@ -220,7 +220,7 @@
 </template>
 
 <script setup>
-import { ref, shallowRef, reactive, onMounted, onUnmounted, onActivated, nextTick, watch, h, computed } from 'vue'
+import { ref, shallowRef, reactive, onMounted, onUnmounted, onActivated, inject, nextTick, watch, h, computed } from 'vue'
 import { Terminal } from 'xterm'
 import { FitAddon } from 'xterm-addon-fit'
 import { WebLinksAddon } from 'xterm-addon-web-links'
@@ -425,6 +425,15 @@ const loadCommands = async () => {
   } catch (error) {
     console.error('Failed to load command templates:', error)
   }
+}
+
+const onCommandsDropdownOpen = (open) => {
+  if (open) loadCommands()
+}
+
+const commandsRefreshTick = inject('commandsRefreshTick', null)
+if (commandsRefreshTick) {
+  watch(commandsRefreshTick, () => loadCommands())
 }
 
 const initTerminal = () => {

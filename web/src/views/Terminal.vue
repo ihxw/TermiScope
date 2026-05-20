@@ -163,7 +163,7 @@ export default {
 </script>
 
 <script setup>
-import { ref, onMounted, onActivated, createVNode } from 'vue'
+import { ref, provide, onMounted, onActivated, createVNode } from 'vue'
 import { message, Modal } from 'ant-design-vue'
 import {
   DatabaseOutlined,
@@ -191,6 +191,9 @@ const showHostModal = ref(false)
 const saving = ref(false)
 const editingHost = ref(null)
 const isRecordingEnabled = ref(false)
+
+const commandsRefreshTick = ref(0)
+provide('commandsRefreshTick', commandsRefreshTick)
 
 const isQuickConnect = ref(false)
 const hostForm = ref({
@@ -225,6 +228,7 @@ onMounted(async () => {
 
 // Using keep-alive, so rely on onActivated to sync state when switching back
 onActivated(() => {
+  commandsRefreshTick.value++
   if (sshStore.currentTerminalId) {
     activeTerminalKey.value = sshStore.currentTerminalId
   }

@@ -138,8 +138,8 @@
       </div>
     </div>
 
-    <!-- 文件列表（非编辑模式时显示） -->
-    <div v-show="!editorVisible" ref="browserContentRef" class="browser-content" @drop="handleDrop" @dragover="handleDragOver" @dragleave="handleDragLeave" @contextmenu.prevent.stop="handleContainerContextMenu">
+    <!-- 文件列表 -->
+    <div ref="browserContentRef" class="browser-content" @drop="handleDrop" @dragover="handleDragOver" @dragleave="handleDragLeave" @contextmenu.prevent.stop="handleContainerContextMenu">
       <a-table
         :loading="loading"
         :columns="columns"
@@ -166,6 +166,9 @@
             <a-spin v-if="record.is_dir && record.size === null" size="small" />
             <span v-else-if="record.size === -1" style="color: #ff4d4f; font-size: 12px;">{{ t('sftp.calcFailed') }}</span>
             <span v-else>{{ formatSize(record.size) }}</span>
+          </template>
+          <template v-else-if="column.key === 'mod_time'">
+            <span style="font-size: 12px; color: #8c8c8c;">{{ formatModTime(record.mod_time) }}</span>
           </template>
           <template v-else-if="column.key === 'action'">
             <a-space size="small">
@@ -226,15 +229,13 @@
       </a-table>
     </div>
 
-    <!-- 内嵌文件编辑器（编辑模式时显示） -->
-    <div v-if="editorVisible" class="editor-inline-wrapper">
-      <FileEditor
-          v-model:open="editorVisible"
-          :host-id="hostId"
-          :file-path="editingFile.path"
-          :file-name="editingFile.name"
-          />
-    </div>
+    <FileEditor
+      v-model:open="editorVisible"
+      :host-id="hostId"
+      :file-path="editingFile.path"
+      :file-name="editingFile.name"
+      @saved="onEditorSaved"
+    />
 
     <a-modal
       v-model:open="renameVisible"
@@ -512,6 +513,7 @@ import { useThemeStore } from '../stores/theme'
 import '../styles/sftp-progress-dock.css'
 import { hasNameConflict, generateKeepBothName as makeKeepBothName } from '../utils/sftpConflict'
 import { buildRemotePath } from '../utils/sftpPath'
+import dayjs from 'dayjs'
 
 const { t } = useI18n()
 const sftpStore = useSftpStore()
@@ -936,7 +938,13 @@ const pathParts = computed(() => {
 const columns = computed(() => [
   { title: t('sftp.action'), key: 'action', width: 150, align: 'center' },
   { title: t('sftp.name'), key: 'name', sorter: (a, b) => a.name.localeCompare(b.name), defaultSortOrder: 'ascend' },
-  { title: t('sftp.size'), key: 'size', align: 'right', sorter: (a, b) => a.size - b.size }
+  { title: t('sftp.size'), key: 'size', align: 'right', width: 100, sorter: (a, b) => (a.size ?? 0) - (b.size ?? 0) },
+  {
+    title: t('sftp.modified'),
+    key: 'mod_time',
+    width: 160,
+    sorter: (a, b) => dayjs(a.mod_time).valueOf() - dayjs(b.mod_time).valueOf(),
+  },
 ])
 
 const loadFiles = async () => {
@@ -1592,6 +1600,13 @@ const formatSize = (bytes) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
 }
 
+const formatModTime = (modTime) => {
+  if (!modTime) return '-'
+  const d = dayjs(modTime)
+  if (!d.isValid() || d.year() <= 1970) return '-'
+  return d.format('YYYY-MM-DD HH:mm:ss')
+}
+
 watch(() => props.hostId, () => {
   resetPathHistory()
   currentPath.value = '.'
@@ -1792,7 +1807,7 @@ const handleDragLeave = (e) => {
 // Keyboard Shortcuts
 const handleKeyDown = (e) => {
   // Only handle shortcuts when not in input/edit mode
-  if (pathInputVisible.value || editorVisible.value || renameVisible.value || createVisible.value) {
+  if (pathInputVisible.value || renameVisible.value || createVisible.value) {
     return
   }
   
@@ -1960,14 +1975,6 @@ defineExpose({
   font-weight: 500;
   z-index: 10;
   pointer-events: none;
-}
-
-.editor-inline-wrapper {
-  flex: 1;
-  overflow: hidden;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
 }
 
 :deep(.ant-table-cell) {
