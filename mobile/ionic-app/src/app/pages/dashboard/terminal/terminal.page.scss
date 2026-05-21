@@ -1,0 +1,384 @@
+.placeholder-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 24px;
+  text-align: center;
+  color: var(--ion-color-medium);
+}
+
+// App Header Styles
+ion-header {
+  ion-toolbar {
+    --border-width: 0;
+    --min-height: 44px;
+    
+    ion-buttons {
+      ion-button {
+        --padding-start: 4px;
+        --padding-end: 4px;
+        margin: 0;
+        
+        ion-icon {
+          font-size: 22px;
+        }
+      }
+    }
+  }
+  
+  // Terminal-active header: dark bg to blend with terminal
+  &.terminal-active ion-toolbar {
+    --background: #1e1e1e;
+    --color: #d4d4d4;
+  }
+  
+  ion-title {
+    padding-inline-start: 8px;
+    padding-inline-end: 8px;
+    
+    &.session-title {
+      display: flex;
+      align-items: center;
+      
+      .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #ff4d4f;
+        margin-right: 8px;
+        flex-shrink: 0;
+        
+        &.connected {
+          background: #52c41a;
+        }
+      }
+      
+      .host-name {
+        font-size: 14px;
+        font-weight: 500;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        flex: 1;
+        min-width: 0;
+      }
+    }
+  }
+}
+
+.terminal-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #1e1e1e;
+}
+
+// Terminal Container
+.terminal-container {
+  flex: 1;
+  overflow: hidden;
+  padding: 4px;
+}
+
+// Virtual Keyboard Toolbar
+.keyboard-toolbar {
+  background: #2d2d2d;
+  border-top: 1px solid #3d3d3d;
+  padding: 4px;
+  
+  .keyboard-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 0;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+  
+  ion-button {
+    --padding-start: 8px;
+    --padding-end: 8px;
+    --padding-top: 6px;
+    --padding-bottom: 6px;
+    font-size: 12px;
+    min-height: 32px;
+    
+    &.modifier-btn {
+      --background: #404040;
+      
+      &.active {
+        --background: var(--ion-color-primary);
+      }
+    }
+  }
+  
+  .key-separator {
+    width: 1px;
+    height: 24px;
+    background: #404040;
+    margin: 0 4px;
+  }
+}
+
+// xterm.js styles
+:host ::ng-deep {
+  .xterm {
+    height: 100%;
+    
+    .xterm-screen {
+      height: 100% !important;
+    }
+
+    // Allow touch gestures on xterm canvas (needed for touch-to-select)
+    .xterm-viewport {
+      touch-action: none;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    // Hide xterm.js auxiliary input elements
+    .xterm-helper-textarea {
+      position: absolute;
+      opacity: 0;
+      left: -9999em;
+      top: 0;
+      width: 0;
+      height: 0;
+      z-index: -10;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+    
+    // Hide composition view (IME input)
+    .xterm-composition-view {
+      display: none;
+    }
+    
+    // Ensure cursor is visible
+    .xterm-cursor {
+      &.xterm-cursor-block {
+        background-color: #d4d4d4;
+        color: #1e1e1e;
+      }
+      
+      &.xterm-cursor-bar {
+        border-left: 2px solid #d4d4d4;
+      }
+      
+      &.xterm-cursor-underline {
+        border-bottom: 2px solid #d4d4d4;
+      }
+    }
+  }
+}
+
+// Multi-Terminal Containers
+.terminals-container {
+  flex: 1;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #1e1e1e;
+}
+
+.terminal-container-slot {
+  display: none;
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  
+  &.active-terminal {
+    display: block;
+  }
+}
+
+// Host Selector in Header
+.host-selector {
+  width: 100%;
+  max-width: 280px;
+  --placeholder-color: var(--ion-color-medium);
+  --placeholder-opacity: 1;
+}
+
+// Session Tabs (Segments)
+.terminal-tabs {
+  background: var(--ion-background-color);
+  border-bottom: 1px solid var(--ion-color-step-100);
+  margin-bottom: 0;
+  
+  ion-segment-button {
+    --indicator-box-shadow: none;
+    --background-checked: var(--ion-color-step-50);
+    --color: var(--ion-color-medium);
+    --color-checked: var(--ion-text-color);
+    min-width: 120px;
+    max-width: 180px;
+    
+    .tab-content {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      width: 100%;
+      position: relative;
+      padding: 0 4px;
+      
+      .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background-color: var(--ion-color-medium);
+        flex-shrink: 0;
+        
+        &.connected {
+          background-color: var(--ion-color-success);
+          box-shadow: 0 0 0 rgba(var(--ion-color-success-rgb), 0.4);
+          animation: pulse-dot 1.5s infinite;
+        }
+      }
+      
+      ion-label {
+        flex: 1;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        overflow: hidden;
+        text-align: left;
+        font-size: 13px;
+        font-weight: 500;
+        text-transform: none;
+      }
+      
+      .close-tab {
+        font-size: 14px;
+        opacity: 0.5;
+        padding: 4px;
+        margin-right: -4px;
+        flex-shrink: 0;
+        border-radius: 4px;
+        
+        &:hover, &:active {
+          opacity: 1;
+          background: rgba(0,0,0,0.1);
+        }
+      }
+    }
+  }
+}
+
+// Empty State
+.empty-terminal-state {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  padding: 32px;
+  text-align: center;
+  color: var(--ion-color-medium);
+  
+  ion-icon {
+    font-size: 80px;
+    margin-bottom: 16px;
+    opacity: 0.5;
+  }
+  
+  h3 {
+    margin: 0 0 8px;
+    color: var(--ion-text-color);
+  }
+  
+  ion-button {
+    margin-top: 24px;
+  }
+}
+
+@keyframes pulse-dot {
+  0% { box-shadow: 0 0 0 0 rgba(var(--ion-color-success-rgb), 0.7); }
+  70% { box-shadow: 0 0 0 6px rgba(var(--ion-color-success-rgb), 0); }
+  100% { box-shadow: 0 0 0 0 rgba(var(--ion-color-success-rgb), 0); }
+}
+
+// Selection mode overlay (like mobile file picker)
+.selection-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  // Transparent but blocks underlying xterm touch events
+  background: transparent;
+  // Show grid-like cursor to indicate selection mode
+  cursor: crosshair;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+// Selection toolbar (bottom bar with Done / Cancel buttons)
+.selection-toolbar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(30, 30, 30, 0.95);
+  border-top: 1px solid #444;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+
+  .sel-btn {
+    padding: 6px 16px;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+
+    &.sel-done {
+      background: #007aff;
+      color: #fff;
+    }
+
+    &.sel-cancel {
+      background: #444;
+      color: #ccc;
+    }
+
+    &.sel-all {
+      background: #555;
+      color: #fff;
+    }
+
+    &:active {
+      opacity: 0.7;
+    }
+  }
+
+  .sel-preview {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+    color: #aaa;
+    text-align: center;
+    font-family: monospace;
+  }
+}
+
+// Selection mode active indicator on header button
+.selection-active {
+  --color: var(--ion-color-primary) !important;
+}
