@@ -1,0 +1,29 @@
+# Local configuration — not tracked in git. Copy from config.example.yaml on first setup.
+# Secrets: set below or via TERMISCOPE_JWT_SECRET / TERMISCOPE_ENCRYPTION_KEY (env overrides file).
+# Upgrading from an older repo: keep your existing jwt_secret and encryption_key or all encrypted host data must be re-entered.
+
+database:
+    path: ./data/termiscope.db
+log:
+    file: ./logs/app.log
+    level: info
+security:
+    access_expiration: 60m
+    login_rate_limit: 20
+    refresh_expiration: 168h
+server:
+    allowed_origins:
+        - http://localhost:5173
+        - http://127.0.0.1:5173
+        - http://localhost:3000
+        - http://127.0.0.1:3000
+        - http://localhost:8080
+        - http://127.0.0.1:8080
+    max_upload_size: 1048576000
+    mode: release
+    port: 3000
+    timezone: Local
+ssh:
+    idle_timeout: 30m
+    max_connections_per_user: 10
+    timeout: 30s
