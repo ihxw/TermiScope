@@ -4,49 +4,62 @@ on:
   push:
     branches:
       - main
-    paths:
-      - 'web/package.json'
+  repository_dispatch:
+    types:
+      - sync-from-gitea
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. 1.5.36)'
+        required: true
 
 jobs:
   check-version:
     runs-on: self-hosted
+    permissions:
+      contents: read
     outputs:
       version_changed: ${{ steps.check.outputs.changed }}
       new_version: ${{ steps.check.outputs.version }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
+
+      - name: Detect existing toolchain
+        id: toolchain
+        shell: bash
+        run: bash ./scripts/ci/detect_release_toolchain.sh
 
       - name: Setup Node.js (version check)
+        if: steps.toolchain.outputs.setup_node == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: Check if version changed
+      - name: Check if version is newer than latest release
         id: check
         shell: bash
+        env:
+          DISPATCH_VERSION: ${{ github.event.client_payload.version }}
+          MANUAL_VERSION: ${{ inputs.version }}
         run: |
-          read_version() { node -e "console.log(require('./web/package.json').version)"; }
-          CURRENT_VERSION=$(read_version)
-          
-          git checkout HEAD~1 -- web/package.json 2>/dev/null || true
-          PREV_VERSION=$(read_version 2>/dev/null || echo "0.0.0")
-          
-          git checkout HEAD -- web/package.json
-          
-          echo "Current version: $CURRENT_VERSION"
-          echo "Previous version: $PREV_VERSION"
-          
-          if [ "$CURRENT_VERSION" != "$PREV_VERSION" ]; then
-            echo "changed=true" >> $GITHUB_OUTPUT
-            echo "version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
-            echo "Version changed from $PREV_VERSION to $CURRENT_VERSION"
-          else
-            echo "changed=false" >> $GITHUB_OUTPUT
-            echo "Version unchanged"
+          if [ "${{ github.event_name }}" = "repository_dispatch" ]; then
+            if [ -z "$DISPATCH_VERSION" ]; then
+              echo "repository_dispatch 缺少 client_payload.version" >&2
+              exit 1
+            fi
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "version=$DISPATCH_VERSION" >> "$GITHUB_OUTPUT"
+            echo "Gitea sync dispatch: release $DISPATCH_VERSION"
+            exit 0
           fi
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "version=$MANUAL_VERSION" >> "$GITHUB_OUTPUT"
+            echo "Manual dispatch: release $MANUAL_VERSION"
+            exit 0
+          fi
+          bash ./scripts/ci/check_version_gt_release.sh
 
   trigger-release:
     needs: check-version
@@ -57,14 +70,21 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      
+
+      - name: Detect existing toolchain
+        id: toolchain
+        shell: bash
+        run: bash ./scripts/ci/detect_release_toolchain.sh
+
       - name: Setup Go
+        if: steps.toolchain.outputs.setup_go == 'true'
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           cache: true
 
       - name: Setup Node.js
+        if: steps.toolchain.outputs.setup_node == 'true'
         uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -72,7 +92,7 @@ jobs:
           cache-dependency-path: web/package-lock.json
 
       - name: Install OS build tools (Linux)
-        if: runner.os == 'Linux'
+        if: runner.os == 'Linux' && steps.toolchain.outputs.install_os_deps == 'true'
         shell: bash
         run: bash ./scripts/ci/install_release_deps.sh
 
