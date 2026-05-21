@@ -1,0 +1,72 @@
+name: Sync to GitHub on Version Bump
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'web/package.json' # 初步过滤：只有当 web/package.json 文件发生变动时才触发工作流
+
+jobs:
+  deploy-to-github:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 2 # 必须拉取最近的2次提交，否则无法进行 diff 对比
+
+        # 🛠️ 新增这一步：在容器环境里动态安装 jq
+      - name: Install jq
+        run: |
+          if ! command -v jq &> /dev/null; then
+            echo "📥 正在安装 jq..."
+            apt-get update && apt-get install -y jq
+          fi
+
+      - name: Check if version changed
+        id: version_check
+        run: |
+          # 1. 提取当前提交的版本号
+          CURRENT_VERSION=$(jq -r '.version' web/package.json)
+          echo "当前版本: $CURRENT_VERSION"
+          
+          # 2. 提取上一次提交的版本号 (从 HEAD~1 中提取该文件)
+          OLD_VERSION=$(git show HEAD~1:web/package.json | jq -r '.version')
+          echo "前一版本: $OLD_VERSION"
+          
+          # 3. 比对版本号
+          if [ "$CURRENT_VERSION" = "$OLD_VERSION" ]; then
+            echo "ℹ️ package.json 被修改了，但 version 没有改变。跳过同步。"
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "🚀 检测到版本号从 $OLD_VERSION 变更为 $CURRENT_VERSION！准备同步。"
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "new_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Push to GitHub with clean history
+        if: steps.version_check.outputs.changed == 'true'
+        env:
+            GH_TOKEN: ${{ secrets.GH_TOKEN_SECRET }}
+        run: |
+            set -euo pipefail
+            git config --global user.name "Gitea Bot"
+            git config --global user.email "bot@gitea.local"
+            git config --global url."https://${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
+
+            GITHUB_REPO="https://github.com/ihxw/TermiScope.git"
+            git remote add github "${GITHUB_REPO}" 2>/dev/null || git remote set-url github "${GITHUB_REPO}"
+            git fetch github main --depth=1
+
+            git checkout --orphan deploy-branch
+            git add -A
+            # PAT 无 workflow 权限时不能推送 .github/workflows 的变更；保留 GitHub 上现有 workflow
+            if git checkout github/main -- .github/workflows; then
+              echo "已保留 GitHub main 上的 .github/workflows（避免 workflow scope 限制）"
+            else
+              echo "警告: 无法从 GitHub 拉取 .github/workflows，推送可能因缺少 workflow 权限而失败"
+            fi
+            git commit -m "Release v${{ steps.version_check.outputs.new_version }}"
+            git push "${GITHUB_REPO}" deploy-branch:main --force
+            git config --global --unset url."https://${GH_TOKEN}@github.com/".insteadOf
