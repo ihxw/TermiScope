@@ -40,6 +40,9 @@ jobs:
         id: check
         shell: bash
         env:
+          # 自建 Runner 上 GITHUB_TOKEN 有时不会自动注入 shell，需显式传入
+          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
           DISPATCH_VERSION: ${{ github.event.client_payload.version }}
           MANUAL_VERSION: ${{ inputs.version }}
         run: |
