@@ -1,0 +1,64 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build and Release
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install OS build tools (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: bash ./scripts/ci/install_release_deps.sh
+
+      - name: Verify build environment
+        shell: bash
+        run: bash ./scripts/ci/verify_release_env.sh
+
+      - name: Build Release
+        shell: bash
+        run: bash ./build_release.sh
+
+      - name: Fix Scripts Line Endings
+        shell: bash
+        run: |
+          for script in scripts/install.sh scripts/uninstall.sh; do
+            if [ -f "$script" ]; then
+              sed -i 's/\r$//' "$script"
+            fi
+          done
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            release/*
+            scripts/install.sh
+          generate_release_notes: true
+          draft: false
+          prerelease: false
