@@ -1,0 +1,60 @@
+# TermiScope 测试主机集群 — 无需 KVM，用 Docker 模拟多台 Linux 主机
+#
+# 启动: ./manage.sh up
+# 信息: ./manage.sh info
+
+services:
+  host1:
+    build: .
+    container_name: termiscope-test-host1
+    hostname: test-host1
+    privileged: true
+    cgroup: host
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    networks:
+      termiscope-lab:
+        ipv4_address: 172.30.10.11
+    ports:
+      - "2201:22"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  host2:
+    build: .
+    container_name: termiscope-test-host2
+    hostname: test-host2
+    privileged: true
+    cgroup: host
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    networks:
+      termiscope-lab:
+        ipv4_address: 172.30.10.12
+    ports:
+      - "2202:22"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  host3:
+    build: .
+    container_name: termiscope-test-host3
+    hostname: test-host3
+    privileged: true
+    cgroup: host
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    networks:
+      termiscope-lab:
+        ipv4_address: 172.30.10.13
+    ports:
+      - "2203:22"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+networks:
+  termiscope-lab:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.10.0/24
