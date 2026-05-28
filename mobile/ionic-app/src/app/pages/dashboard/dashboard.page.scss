@@ -1,0 +1,21 @@
+ion-split-pane {
+  --side-width: 280px;
+}
+
+ion-menu {
+  --width: 280px;
+}
+
+ion-item.selected {
+  --background: var(--ion-color-primary);
+  --color: var(--ion-color-primary-contrast);
+  
+  ion-icon {
+    color: var(--ion-color-primary-contrast);
+  }
+}
+
+.version-text {
+  font-size: 12px;
+  color: var(--ion-color-medium);
+}
