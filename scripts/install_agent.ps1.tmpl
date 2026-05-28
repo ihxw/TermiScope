@@ -1,0 +1,89 @@
+# TermiScope Windows Agent Installation Script
+
+param (
+    [string]$ServerUrl = "{{SERVER_URL}}",
+    [string]$HostId = "{{HOST_ID}}",
+    [string]$Secret = "{{SECRET}}"
+)
+
+# Check for Administrator privileges
+if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
+    Write-Warning "This script requires Administrator privileges. Please run as Administrator."
+    exit 1
+}
+
+$ErrorActionPreference = "Stop"
+
+$InstallDir = "C:\Program Files\TermiScope\Agent"
+$AgentName = "termiscope-agent.exe"
+$AgentPath = Join-Path $InstallDir $AgentName
+$ServiceName = "TermiScopeAgent"
+
+Write-Host "Installing TermiScope Agent for Host ID: $HostId" -ForegroundColor Cyan
+
+# Create installation directory
+if (-not (Test-Path $InstallDir)) {
+    New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
+}
+
+# Stop existing service if running
+$Service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+if ($Service) {
+    Write-Host "Stopping existing service..."
+    Stop-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
+    # Optional: Uninstall old service if we want a clean slate, but update might be enough
+    # For now, let's try to update in place.
+    # Actually, to update the binary, we MUST stop the service.
+    
+    # If the service is running, the file is locked.
+    # We should uninstall it to be safe and ensure new arguments are applied if needed.
+    Write-Host "Uninstalling existing service..."
+    & $AgentPath -service uninstall
+    
+    # Wait a bit for release
+    Start-Sleep -Seconds 2
+}
+
+# Download Agent
+# Detect Architecture
+$Arch = $env:PROCESSOR_ARCHITECTURE
+if ($Arch -eq "AMD64") {
+    $RemoteArch = "amd64"
+} elseif ($Arch -eq "ARM64") {
+    $RemoteArch = "arm64" 
+} else {
+    Write-Error "Unsupported architecture: $Arch"
+    exit 1
+}
+
+# For now we only have amd64 built in build_agents.ps1
+# If user building arm64, they need to update build script.
+# Assuming amd64 for now as safe default for Windows.
+$DownloadUrl = "$ServerUrl/api/monitor/agent/termiscope-agent-windows-amd64.exe?host_id=$HostId&secret=$Secret"
+$TempPath = Join-Path $env:TEMP $AgentName
+
+Write-Host "Downloading agent from $ServerUrl..."
+Invoke-WebRequest -Uri $DownloadUrl -OutFile $TempPath
+
+# Move to install dir
+Move-Item -Path $TempPath -Destination $AgentPath -Force
+
+# Install Service
+Write-Host "Installing service..."
+# The agent supports -service install/start/stop
+# Arguments are passed to the service configuration
+$InstallArgs = "-server `"$ServerUrl`" -secret `"$Secret`" -id $HostId -service install"
+
+# Run the install command
+$Process = Start-Process -FilePath $AgentPath -ArgumentList $InstallArgs -Wait -PassThru -NoNewWindow
+if ($Process.ExitCode -ne 0) {
+    Write-Error "Failed to install service. Exit code: $($Process.ExitCode)"
+    exit 1
+}
+
+# Start Service
+Write-Host "Starting service..."
+Start-Service -Name $ServiceName
+
+Write-Host "Installation execution completed." -ForegroundColor Green
+Write-Host "Please check the dashboard to verify the host status."

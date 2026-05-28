@@ -1,0 +1,27 @@
+database:
+    path: ./data/termiscope.db
+log:
+    file: ./logs/app.log
+    level: info
+security:
+    access_expiration: 60m
+    encryption_key: c3f8b17aae9f8baca55f8c448a48b1df
+    jwt_secret: 3c9c9d9252b02502b42dc75819b115dcf9ab5f1d81c0c39d10c5f8e5d99488c4
+    login_rate_limit: 20
+    refresh_expiration: 168h
+server:
+    allowed_origins:
+        - http://localhost:5173
+        - http://127.0.0.1:5173
+        - http://localhost:3000
+        - http://127.0.0.1:3000
+        - http://localhost:8080
+        - http://127.0.0.1:8080
+    max_upload_size: 1048576000
+    mode: release
+    port: 3000
+    timezone: Local
+ssh:
+    idle_timeout: 30m
+    max_connections_per_user: 10
+    timeout: 30s
