@@ -1,0 +1,185 @@
+<ion-header class="ion-no-border">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button></ion-menu-button>
+    </ion-buttons>
+    <ion-title>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span>{{ 'nav.monitor' | translate }}</span>
+        <ion-badge color="primary">{{ totalHosts }}</ion-badge>
+        <ion-badge color="success">{{ onlineHosts }}</ion-badge>
+      </div>
+    </ion-title>
+    <ion-buttons slot="end">
+      <ion-button fill="clear" size="small" (click)="loadHosts()">
+        <ion-icon name="refresh-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <!-- Connection Status -->
+  <ion-item *ngIf="!connected && !loading" color="warning" lines="none" style="--min-height: 36px;">
+    <ion-icon name="sync-outline" slot="start" style="font-size: 16px;" class="spin-icon"></ion-icon>
+    <ion-label style="font-size: 13px;">{{ 'common.loading' | translate }}...</ion-label>
+  </ion-item>
+
+
+  <!-- Batch Actions -->
+  <ion-toolbar *ngIf="hasSelection" class="batch-toolbar">
+    <ion-buttons slot="start">
+      <ion-button size="small" (click)="batchDeploy()">
+        <ion-icon name="cloud-upload-outline" slot="start"></ion-icon>
+        {{ 'monitor.batchDeploy' | translate }} ({{ selectedHosts.length }})
+      </ion-button>
+    </ion-buttons>
+    <ion-buttons slot="end">
+      <ion-button fill="clear" size="small" (click)="selectedHosts = []">
+        {{ 'common.cancel' | translate }}
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+
+  <!-- Monitor Cards -->
+  <ion-grid class="monitor-grid">
+    <ion-row>
+      <ion-col size="12" size-md="6" size-lg="4" size-xl="3" *ngFor="let host of hosts">
+        <ion-card class="monitor-card" [class.offline]="!isOnline(host.id)">
+          <!-- Card Header -->
+          <div class="card-header">
+            <div class="host-info">
+              <ion-checkbox 
+                *ngIf="hasSelection || selectedHosts.length > 0"
+                [checked]="isSelected(host.id)"
+                (ionChange)="toggleHostSelection(host.id)">
+              </ion-checkbox>
+              <ion-icon name="desktop-outline" style="font-size: 18px; margin-right: 6px; opacity: 0.7;"></ion-icon>
+              <span class="host-name">{{ host.name }}</span>
+              <ion-badge [color]="isOnline(host.id) ? 'success' : 'medium'" size="small">
+                {{ isOnline(host.id) ? ('monitor.online' | translate) : ('monitor.offline' | translate) }}
+              </ion-badge>
+            </div>
+            <div class="host-sub" *ngIf="getHostStatus(host.id) as status">
+              <span class="host-ip">{{ status.hostname || host.host }}</span>
+              <span *ngIf="status.os" class="host-os">{{ status.os }}</span>
+              <span *ngIf="status.agent_version" class="host-agent">v{{ status.agent_version }}</span>
+            </div>
+            <span class="host-ip" *ngIf="!getHostStatus(host.id)">{{ host.host }}</span>
+          </div>
+
+          <!-- Card Content: Online -->
+          <div class="card-content" *ngIf="getHostStatus(host.id) as status">
+            <!-- CPU -->
+            <div class="metric-bar">
+              <div class="metric-header">
+                <span class="metric-label">
+                  <ion-icon name="hardware-chip-outline"></ion-icon> CPU
+                  <small *ngIf="status.cpu_count">{{ status.cpu_count }}C</small>
+                </span>
+                <span class="metric-value" [style.color]="getCpuPercent(status) >= 80 ? 'var(--ion-color-danger)' : ''">
+                  {{ formatCpu(status.cpu || 0) }}%
+                </span>
+              </div>
+              <div class="progress-bar">
+                <div class="progress-fill" [style.width.%]="getCpuPercent(status)"
+                  [style.background-color]="getCpuPercent(status) >= 90 ? 'var(--ion-color-danger)' : getCpuPercent(status) >= 70 ? 'var(--ion-color-warning)' : 'var(--ion-color-success)'">
+                </div>
+              </div>
+            </div>
+
+            <!-- Memory -->
+            <div class="metric-bar">
+              <div class="metric-header">
+                <span class="metric-label">
+                  <ion-icon name="speedometer-outline"></ion-icon> {{ 'monitor.ram' | translate }}
+                  <small>{{ formatBytes(status.mem_used || 0) }} / {{ formatBytes(status.mem_total || 0) }}</small>
+                </span>
+                <span class="metric-value" [style.color]="getMemPercent(status) >= 80 ? 'var(--ion-color-danger)' : ''">
+                  {{ getMemPercent(status) }}%
+                </span>
+              </div>
+              <div class="progress-bar">
+                <div class="progress-fill" [style.width.%]="getMemPercent(status)"
+                  [style.background-color]="getMemPercent(status) >= 90 ? 'var(--ion-color-danger)' : getMemPercent(status) >= 70 ? 'var(--ion-color-warning)' : 'var(--ion-color-success)'">
+                </div>
+              </div>
+            </div>
+
+            <!-- Disk -->
+            <div class="metric-bar">
+              <div class="metric-header">
+                <span class="metric-label">
+                  <ion-icon name="folder-outline"></ion-icon> {{ 'monitor.disk' | translate }}
+                  <small>{{ formatBytes(getDiskUsedTotal(status).used) }} / {{ formatBytes(getDiskUsedTotal(status).total) }}</small>
+                </span>
+                <span class="metric-value" [style.color]="getDiskPercent(status) >= 80 ? 'var(--ion-color-danger)' : ''">
+                  {{ getDiskPercent(status) }}%
+                </span>
+              </div>
+              <div class="progress-bar">
+                <div class="progress-fill" [style.width.%]="getDiskPercent(status)"
+                  [style.background-color]="getDiskPercent(status) >= 90 ? 'var(--ion-color-danger)' : getDiskPercent(status) >= 70 ? 'var(--ion-color-warning)' : 'var(--ion-color-success)'">
+                </div>
+              </div>
+            </div>
+
+            <!-- Network & Uptime -->
+            <div class="info-row">
+              <div class="network-stats">
+                <span class="net-down">
+                  <ion-icon name="arrow-down-outline"></ion-icon> {{ formatSpeed(status.net_rx_rate ?? 0) }}
+                </span>
+                <span class="net-up">
+                  <ion-icon name="arrow-up-outline"></ion-icon> {{ formatSpeed(status.net_tx_rate ?? 0) }}
+                </span>
+              </div>
+              <span class="uptime">
+                <ion-icon name="time-outline"></ion-icon> {{ formatUptime(status.uptime ?? 0) }}
+              </span>
+            </div>
+
+            <!-- Monthly Traffic -->
+            <div class="traffic-row" *ngIf="(status.net_monthly_rx ?? 0) > 0 || (status.net_monthly_tx ?? 0) > 0">
+              <span class="traffic-item">
+                <ion-icon name="cloud-download-outline" color="success"></ion-icon>
+                {{ formatBytes(status.net_monthly_rx ?? 0) }}
+              </span>
+              <span class="traffic-item">
+                <ion-icon name="cloud-upload-outline" color="primary"></ion-icon>
+                {{ formatBytes(status.net_monthly_tx ?? 0) }}
+              </span>
+            </div>
+          </div>
+          
+          <!-- Card Content: Offline -->
+          <div class="card-content offline-content" *ngIf="!getHostStatus(host.id)">
+            <ion-icon name="cloud-offline-outline"></ion-icon>
+            <span>{{ 'monitor.offline' | translate }}</span>
+          </div>
+
+
+        </ion-card>
+      </ion-col>
+    </ion-row>
+  </ion-grid>
+
+  <!-- Empty State -->
+  <div class="ion-text-center ion-padding" *ngIf="hosts.length === 0 && !loading">
+    <ion-icon name="pulse-outline" style="font-size: 64px; color: var(--ion-color-medium);"></ion-icon>
+    <h3>{{ 'nav.monitor' | translate }}</h3>
+    <p>{{ 'host.searchPlaceholder' | translate }}</p>
+  </div>
+
+  <!-- Refresh -->
+  <ion-refresher slot="fixed" (ionRefresh)="loadHosts(); $event.target.complete()">
+    <ion-refresher-content></ion-refresher-content>
+  </ion-refresher>
+
+  <!-- Select All Button -->
+  <ion-fab vertical="bottom" horizontal="end" slot="fixed" *ngIf="!hasSelection && hosts.length > 0">
+    <ion-fab-button (click)="selectAllHosts()" size="small">
+      <ion-icon name="checkmark-done-outline"></ion-icon>
+    </ion-fab-button>
+  </ion-fab>
+</ion-content>
