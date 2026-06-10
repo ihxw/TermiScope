@@ -1,0 +1,236 @@
+/* Connection status animation */
+.spin-icon {
+  animation: spin 1.5s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.monitor-grid {
+  padding: 4px;
+}
+
+.monitor-card {
+  margin: 4px 0 !important;
+  border-radius: 0 !important;
+  overflow: hidden;
+  border: 1px solid var(--ion-color-step-150, #e0e0e0) !important;
+  border-left: 4px solid var(--ion-color-success) !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08) !important;
+  transition: all 0.2s;
+}
+
+.monitor-card.offline {
+  border-left-color: var(--ion-color-medium) !important;
+  opacity: 0.8;
+}
+
+/* Dark mode overrides for card */
+[data-theme="dark"] {
+  .monitor-card {
+    border-color: var(--ion-color-step-150, #2c2c2c) !important;
+    border-left-color: var(--ion-color-success) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4) !important;
+  }
+  
+  .monitor-card.offline {
+    border-left-color: var(--ion-color-medium) !important;
+  }
+}
+
+.card-header {
+  padding: 12px 16px 4px;
+}
+
+.host-info {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.host-name {
+  font-weight: 600;
+  font-size: 15px;
+  margin-right: 4px;
+}
+
+.host-sub {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--ion-color-medium);
+  margin-top: 2px;
+  flex-wrap: wrap;
+}
+
+.host-ip {
+  font-size: 12px;
+  color: var(--ion-color-medium);
+}
+
+.host-os {
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--ion-color-step-100);
+  font-size: 10px;
+}
+
+.host-agent {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+.card-content {
+  padding: 8px 16px 12px;
+}
+
+/* Progress bar metrics */
+.metric-bar {
+  margin-bottom: 8px;
+}
+
+.metric-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 3px;
+}
+
+.metric-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--ion-text-color);
+}
+
+.metric-label ion-icon {
+  font-size: 14px;
+  opacity: 0.7;
+}
+
+.metric-label small {
+  font-size: 10px;
+  color: var(--ion-color-medium);
+  margin-left: 2px;
+}
+
+.metric-value {
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.progress-bar {
+  height: 6px;
+  background: var(--ion-color-step-100);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.5s ease, background-color 0.3s ease;
+  min-width: 1px;
+}
+
+/* Info row */
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--ion-color-step-100);
+}
+
+.network-stats {
+  display: flex;
+  gap: 12px;
+}
+
+.net-down, .net-up, .uptime {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+}
+
+.net-down {
+  color: var(--ion-color-success);
+}
+
+.net-up {
+  color: var(--ion-color-primary);
+}
+
+.uptime {
+  color: var(--ion-color-medium);
+}
+
+.net-down ion-icon, .net-up ion-icon, .uptime ion-icon {
+  font-size: 13px;
+}
+
+/* Traffic row */
+.traffic-row {
+  display: flex;
+  justify-content: space-around;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--ion-color-step-100);
+}
+
+.traffic-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--ion-color-medium);
+}
+
+.traffic-item ion-icon {
+  font-size: 14px;
+}
+
+/* Offline content */
+.offline-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px 16px;
+  color: var(--ion-color-medium);
+}
+
+.offline-content ion-icon {
+  font-size: 36px;
+  margin-bottom: 6px;
+  opacity: 0.5;
+}
+
+.offline-content span {
+  font-size: 13px;
+}
+
+/* Card actions */
+.card-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 12px 8px;
+}
+
+.card-actions ion-button {
+  --border-radius: 8px;
+  font-size: 12px;
+  height: 28px;
+}
+
+/* Batch toolbar */
+.batch-toolbar {
+  --background: var(--ion-color-primary-tint);
+}

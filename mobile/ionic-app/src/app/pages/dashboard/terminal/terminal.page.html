@@ -1,0 +1,182 @@
+<ion-header class="ion-no-border" [class.terminal-active]="activeSession">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-menu-button></ion-menu-button>
+    </ion-buttons>
+    
+    <!-- Host Selection -->
+    <ion-title style="padding: 0 8px;">
+      <ion-select 
+        interface="action-sheet" 
+        [placeholder]="'terminal.selectHost' | translate" 
+        (ionChange)="handleHostSelect($event)" 
+        class="host-selector">
+        <ion-select-option *ngFor="let host of hosts" [value]="host">
+          {{ host.name }} ({{ host.host }})
+        </ion-select-option>
+      </ion-select>
+    </ion-title>
+    
+    <ion-buttons slot="end">
+      <!-- Session active: keyboard + menu -->
+      <ng-container *ngIf="activeSession">
+        <ion-button fill="clear" size="small" (click)="toggleKeyboardToolbar()">
+          <ion-icon name="keypad"></ion-icon>
+        </ion-button>
+        <ion-button fill="clear" size="small" id="terminal-menu">
+          <ion-icon name="ellipsis-vertical"></ion-icon>
+        </ion-button>
+        <ion-popover #popover trigger="terminal-menu" side="end" alignment="end">
+          <ng-template>
+            <ion-list lines="none">
+              <ion-item button detail="false" (click)="popover.dismiss(); reconnect()" *ngIf="!activeSession.connected">
+                <ion-icon name="refresh" slot="start" color="primary"></ion-icon>
+                <ion-label>{{ 'terminal.reconnect' | translate }}</ion-label>
+              </ion-item>
+              <ion-item button detail="false" (click)="popover.dismiss(); disconnect()" *ngIf="activeSession.connected">
+                <ion-icon name="close-circle" slot="start" color="danger"></ion-icon>
+                <ion-label>{{ 'terminal.disconnect' | translate }}</ion-label>
+              </ion-item>
+              <ion-item button detail="false" (click)="popover.dismiss(); toggleSftp()">
+                <ion-icon name="folder-open" slot="start"></ion-icon>
+                <ion-label>{{ 'terminal.sftp' | translate }}</ion-label>
+              </ion-item>
+              <ion-item button detail="false" (click)="popover.dismiss(); showQuickCommands()">
+                <ion-icon name="flash" slot="start"></ion-icon>
+                <ion-label>{{ 'terminal.commands' | translate }}</ion-label>
+              </ion-item>
+              <ion-item button detail="false" (click)="popover.dismiss(); copySelection()">
+                <ion-icon name="copy" slot="start"></ion-icon>
+                <ion-label>{{ 'common.copy' | translate }}</ion-label>
+              </ion-item>
+              <ion-item button detail="false" (click)="popover.dismiss(); pasteFromClipboard()">
+                <ion-icon name="clipboard" slot="start"></ion-icon>
+                <ion-label>{{ 'common.paste' | translate }}</ion-label>
+              </ion-item>
+            </ion-list>
+          </ng-template>
+        </ion-popover>
+      </ng-container>
+      
+      <!-- No session: quick connect -->
+      <ion-button *ngIf="!activeSession" fill="clear" size="small" (click)="quickConnect()">
+        <ion-icon name="flash"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <!-- Web-style Tabs (VS Code style) -->
+  <div class="web-tabs-container" *ngIf="sessions.length > 0">
+    <div class="web-tabs-scrollable">
+      <div 
+        class="web-tab" 
+        *ngFor="let session of sessions" 
+        [class.active]="session.id === activeSessionId"
+        (click)="setActiveSession(session.id)">
+        <div class="status-dot" [class.connected]="session.connected"></div>
+        <span class="tab-title">{{ session.hostName }}</span>
+        <ion-icon name="close" class="close-tab" (click)="closeSession(session.id); $event.stopPropagation()"></ion-icon>
+      </div>
+    </div>
+  </div>
+
+  <!-- Empty State -->
+  <div class="empty-terminal-state" *ngIf="sessions.length === 0 && !loading">
+    <ion-icon name="terminal-outline"></ion-icon>
+    <h3>{{ 'terminal.noActiveTerminals' | translate }}</h3>
+    <p>{{ 'terminal.selectHost' | translate }}</p>
+    <ion-button (click)="quickConnect()">
+      <ion-icon name="flash" slot="start"></ion-icon>
+      {{ 'terminal.quickConnect' | translate }}
+    </ion-button>
+  </div>
+
+  <div *ngIf="sessions.length > 0" class="terminal-wrapper">
+    <!-- Terminal Containers -->
+    <div class="terminals-container">
+      <div
+        *ngFor="let session of sessions"
+        [id]="'term-wrap-' + session.id"
+        class="terminal-container-slot"
+        [class.active-terminal]="session.id === activeSessionId">
+      </div>
+    </div>
+    
+    <!-- Virtual Keyboard Toolbar -->
+    <div class="keyboard-toolbar" *ngIf="showKeyboardToolbar">
+      <div class="keyboard-row">
+        <!-- Selection Mode Button -->
+        <ion-button size="small" (click)="toggleSelectionMode()" [class.selection-active-btn]="selectionModeActive" style="--background:#007aff;--color:#fff;">
+          <ion-icon name="create-outline" slot="start"></ion-icon>
+          {{ selectionModeActive ? ('terminal.done' | translate) : '选择' }}
+        </ion-button>
+
+        <!-- Modifier Keys -->
+        <ion-button size="small" [class.active]="modifiers.ctrl" (click)="toggleModifier('ctrl')" class="modifier-btn">Ctrl</ion-button>
+        <ion-button size="small" [class.active]="modifiers.alt" (click)="toggleModifier('alt')" class="modifier-btn">Alt</ion-button>
+        <ion-button size="small" [class.active]="modifiers.shift" (click)="toggleModifier('shift')" class="modifier-btn">Shift</ion-button>
+        
+        <div class="key-separator"></div>
+        
+        <!-- Common Keys -->
+        <ion-button size="small" (click)="sendKey('Escape')">Esc</ion-button>
+        <ion-button size="small" (click)="sendKey('Tab')">Tab</ion-button>
+        
+        <div class="key-separator"></div>
+        
+        <!-- Arrow Keys -->
+        <ion-button size="small" (click)="sendKey('ArrowUp')">↑</ion-button>
+        <ion-button size="small" (click)="sendKey('ArrowDown')">↓</ion-button>
+        <ion-button size="small" (click)="sendKey('ArrowLeft')">←</ion-button>
+        <ion-button size="small" (click)="sendKey('ArrowRight')">→</ion-button>
+      </div>
+      
+      <div class="keyboard-row">
+        <!-- Control Keys -->
+        <ion-button size="small" (click)="sendCtrlKey('c')">^C</ion-button>
+        <ion-button size="small" (click)="sendCtrlKey('d')">^D</ion-button>
+        <ion-button size="small" (click)="sendCtrlKey('z')">^Z</ion-button>
+        <ion-button size="small" (click)="sendCtrlKey('l')">^L</ion-button>
+        <ion-button size="small" (click)="sendCtrlKey('a')">^A</ion-button>
+        <ion-button size="small" (click)="sendCtrlKey('e')">^E</ion-button>
+        <ion-button size="small" (click)="sendCtrlKey('u')">^U</ion-button>
+        <ion-button size="small" (click)="sendCtrlKey('r')">^R</ion-button>
+        
+        <div class="key-separator"></div>
+        
+        <!-- Special Characters -->
+        <ion-button size="small" (click)="sendChar('|')">|</ion-button>
+        <ion-button size="small" (click)="sendChar('&')">&amp;</ion-button>
+        <ion-button size="small" (click)="sendChar('~')">~</ion-button>
+        <ion-button size="small" (click)="sendChar('/')">/</ion-button>
+        <ion-button size="small" (click)="sendChar('-')">-</ion-button>
+        <ion-button size="small" (click)="sendChar('_')">_</ion-button>
+      </div>
+      
+      <div class="keyboard-row">
+        <!-- Action Buttons -->
+        <ion-button size="small" (click)="copySelection()" color="secondary">
+          <ion-icon name="copy" slot="start"></ion-icon>
+          {{ 'common.copy' | translate }}
+        </ion-button>
+        <ion-button size="small" (click)="pasteFromClipboard()" color="secondary">
+          <ion-icon name="clipboard" slot="start"></ion-icon>
+          {{ 'common.paste' | translate }}
+        </ion-button>
+        <ion-button size="small" (click)="toggleKeyboardToolbar()" color="medium">
+          <ion-icon name="close" slot="start"></ion-icon>
+          {{ 'common.close' | translate }}
+        </ion-button>
+      </div>
+    </div>
+    
+    <!-- Show Keyboard Button -->
+    <ion-fab vertical="bottom" horizontal="end" slot="fixed" *ngIf="!showKeyboardToolbar && activeSession">
+      <ion-fab-button size="small" (click)="toggleKeyboardToolbar()">
+        <ion-icon name="keypad"></ion-icon>
+      </ion-fab-button>
+    </ion-fab>
+  </div>
+</ion-content>
