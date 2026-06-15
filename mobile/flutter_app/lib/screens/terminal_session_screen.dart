@@ -1,0 +1,362 @@
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import 'package:xterm/xterm.dart';
+import '../app/antd_tokens.dart';
+import '../providers/app_state.dart';
+import '../services/terminal_service.dart';
+import '../widgets/antd/index.dart';
+
+class TerminalSessionView extends StatefulWidget {
+  final int hostId;
+  final bool record;
+
+  const TerminalSessionView({
+    super.key,
+    required this.hostId,
+    this.record = false,
+  });
+
+  @override
+  State<TerminalSessionView> createState() => _TerminalSessionViewState();
+}
+
+class _TerminalSessionViewState extends State<TerminalSessionView> {
+  late final Terminal terminal;
+  late final TerminalController terminalController;
+  final FocusNode _focusNode = FocusNode();
+  TerminalService? _terminalService;
+
+  void _showLongPressMenu() {
+    final hasSelection = terminalController.selection != null;
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (!hasSelection)
+              ListTile(
+                leading: const Icon(Icons.select_all),
+                title: const Text('Select All & Copy'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _selectAllAndCopy();
+                },
+              ),
+            if (hasSelection)
+              ListTile(
+                leading: const Icon(Icons.copy),
+                title: const Text('Copy'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _copySelection();
+                },
+              ),
+            ListTile(
+              leading: const Icon(Icons.content_paste),
+              title: const Text('Paste'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _pasteFromClipboard();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.close),
+              title: const Text('Cancel'),
+              onTap: () => Navigator.pop(ctx),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _selectAllAndCopy() {
+    final lines = terminal.buffer.lines;
+    final height = terminal.viewHeight;
+    if (lines.length == 0 || height == 0) return;
+
+    // Select from first visible line to last visible line
+    final firstLine = lines[0];
+    final lastIdx = height - 1 < lines.length ? height - 1 : lines.length - 1;
+    final lastLine = lines[lastIdx];
+
+    final base = CellAnchor(0, owner: firstLine);
+    final extent = CellAnchor(0, owner: lastLine);
+    terminalController.setSelection(base, extent);
+
+    // Auto-copy after selection is set
+    Future.delayed(const Duration(milliseconds: 100), () {
+      _copySelection();
+    });
+  }
+
+  void _copySelection() {
+    final selection = terminalController.selection;
+    if (selection != null) {
+      final text = terminal.buffer.getText(selection);
+      if (text.isNotEmpty) {
+        Clipboard.setData(ClipboardData(text: text));
+        terminalController.clearSelection();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text('Copied to clipboard'),
+                duration: Duration(seconds: 1)),
+          );
+        }
+      }
+    }
+  }
+
+  Future<void> _pasteFromClipboard() async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    if (data?.text != null && data!.text!.isNotEmpty) {
+      _terminalService?.write(data.text!);
+      _focusNode.requestFocus();
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    terminal = Terminal(
+      maxLines: 10000,
+    );
+    terminalController = TerminalController();
+
+    // Setup input routing: from terminal view -> websocket
+    terminal.onOutput = (data) {
+      _terminalService?.write(data);
+    };
+
+    // Setup resize routing: from terminal view -> websocket
+    terminal.onResize = (width, height, pixelWidth, pixelHeight) {
+      _terminalService?.resize(width, height);
+    };
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _connect();
+    });
+  }
+
+  void _connect() async {
+    final appState = context.read<AppState>();
+    _terminalService = TerminalService(
+      appState,
+      widget.hostId.toString(),
+      record: widget.record,
+    );
+
+    _terminalService?.onData = (text) {
+      terminal.write(text);
+    };
+
+    final success = await _terminalService?.connect() ?? false;
+    if (!success) {
+      terminal.write('\r\nFailed to get WS ticket or connect.\r\n');
+    }
+  }
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    _terminalService?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Consumer<AppState>(
+      builder: (context, state, child) {
+        return Column(
+          children: [
+            Expanded(
+              child: GestureDetector(
+                onTap: () {
+                  _focusNode.requestFocus();
+                },
+                onLongPress: _showLongPressMenu,
+                child: ColoredBox(
+                  color: Colors.black, // true black for terminal
+                  child: TerminalView(
+                    terminal,
+                    controller: terminalController,
+                    focusNode: _focusNode,
+                    hardwareKeyboardOnly: !kIsWeb &&
+                        (Platform.isWindows ||
+                            Platform.isMacOS ||
+                            Platform.isLinux),
+                    backgroundOpacity: 1.0,
+                    textStyle: TerminalStyle(
+                      fontSize: state.terminalFontSize,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            // Termius-style virtual keyboard bar
+            _buildVirtualKeyboard(),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showCommandTemplates() {
+    final appState = context.read<AppState>();
+    if (appState.commandTemplates.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('暂无命令模板，请在设置中添加')),
+      );
+      return;
+    }
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AntdTokens.containerColor(context),
+      shape: RoundedRectangleBorder(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+        side: BorderSide(color: AntdTokens.borderSecondaryColor(context)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Text(
+                '命令模板',
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: AntdTokens.fontSizeLG,
+                  color: AntdTokens.textColor(context),
+                ),
+              ),
+            ),
+            Container(
+              height: 1,
+              color: AntdTokens.borderSecondaryColor(context),
+            ),
+            Flexible(
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: appState.commandTemplates.length,
+                separatorBuilder: (_, __) => Container(
+                  height: 1,
+                  color: AntdTokens.borderSecondaryColor(context),
+                ),
+                itemBuilder: (context, index) {
+                  final t = appState.commandTemplates[index];
+                  return ListTile(
+                    leading: const Icon(Icons.code, size: 18),
+                    title: Text(
+                      t.name,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    subtitle: Text(
+                      t.command,
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 11,
+                      ),
+                    ),
+                    onTap: () {
+                      _terminalService?.write(t.command);
+                      Navigator.pop(ctx);
+                    },
+                    trailing: AntdButton(
+                      type: AntdButtonType.text,
+                      icon: Icons.copy,
+                      onPressed: () {
+                        Clipboard.setData(ClipboardData(text: t.command));
+                        Navigator.pop(ctx);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('已复制'),
+                            duration: Duration(seconds: 1),
+                          ),
+                        );
+                      },
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildVirtualKeyboard() {
+    return Container(
+      color: const Color(0xFF171B2D),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      height: 48,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        children: [
+          _buildKey('Esc', '\x1b'),
+          _buildKey('Tab', '\t'),
+          _buildKey('Ctrl+C', '\x03'),
+          _buildKey('Ctrl+D', '\x04'),
+          _buildKey('Ctrl+Z', '\x1A'),
+          _buildKey('↑', '\x1b[A'),
+          _buildKey('↓', '\x1b[B'),
+          _buildKey('←', '\x1b[D'),
+          _buildKey('→', '\x1b[C'),
+          _buildKey('|', '|'),
+          _buildKey('/', '/'),
+          _buildKey('-', '-'),
+          Material(
+            color: const Color(0xFF2D3354),
+            borderRadius: BorderRadius.circular(6),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(6),
+              onTap: _showCommandTemplates,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                alignment: Alignment.center,
+                child: const Row(
+                  children: [
+                    Icon(Icons.code, size: 14),
+                    SizedBox(width: 4),
+                    Text('模板', style: TextStyle(fontWeight: FontWeight.bold)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildKey(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 2.0),
+      child: Material(
+        color: const Color(0xFF2D3354),
+        borderRadius: BorderRadius.circular(6),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(6),
+          onTap: () {
+            _terminalService?.write(value);
+            _focusNode.requestFocus();
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            alignment: Alignment.center,
+            child: Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
