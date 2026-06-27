@@ -1,0 +1,9 @@
+{
+  "name": "termiscope-e2e-tests",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "E2E testing suite for TermiScope",
+  "scripts": {
+    "test": "node runner.js"
+  }
+}
