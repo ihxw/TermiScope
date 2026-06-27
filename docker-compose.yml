@@ -1,0 +1,18 @@
+version: '3.8'
+
+services:
+  termiscope:
+    build: .
+    container_name: termiscope
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - TERMISCOPE_PORT=3000
+      - TERMISCOPE_DB_PATH=/app/data/termiscope.db
+      - TERMISCOPE_JWT_SECRET=container-e2e-jwt-secret-32-bytes-minimum
+      - TERMISCOPE_ENCRYPTION_KEY=container-e2e-encryption-key-32!
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: always
