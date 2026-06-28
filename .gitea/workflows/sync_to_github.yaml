@@ -1,0 +1,91 @@
+name: Sync to GitHub on Version Bump
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'web/package.json' # 初步过滤：只有当 web/package.json 文件发生变动时才触发工作流
+
+jobs:
+  deploy-to-github:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 2 # 必须拉取最近的2次提交，否则无法进行 diff 对比
+
+        # 🛠️ 新增这一步：在容器环境里动态安装 jq
+      - name: Install jq
+        run: |
+          if ! command -v jq &> /dev/null; then
+            echo "📥 正在安装 jq..."
+            apt-get update && apt-get install -y jq
+          fi
+
+      - name: Check if version changed
+        id: version_check
+        run: |
+          # 1. 提取当前提交的版本号
+          CURRENT_VERSION=$(jq -r '.version' web/package.json)
+          echo "当前版本: $CURRENT_VERSION"
+          
+          # 2. 提取上一次提交的版本号 (从 HEAD~1 中提取该文件)
+          OLD_VERSION=$(git show HEAD~1:web/package.json | jq -r '.version')
+          echo "前一版本: $OLD_VERSION"
+          
+          # 3. 比对版本号
+          if [ "$CURRENT_VERSION" = "$OLD_VERSION" ]; then
+            echo "ℹ️ package.json 被修改了，但 version 没有改变。跳过同步。"
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "🚀 检测到版本号从 $OLD_VERSION 变更为 $CURRENT_VERSION！准备同步。"
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "new_version=$CURRENT_VERSION" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Push to GitHub with clean history
+        if: steps.version_check.outputs.changed == 'true'
+        env:
+            GH_TOKEN: ${{ secrets.GH_TOKEN_SECRET }}
+        run: |
+            set -euo pipefail
+            git config --global user.name "Gitea Bot"
+            git config --global user.email "bot@gitea.local"
+            git config --global url."https://${GH_TOKEN}@github.com/".insteadOf "https://github.com/"
+
+            GITHUB_REPO="https://github.com/ihxw/TermiScope.git"
+            git remote add github "${GITHUB_REPO}" 2>/dev/null || git remote set-url github "${GITHUB_REPO}"
+            git fetch github main --depth=1
+
+            git checkout --orphan deploy-branch
+            git add -A
+            # 同步 .github/workflows 到 GitHub，否则自建 Runner 的 CI 修复无法生效。
+            # GH_TOKEN_SECRET 需具备 workflow 权限；若无权限，推送会失败，需手动更新 GitHub 上的 workflow。
+            git commit -m "Release v${{ steps.version_check.outputs.new_version }} [skip ci]"
+            git push "${GITHUB_REPO}" deploy-branch:main --force
+            git config --global --unset url."https://${GH_TOKEN}@github.com/".insteadOf
+
+      - name: Trigger GitHub Actions (repository_dispatch)
+        if: steps.version_check.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN_SECRET }}
+          VERSION: ${{ steps.version_check.outputs.new_version }}
+        run: |
+          set -euo pipefail
+          # 不依赖 push 事件触发（orphan 全量推送 + 旧 workflow paths 过滤会导致 Actions 不运行）
+          # repository_dispatch 只需 PAT 的 repo 权限，不需要 workflow 权限
+          HTTP_CODE=$(curl -sS -o /tmp/dispatch_resp.json -w "%{http_code}" \
+            -X POST \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "Content-Type: application/json" \
+            "https://api.github.com/repos/ihxw/TermiScope/dispatches" \
+            -d "{\"event_type\":\"sync-from-gitea\",\"client_payload\":{\"version\":\"${VERSION}\"}}")
+          if [ "$HTTP_CODE" != "204" ]; then
+            echo "repository_dispatch 失败 (HTTP ${HTTP_CODE})" >&2
+            cat /tmp/dispatch_resp.json >&2 || true
+            exit 1
+          fi
+          echo "已触发 GitHub Actions: sync-from-gitea, version=${VERSION}"
