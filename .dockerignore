@@ -1,0 +1,17 @@
+.git
+.agents
+.codex
+data
+logs
+web/node_modules
+web/dist
+mobile/flutter_app/build
+mobile/flutter_app/.dart_tool
+mobile/flutter_app/.pub-cache
+mobile/flutter_app/packages/xterm/example/build
+node_modules
+dist
+*.db
+*.log
+server
+agents
