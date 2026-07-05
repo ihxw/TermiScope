@@ -1,0 +1,124 @@
+# TermiScope local Codex rules
+#
+# Conservative allowlist for common read-only and test commands in this repo.
+# Keep write/mutation commands interactive so they still need confirmation.
+
+prefix_rule(
+    pattern = ["git", "status"],
+    decision = "allow",
+    justification = "Read-only repo inspection",
+    match = [
+        "git status",
+        "git status --short",
+        "git status -sb",
+    ],
+)
+
+prefix_rule(
+    pattern = ["git", "diff"],
+    decision = "allow",
+    justification = "Read-only diff inspection",
+    match = [
+        "git diff",
+        "git diff --stat",
+        "git diff --cached --stat",
+    ],
+)
+
+prefix_rule(
+    pattern = ["git", "log"],
+    decision = "allow",
+    justification = "Read-only history inspection",
+    match = [
+        "git log",
+        "git log --oneline",
+        "git log --decorate --graph --oneline",
+    ],
+)
+
+prefix_rule(
+    pattern = ["git", "show"],
+    decision = "allow",
+    justification = "Read-only commit inspection",
+    match = [
+        "git show",
+        "git show HEAD",
+    ],
+)
+
+prefix_rule(
+    pattern = ["git", "branch"],
+    decision = "allow",
+    justification = "Read-only branch inspection",
+    match = [
+        "git branch",
+        "git branch --show-current",
+        "git branch -a",
+    ],
+)
+
+prefix_rule(
+    pattern = ["git", "rev-parse"],
+    decision = "allow",
+    justification = "Read-only repo metadata inspection",
+    match = [
+        "git rev-parse --show-toplevel",
+        "git rev-parse --abbrev-ref HEAD",
+    ],
+)
+
+prefix_rule(
+    pattern = ["go", "test"],
+    decision = "allow",
+    justification = "Safe test command used frequently in this repo",
+    match = [
+        "go test",
+        "go test ./...",
+        "go test ./... -run TestName",
+    ],
+)
+
+prefix_rule(
+    pattern = ["npm", "run", "dev"],
+    decision = "allow",
+    justification = "Frontend dev server is a common local workflow",
+    match = [
+        "npm run dev",
+    ],
+)
+
+prefix_rule(
+    pattern = ["npm", "run", "build"],
+    decision = "allow",
+    justification = "Frontend build is a common local verification step",
+    match = [
+        "npm run build",
+    ],
+)
+
+prefix_rule(
+    pattern = ["npm", "run", "preview"],
+    decision = "allow",
+    justification = "Preview is a common local verification step",
+    match = [
+        "npm run preview",
+    ],
+)
+
+prefix_rule(
+    pattern = ["npm", "test"],
+    decision = "allow",
+    justification = "E2E test entrypoint in this repository",
+    match = [
+        "npm test",
+    ],
+)
+
+prefix_rule(
+    pattern = ["npm", "run", "test"],
+    decision = "allow",
+    justification = "E2E test entrypoint in this repository",
+    match = [
+        "npm run test",
+    ],
+)
