@@ -1,0 +1,97 @@
+name: Build and Publish Packages to Gitea
+
+# 已停用：发布改由 GitHub Actions 处理（Gitea sync_to_github → GitHub auto-release）
+# 如需手动在 Gitea 打包，在 Actions 页面手动触发 workflow_dispatch
+on:
+  workflow_dispatch:
+
+jobs:
+  build-and-publish:
+    name: Build and Publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build Release
+        shell: bash
+        run: bash ./build_release.sh
+
+      - name: Get Version and SHA
+        id: meta
+        shell: bash
+        run: |
+          VERSION=$(node -e "console.log(require('./web/package.json').version)")
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "sha=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "pkg_version=${VERSION}-${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish Generic Packages to Gitea
+        shell: bash
+        run: |
+          PKG_VERSION="${{ steps.meta.outputs.pkg_version }}"
+          echo "Publishing generic packages to Gitea with version: ${PKG_VERSION}"
+          
+          # Ensure release directory exists and contains files
+          if [ -d "release" ] && [ "$(ls -A release)" ]; then
+            for file in release/*; do
+              if [ -f "$file" ]; then
+                filename=$(basename "$file")
+                echo "🚀 Uploading ${filename}..."
+                curl --fail -X PUT \
+                  -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                  --upload-file "$file" \
+                  "${{ github.server_url }}/api/packages/${{ github.repository_owner }}/generic/TermiScope/${PKG_VERSION}/${filename}"
+              fi
+            done
+            echo "✅ Generic packages successfully uploaded!"
+          else
+            echo "❌ No release files found to upload."
+            exit 1
+          fi
+
+      - name: Log in to Gitea Container Registry
+        shell: bash
+        run: |
+          URL_WITHOUT_SCHEME=$(echo "${{ github.server_url }}" | sed -e 's|^[^/]*//||')
+          REGISTRY_HOST=$(echo "$URL_WITHOUT_SCHEME" | cut -d'/' -f1)
+          echo "Logging in to Gitea Container Registry: $REGISTRY_HOST"
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login "$REGISTRY_HOST" -u "${{ github.actor }}" --password-stdin
+
+      - name: Build and Push Docker Image
+        shell: bash
+        run: |
+          URL_WITHOUT_SCHEME=$(echo "${{ github.server_url }}" | sed -e 's|^[^/]*//||')
+          REGISTRY_HOST=$(echo "$URL_WITHOUT_SCHEME" | cut -d'/' -f1)
+          
+          REPO_NAME_LOWER=$(echo "${{ github.event.repository.name }}" | tr '[:upper:]' '[:lower:]')
+          OWNER_LOWER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          
+          IMAGE_TAG_VERSION="$REGISTRY_HOST/$OWNER_LOWER/$REPO_NAME_LOWER:${{ steps.meta.outputs.pkg_version }}"
+          IMAGE_TAG_LATEST="$REGISTRY_HOST/$OWNER_LOWER/$REPO_NAME_LOWER:latest"
+          
+          echo "Building Docker image..."
+          docker build -t "$IMAGE_TAG_VERSION" -t "$IMAGE_TAG_LATEST" .
+          
+          echo "Pushing Docker image..."
+          docker push "$IMAGE_TAG_VERSION"
+          docker push "$IMAGE_TAG_LATEST"
+          echo "✅ Docker images successfully built and pushed!"
