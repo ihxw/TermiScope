@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xxd /Users/yjw/Code/github/TermiScope/web/src/locales/zh-CN.js)",
+      "Bash(find /Users/yjw/.pub-cache -name \"terminal_view.dart\" -path \"*xterm*\" 2>/dev/null | head -5)",
+      "Read(//Users/yjw/.pub-cache/**)"
+    ]
+  }
+}
