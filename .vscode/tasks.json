@@ -1,0 +1,153 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Go: test all",
+      "type": "shell",
+      "command": "go test ./...",
+      "group": "test",
+      "problemMatcher": "$go"
+    },
+    {
+      "label": "Go: build server",
+      "type": "shell",
+      "command": "go build ./cmd/server",
+      "group": "build",
+      "problemMatcher": "$go"
+    },
+    {
+      "label": "Go: build agent",
+      "type": "shell",
+      "command": "go build ./cmd/agent",
+      "group": "build",
+      "problemMatcher": "$go"
+    },
+    {
+      "label": "Web: install dependencies",
+      "type": "shell",
+      "command": "npm install",
+      "options": {
+        "cwd": "${workspaceFolder}/web"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Web: dev server",
+      "type": "shell",
+      "command": "npm run dev -- --host 0.0.0.0",
+      "options": {
+        "cwd": "${workspaceFolder}/web"
+      },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "vite",
+        "pattern": {
+          "regexp": "^(.*)$",
+          "file": 1,
+          "location": 2,
+          "message": 3
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".*",
+          "endsPattern": "Local:|Network:"
+        }
+      }
+    },
+    {
+      "label": "Web: build",
+      "type": "shell",
+      "command": "npm run build",
+      "options": {
+        "cwd": "${workspaceFolder}/web"
+      },
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "Web: preview",
+      "type": "shell",
+      "command": "npm run preview -- --host 0.0.0.0",
+      "options": {
+        "cwd": "${workspaceFolder}/web"
+      },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "Flutter: pub get",
+      "type": "shell",
+      "command": "/root/flutter/bin/flutter pub get",
+      "options": {
+        "cwd": "${workspaceFolder}/mobile/flutter_app"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Flutter: analyze",
+      "type": "shell",
+      "command": "/root/flutter/bin/flutter analyze",
+      "options": {
+        "cwd": "${workspaceFolder}/mobile/flutter_app"
+      },
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Flutter: test",
+      "type": "shell",
+      "command": "/root/flutter/bin/flutter test",
+      "options": {
+        "cwd": "${workspaceFolder}/mobile/flutter_app"
+      },
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Flutter: run web server",
+      "type": "shell",
+      "command": "/root/flutter/bin/flutter run -d web-server --web-hostname 0.0.0.0 --web-port 8088",
+      "options": {
+        "cwd": "${workspaceFolder}/mobile/flutter_app"
+      },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "Flutter: build web",
+      "type": "shell",
+      "command": "/root/flutter/bin/flutter build web",
+      "options": {
+        "cwd": "${workspaceFolder}/mobile/flutter_app"
+      },
+      "group": "build",
+      "problemMatcher": []
+    },
+    {
+      "label": "E2E: install dependencies",
+      "type": "shell",
+      "command": "npm install",
+      "options": {
+        "cwd": "${workspaceFolder}/e2e-tests"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "E2E: test",
+      "type": "shell",
+      "command": "npm test",
+      "options": {
+        "cwd": "${workspaceFolder}/e2e-tests"
+      },
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Release: linux amd64 package",
+      "type": "shell",
+      "command": "bash scripts/build_linux_amd64.sh",
+      "group": "build",
+      "problemMatcher": []
+    }
+  ]
+}
