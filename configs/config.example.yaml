@@ -1,0 +1,30 @@
+# Copy to configs/config.yaml and set secrets (or use TERMISCOPE_JWT_SECRET / TERMISCOPE_ENCRYPTION_KEY).
+# Do not commit config.yaml with real secrets.
+
+database:
+    path: ./data/termiscope.db
+log:
+    file: ./logs/app.log
+    level: info
+security:
+    access_expiration: 60m
+    # jwt_secret: <64+ hex chars or set TERMISCOPE_JWT_SECRET>
+    # encryption_key: <32 hex chars or set TERMISCOPE_ENCRYPTION_KEY>
+    login_rate_limit: 20
+    refresh_expiration: 168h
+server:
+    # Public URL used in generated emails and scripts. Set this in production.
+    # public_base_url: https://termiscope.example.com
+    allowed_origins:
+        - http://localhost:5173
+        - http://127.0.0.1:5173
+        - http://localhost:8080
+        - http://127.0.0.1:8080
+    max_upload_size: 524288000
+    mode: release
+    port: 8080
+    timezone: Local
+ssh:
+    idle_timeout: 30m
+    max_connections_per_user: 10
+    timeout: 30s
