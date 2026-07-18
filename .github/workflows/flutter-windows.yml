@@ -1,0 +1,82 @@
+name: Flutter Windows x86_64
+
+on:
+  repository_dispatch:
+    types:
+      - flutter-windows-build
+  push:
+    branches:
+      - main
+    paths:
+      - 'mobile/flutter_app/**'
+      - '.github/workflows/flutter-windows.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: flutter-windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: mobile/flutter_app
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze app sources
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings lib test
+
+      - name: Run tests
+        run: flutter test
+
+      - name: Build Windows x86_64
+        run: flutter build windows --release
+
+      - name: Package Windows build
+        id: package
+        shell: pwsh
+        run: |
+          $versionLine = Select-String -Path pubspec.yaml -Pattern '^version:\s*(.+)$'
+          $version = $versionLine.Matches[0].Groups[1].Value.Trim().Replace('+', '-')
+          $name = "TermiScope-Flutter-Windows-x86_64-v$version"
+          Compress-Archive -Path 'build/windows/x64/runner/Release/*' -DestinationPath "$name.zip" -Force
+          "name=$name" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "tag=flutter-v$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.name }}
+          path: mobile/flutter_app/${{ steps.package.outputs.name }}.zip
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish downloadable Windows build
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.package.outputs.tag }}
+          name: TermiScope Flutter v${{ steps.package.outputs.version }}
+          body: |
+            Flutter Windows x86_64 release build.
+
+            Source workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          files: mobile/flutter_app/${{ steps.package.outputs.name }}.zip
+          prerelease: true
+          make_latest: false
