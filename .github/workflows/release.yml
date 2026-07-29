@@ -1,0 +1,89 @@
+# 手动补发用；自动发布由 auto-release.yml 完成（避免 tag push 再次触发重复构建）
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Git tag (e.g. v1.5.38 or 1.5.38)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build and Release
+    runs-on: self-hosted
+    env:
+      HOME: /root
+      XDG_CACHE_HOME: /root/.cache
+      GOCACHE: /root/.cache/go-build
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+
+      - name: Prepare self-hosted runner env
+        shell: bash
+        run: bash ./scripts/ci/prepare_runner_env.sh
+
+      - name: Detect existing toolchain
+        id: toolchain
+        shell: bash
+        run: bash ./scripts/ci/detect_release_toolchain.sh
+
+      - name: Setup Go
+        if: steps.toolchain.outputs.setup_go == 'true'
+        shell: bash
+        run: bash ./scripts/ci/setup_go.sh
+
+      - name: Setup Node.js
+        if: steps.toolchain.outputs.setup_node == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install OS build tools (Linux)
+        if: runner.os == 'Linux' && steps.toolchain.outputs.install_os_deps == 'true'
+        shell: bash
+        run: bash ./scripts/ci/install_release_deps.sh
+
+      - name: Verify build environment
+        shell: bash
+        run: bash ./scripts/ci/verify_release_env.sh
+
+      - name: Build Release
+        shell: bash
+        run: bash ./build_release.sh
+
+      - name: Fix Scripts Line Endings
+        shell: bash
+        run: |
+          for script in scripts/install.sh scripts/uninstall.sh; do
+            if [ -f "$script" ]; then
+              sed -i 's/\r$//' "$script"
+            fi
+          done
+
+      - name: Prepare Release Notes
+        id: prepare_release
+        shell: bash
+        run: bash ./scripts/ci/prepare_auto_release.sh "${{ inputs.tag }}"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.tag }}
+          name: Release ${{ inputs.tag }}
+          body_path: release_notes.md
+          files: |
+            release/*
+            scripts/install.sh
+            scripts/install.ps1
+          draft: false
+          prerelease: false
