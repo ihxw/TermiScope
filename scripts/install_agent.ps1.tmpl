@@ -1,0 +1,181 @@
+# TermiScope Windows Agent Installation Script
+
+param (
+    [string]$ServerUrl = "{{SERVER_URL}}",
+    [string]$HostId = "{{HOST_ID}}",
+    [string]$Secret = "{{SECRET}}"
+)
+
+# Check for Administrator privileges
+if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) {
+    Write-Warning "This script requires Administrator privileges. Please run as Administrator."
+    exit 1
+}
+
+$ErrorActionPreference = "Stop"
+
+$InstallDir = "C:\Program Files\TermiScope\Agent"
+$AgentName = "termiscope-agent.exe"
+$AgentPath = Join-Path $InstallDir $AgentName
+$ServiceName = "TermiScopeAgent"
+
+Write-Host "Installing TermiScope Agent for Host ID: $HostId" -ForegroundColor Cyan
+
+# Keep Windows PowerShell 5.1 / Server 2016 compatible with HTTPS endpoints that
+# require TLS 1.2.
+try {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+} catch {
+    Write-Warning "Unable to enable TLS 1.2 explicitly: $($_.Exception.Message)"
+}
+
+# Create installation directory
+if (-not (Test-Path $InstallDir)) {
+    New-Item -ItemType Directory -Path $InstallDir -Force | Out-Null
+}
+
+# Stop existing service if running
+$Service = Get-Service -Name $ServiceName -ErrorAction SilentlyContinue
+if ($Service) {
+    Write-Host "Stopping existing service..."
+    Stop-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
+    # Optional: Uninstall old service if we want a clean slate, but update might be enough
+    # For now, let's try to update in place.
+    # Actually, to update the binary, we MUST stop the service.
+    
+    # If the service is running, the file is locked.
+    # We should uninstall it to be safe and ensure new arguments are applied if needed.
+    Write-Host "Uninstalling existing service..."
+    & $AgentPath -service uninstall
+    
+    # Wait a bit for release
+    Start-Sleep -Seconds 2
+}
+
+# Download Agent
+# Detect Architecture
+$Arch = $env:PROCESSOR_ARCHITECTURE
+if ($Arch -eq "AMD64") {
+    $RemoteArch = "amd64"
+} elseif ($Arch -eq "ARM64") {
+    $RemoteArch = "arm64" 
+} else {
+    Write-Error "Unsupported architecture: $Arch"
+    exit 1
+}
+
+$DownloadUrl = "$ServerUrl/api/monitor/agent/termiscope-agent-windows-$RemoteArch.exe?host_id=$HostId"
+$TempPath = Join-Path $env:TEMP $AgentName
+
+Write-Host "Downloading agent from $ServerUrl..."
+Invoke-WebRequest -Uri $DownloadUrl -Headers @{ Authorization = "Bearer $Secret" } -UseBasicParsing -OutFile $TempPath
+
+# Move to install dir
+Move-Item -Path $TempPath -Destination $AgentPath -Force
+
+# 写入或保留代理配置，先探测代理是否支持安全合并。
+$ConfigPath = Join-Path $InstallDir "agent.json"
+$ConfigJson = @{
+    server_url = $ServerUrl
+    secret = $Secret
+    host_id = [int64]$HostId
+    transfer_port = 61725
+} | ConvertTo-Json -Compress
+$PreviousErrorActionPreference = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+$Error.Clear()
+$AgentUsage = & $AgentPath -h 2>&1 | Out-String
+$Error.Clear()
+$ErrorActionPreference = $PreviousErrorActionPreference
+if ($AgentUsage -match "(?m)^\s+-write-config\b") {
+    # JSON 通过标准输入写入，秘密不进入命令行或子进程日志。
+    $ConfigWriter = New-Object System.Diagnostics.Process
+    $ConfigWriter.StartInfo.FileName = $AgentPath
+    $ConfigWriter.StartInfo.Arguments = '-write-config "{0}"' -f $ConfigPath
+    $ConfigWriter.StartInfo.UseShellExecute = $false
+    $ConfigWriter.StartInfo.CreateNoWindow = $true
+    $ConfigWriter.StartInfo.RedirectStandardInput = $true
+    $ConfigWriter.StartInfo.RedirectStandardOutput = $true
+    $ConfigWriter.StartInfo.RedirectStandardError = $true
+    try {
+        if (-not $ConfigWriter.Start()) {
+            throw "无法启动代理配置写入程序。"
+        }
+        $ConfigOutput = $ConfigWriter.StandardOutput.ReadToEndAsync()
+        $ConfigError = $ConfigWriter.StandardError.ReadToEndAsync()
+        $ConfigBytes = [System.Text.UTF8Encoding]::new($false).GetBytes($ConfigJson)
+        $ConfigWriter.StandardInput.BaseStream.Write($ConfigBytes, 0, $ConfigBytes.Length)
+        $ConfigWriter.StandardInput.Close()
+        $ConfigWriter.WaitForExit()
+        $ConfigOutput.GetAwaiter().GetResult() | Out-Null
+        $ConfigError.GetAwaiter().GetResult() | Out-Null
+        if ($ConfigWriter.ExitCode -ne 0) {
+            throw "代理拒绝更新配置。"
+        }
+    } catch {
+        throw "无法安全更新代理配置，已保留原配置；请检查配置格式及文件权限。"
+    } finally {
+        $ConfigWriter.Dispose()
+    }
+} elseif (Test-Path -LiteralPath $ConfigPath) {
+    throw "下载的代理不支持保留已有配置，请升级服务端提供的代理后重试；原配置未修改。"
+} else {
+    # 旧代理仅允许全新安装；限制为安装账户、管理员及系统账户访问。
+    $ConfigTempPath = Join-Path $InstallDir ([System.IO.Path]::GetRandomFileName())
+    $ConfigAccess = New-Object System.Security.AccessControl.FileSecurity
+    $ConfigAccess.SetAccessRuleProtection($true, $false)
+    $ConfigOwner = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
+    $ConfigAccess.SetOwner($ConfigOwner)
+    foreach ($ConfigIdentity in @(
+        $ConfigOwner,
+        [System.Security.Principal.SecurityIdentifier]::new("S-1-5-18"),
+        [System.Security.Principal.SecurityIdentifier]::new("S-1-5-32-544")
+    )) {
+        $ConfigRule = [System.Security.AccessControl.FileSystemAccessRule]::new(
+            $ConfigIdentity, [System.Security.AccessControl.FileSystemRights]::FullControl,
+            [System.Security.AccessControl.AccessControlType]::Allow
+        )
+        $ConfigAccess.AddAccessRule($ConfigRule)
+    }
+    try {
+        $ConfigStream = [System.IO.File]::Create($ConfigTempPath, 4096, [System.IO.FileOptions]::None, $ConfigAccess)
+        try {
+            $ConfigBytes = [System.Text.UTF8Encoding]::new($false).GetBytes($ConfigJson)
+            $ConfigStream.Write($ConfigBytes, 0, $ConfigBytes.Length)
+            $ConfigStream.Flush($true)
+        } finally {
+            $ConfigStream.Dispose()
+        }
+        # 同目录移动原子发布，目标若已出现则拒绝覆盖。
+        [System.IO.File]::Move($ConfigTempPath, $ConfigPath)
+    } catch {
+        throw "无法安全创建代理配置，已有配置未修改。"
+    } finally {
+        if (Test-Path -LiteralPath $ConfigTempPath) {
+            Remove-Item -LiteralPath $ConfigTempPath -Force
+        }
+    }
+}
+
+# 新代理使用配置文件；保留不支持 -config 的旧版服务安装参数兼容行为。
+Write-Host "Installing service..."
+if ($AgentUsage -match "(?m)^\s+-config\b") {
+    $InstallArgs = @("-config", "`"$ConfigPath`"", "-service", "install")
+} else {
+    Write-Warning "Downloaded agent does not support -config; installing with explicit service arguments."
+    $InstallArgs = @("-server", $ServerUrl, "-secret", $Secret, "-id", $HostId, "-interval", "10s", "-service", "install")
+}
+
+# Run the install command
+$Process = Start-Process -FilePath $AgentPath -ArgumentList $InstallArgs -Wait -PassThru -NoNewWindow
+if ($Process.ExitCode -ne 0) {
+    Write-Error "Failed to install service. Exit code: $($Process.ExitCode)"
+    exit 1
+}
+
+# Start Service
+Write-Host "Starting service..."
+Start-Service -Name $ServiceName
+
+Write-Host "Installation execution completed." -ForegroundColor Green
+Write-Host "Please check the dashboard to verify the host status."
